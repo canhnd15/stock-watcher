@@ -10,9 +10,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.ArrayList;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 @RestController
 @RequestMapping("/api/trades")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:8089")
 public class TradeController {
 
     private final TradeRepository tradeRepository;
@@ -91,6 +93,34 @@ public class TradeController {
             ingestionService.ingestForCode(stockCode);
         }
         return ResponseEntity.ok("Ingestion completed for all vn30: ");
+    }
+
+    @GetMapping("/recommendation")
+    public ResponseEntity<String> getRecommendation(
+            @RequestParam String code,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+    ) {
+        String normalized = code == null ? null : code.trim().toUpperCase();
+        if (normalized == null || normalized.isBlank()) {
+            return ResponseEntity.badRequest().body("code is required");
+        }
+        LocalDate tradeDate = (date == null) ? LocalDate.now() : date;
+        String rec = tradeRepository.recommendationFor(normalized, tradeDate);
+        if (rec == null) rec = "Neutral — hold";
+        return ResponseEntity.ok(rec);
+    }
+
+    @PostMapping("/reingest/{code}")
+    public ResponseEntity<?> reingest(@PathVariable String code) {
+        String normalized = code == null ? null : code.trim().toUpperCase();
+        if (normalized == null || normalized.isBlank()) {
+            return ResponseEntity.badRequest().body("code is required");
+        }
+        LocalDate today = LocalDate.now();
+        tradeRepository.deleteForCodeOnDate(normalized, today);
+        ingestionService.ingestForCode(normalized);
+        return ResponseEntity.ok("Re-ingested for code: " + normalized + " on date: " + today);
     }
 }
 

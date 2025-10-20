@@ -12,6 +12,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/stocks")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:8089")
 public class TrackedStockController {
 
     private final TrackedStockRepository trackedStockRepository;
