@@ -19,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 interface Trade {
   id: string;
@@ -39,6 +40,7 @@ const Trades = () => {
   const [ingestCode, setIngestCode] = useState("");
   
   const [filteredTrades, setFilteredTrades] = useState<Trade[]>([]);
+  const [ingesting, setIngesting] = useState(false);
 
   const handleSearch = () => {
     const params = new URLSearchParams();
@@ -78,13 +80,15 @@ const Trades = () => {
   const handleIngest = () => {
     if (ingestCode) {
       const c = ingestCode.trim().toUpperCase();
+      setIngesting(true);
       fetch(`http://localhost:8080/api/trades/ingest/${encodeURIComponent(c)}`, { method: "POST" })
         .then((r) => {
           if (!r.ok) throw new Error("Failed");
           toast.success(`Ingestion completed for ${c}`);
           setIngestCode("");
         })
-        .catch(() => toast.error(`Failed to ingest ${c}`));
+        .catch(() => toast.error(`Failed to ingest ${c}`))
+        .finally(() => setIngesting(false));
     }
   };
 
@@ -171,7 +175,10 @@ const Trades = () => {
                 onChange={(e) => setIngestCode(e.target.value)}
                 className="w-48"
               />
-              <Button onClick={handleIngest}>Ingest Now</Button>
+              <Button onClick={handleIngest} disabled={ingesting}>
+                {ingesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Ingest Now
+              </Button>
             </div>
           </div>
         </div>

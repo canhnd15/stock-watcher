@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 interface TrackedStock {
   code: string;
@@ -21,6 +22,7 @@ interface TrackedStock {
 const TrackedStocks = () => {
   const [stockInput, setStockInput] = useState("");
   const [trackedStocks, setTrackedStocks] = useState<TrackedStock[]>([]);
+  const [ingestingMap, setIngestingMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     // Load tracked stocks from backend
@@ -77,12 +79,14 @@ const TrackedStocks = () => {
   };
 
   const handleIngestNow = (code: string) => {
+    setIngestingMap(prev => ({ ...prev, [code]: true }));
     fetch(`/api/trades/reingest/${encodeURIComponent(code)}`, { method: "POST" })
       .then((r) => {
         if (!r.ok) throw new Error("Failed");
         toast.success(`Re-ingested ${code}`);
       })
-      .catch(() => toast.error(`Failed to ingest ${code}`));
+      .catch(() => toast.error(`Failed to ingest ${code}`))
+      .finally(() => setIngestingMap(prev => ({ ...prev, [code]: false })));
   };
 
   return (
