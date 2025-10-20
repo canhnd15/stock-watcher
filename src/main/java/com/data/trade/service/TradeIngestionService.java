@@ -74,27 +74,4 @@ public class TradeIngestionService {
             log.error("Failed to save trades: {}", ex.getMessage(), ex);
         }
     }
-
-//    @Scheduled(cron = "*/5 * * * * *", zone = "Asia/Ho_Chi_Minh")
-//    public void dailyAllIngestion() {
-//        for (String code : vn30) {
-//            try {
-//                ingestForCode(code);
-//            } catch (Exception ex) {
-//                log.error("Failed to ingest for code {}: {}", code, ex.getMessage());
-//            }
-//        }
-//    }
-//
-//    @Scheduled(cron = "*/5 * * * * *", zone = "Asia/Ho_Chi_Minh")
-//    public void dailyIngestion() {
-//        List<TrackedStock> codes = trackedStockRepository.findAllByActiveTrue();
-//        for (TrackedStock s : codes) {
-//            try {
-//                ingestForCode(s.getCode());
-//            } catch (Exception ex) {
-//                log.error("Failed to ingest for code {}: {}", s.getCode(), ex.getMessage());
-//            }
-//        }
-//    }
 }

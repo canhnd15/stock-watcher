@@ -32,6 +32,10 @@ public class TradeController {
             "TCB", "TPB", "VCB", "VJC", "VIC", "VHM", "VNM", "VPB", "VRE"
     );
 
+    private final List<String> deleteStock = List.of(
+            "VPB", "TCB", "MWG"
+    );
+
     @GetMapping
     public Page<Trade> findTrades(
             @RequestParam(required = false) String code,
