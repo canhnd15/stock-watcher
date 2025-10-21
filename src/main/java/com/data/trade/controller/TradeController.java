@@ -14,6 +14,8 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 import java.util.ArrayList;
@@ -47,6 +49,10 @@ public class TradeController {
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) Integer highVolume,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
@@ -72,6 +78,22 @@ public class TradeController {
         }
         if (highVolume != null) {
             specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), highVolume));
+        }
+        // Date range on tradeTime (OffsetDateTime) in Asia/Ho_Chi_Minh
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        if (fromDate != null && toDate != null) {
+            OffsetDateTime start = fromDate.atStartOfDay(vnZone).toOffsetDateTime();
+            OffsetDateTime endExclusive = toDate.plusDays(1).atStartOfDay(vnZone).toOffsetDateTime();
+            specs.add((root, q, cb) -> cb.and(
+                    cb.greaterThanOrEqualTo(root.get("tradeTime"), start),
+                    cb.lessThan(root.get("tradeTime"), endExclusive)
+            ));
+        } else if (fromDate != null) {
+            OffsetDateTime start = fromDate.atStartOfDay(vnZone).toOffsetDateTime();
+            specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("tradeTime"), start));
+        } else if (toDate != null) {
+            OffsetDateTime endExclusive = toDate.plusDays(1).atStartOfDay(vnZone).toOffsetDateTime();
+            specs.add((root, q, cb) -> cb.lessThan(root.get("tradeTime"), endExclusive));
         }
         Specification<Trade> spec = Specification.allOf(specs);
         return tradeRepository.findAll(spec, pageable);

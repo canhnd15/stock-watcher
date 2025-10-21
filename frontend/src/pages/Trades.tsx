@@ -38,11 +38,18 @@ const Trades = () => {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [ingestCode, setIngestCode] = useState("");
+  const [fromDate, setFromDate] = useState(""); // yyyy-MM-dd
+  const [toDate, setToDate] = useState("");     // yyyy-MM-dd
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(50);
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   
   const [filteredTrades, setFilteredTrades] = useState<Trade[]>([]);
   const [ingesting, setIngesting] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSearch = () => {
+  const fetchTrades = (nextPage = page, nextSize = size) => {
     const params = new URLSearchParams();
     if (code) params.set("code", code.trim());
     if (type && type !== "All") params.set("type", type.toLowerCase());
@@ -50,16 +57,19 @@ const Trades = () => {
     if (maxVolume) params.set("maxVolume", String(parseInt(maxVolume)));
     if (minPrice) params.set("minPrice", String(parseInt(minPrice)));
     if (maxPrice) params.set("maxPrice", String(parseInt(maxPrice)));
-    params.set("page", "0");
-    params.set("size", "100");
+    if (fromDate) params.set("fromDate", fromDate);
+    if (toDate) params.set("toDate", toDate);
+    params.set("page", String(nextPage));
+    params.set("size", String(nextSize));
 
+    setLoading(true);
     fetch(`http://localhost:8080/api/trades?${params.toString()}`)
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load trades");
         return r.json();
       })
-      .then((page) => {
-        const items = (page?.content || []).map((t: any) => ({
+      .then((respPage) => {
+        const items = (respPage?.content || []).map((t: any) => ({
           id: String(t.id ?? `${t.code}-${t.tradeTime}`),
           time: t.tradeTime ?? t.time ?? "",
           code: t.code ?? "",
@@ -68,13 +78,24 @@ const Trades = () => {
           volume: Number(t.volume ?? 0),
         })) as Trade[];
         setFilteredTrades(items);
+        setTotalElements(Number(respPage?.totalElements ?? 0));
+        setTotalPages(Number(respPage?.totalPages ?? 0));
+        setPage(Number(respPage?.number ?? nextPage));
+        setSize(Number(respPage?.size ?? nextSize));
       })
-      .catch(() => toast.error("Failed to load trades"));
+      .catch(() => toast.error("Failed to load trades"))
+      .finally(() => setLoading(false));
+  };
+
+  const handleSearch = () => {
+    setPage(0);
+    fetchTrades(0, size);
   };
 
   const setHighVolume = (value: number) => {
     setMinVolume(value.toString());
-    handleSearch();
+    setPage(0);
+    fetchTrades(0, size);
   };
 
   const handleIngest = () => {
@@ -158,9 +179,44 @@ const Trades = () => {
               />
             </div>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div>
+              <label className="text-sm font-medium mb-1 block">From Date</label>
+              <Input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">To Date</label>
+              <Input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Page Size</label>
+              <Select value={String(size)} onValueChange={(v) => { const n = Number(v); setSize(n); setPage(0); fetchTrades(0, n); }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           
           <div className="flex items-center gap-2 flex-wrap">
-            <Button onClick={handleSearch}>Search</Button>
+            <Button onClick={handleSearch} disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Search
+            </Button>
             <span className="text-sm text-muted-foreground">High volume:</span>
             <Button variant="outline" size="sm" onClick={() => setHighVolume(10000)}>10k</Button>
             <Button variant="outline" size="sm" onClick={() => setHighVolume(20000)}>20k</Button>
@@ -217,6 +273,16 @@ const Trades = () => {
               ))}
             </TableBody>
           </Table>
+        </div>
+
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-muted-foreground">
+            Showing page {totalPages === 0 ? 0 : page + 1} of {totalPages} • {totalElements.toLocaleString()} results
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 0 || loading} onClick={() => { const p = page - 1; setPage(p); fetchTrades(p, size); }}>Prev</Button>
+            <Button variant="outline" size="sm" disabled={page + 1 >= totalPages || loading} onClick={() => { const p = page + 1; setPage(p); fetchTrades(p, size); }}>Next</Button>
+          </div>
         </div>
       </main>
     </div>
