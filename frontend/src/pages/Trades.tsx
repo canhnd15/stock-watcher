@@ -48,6 +48,23 @@ const Trades = () => {
   const [filteredTrades, setFilteredTrades] = useState<Trade[]>([]);
   const [ingesting, setIngesting] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [totalVolume, setTotalVolume] = useState(0);
+
+  const fetchTotalVolume = () => {
+    const params = new URLSearchParams();
+    if (code) params.set("code", code.trim());
+    if (type && type !== "All") params.set("type", type.toLowerCase());
+    if (minVolume) params.set("minVolume", String(parseInt(minVolume)));
+    if (maxVolume) params.set("maxVolume", String(parseInt(maxVolume)));
+    if (minPrice) params.set("minPrice", String(parseInt(minPrice)));
+    if (maxPrice) params.set("maxPrice", String(parseInt(maxPrice)));
+    if (fromDate) params.set("fromDate", fromDate);
+    if (toDate) params.set("toDate", toDate);
+    fetch(`http://localhost:8080/api/trades/volume-sum?${params.toString()}`)
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((sum) => setTotalVolume(Number(sum || 0)))
+      .catch(() => setTotalVolume(0));
+  };
 
   const fetchTrades = (nextPage = page, nextSize = size) => {
     const params = new URLSearchParams();
@@ -85,6 +102,8 @@ const Trades = () => {
       })
       .catch(() => toast.error("Failed to load trades"))
       .finally(() => setLoading(false));
+    // fetch total volume separately (not paged)
+    fetchTotalVolume();
   };
 
   const handleSearch = () => {
@@ -143,22 +162,32 @@ const Trades = () => {
               </Select>
             </div>
             
-            <div>
-              <label className="text-sm font-medium mb-1 block">Min Volume</label>
-              <Input
-                type="number"
-                value={minVolume}
-                onChange={(e) => setMinVolume(e.target.value)}
-              />
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium mb-1 block">Max Volume</label>
-              <Input
-                type="number"
-                value={maxVolume}
-                onChange={(e) => setMaxVolume(e.target.value)}
-              />
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium mb-1 block">Volume Range</label>
+              <Select
+                value={`${minVolume || ''}|${maxVolume || ''}`}
+                onValueChange={(v) => {
+                  const [minV, maxV] = v.split("|");
+                  setMinVolume(minV);
+                  setMaxVolume(maxV);
+                  setPage(0);
+                  fetchTrades(0, size);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="|">All</SelectItem>
+                  <SelectItem value="|1000">{"<=1000"}</SelectItem>
+                  <SelectItem value="1000|5000">{"1000 - 5000"}</SelectItem>
+                  <SelectItem value="5000|10000">{"5000 - 10000"}</SelectItem>
+                  <SelectItem value="10000|100000">{"10000 - 100000"}</SelectItem>
+                  <SelectItem value="100000|400000">{"100000 - 400000"}</SelectItem>
+                  <SelectItem value="400000|1000000">{"400000 - 1000000"}</SelectItem>
+                  <SelectItem value="1000000|">{">= 1000000"}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             
             <div>
@@ -196,19 +225,6 @@ const Trades = () => {
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
               />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Page Size</label>
-              <Select value={String(size)} onValueChange={(v) => { const n = Number(v); setSize(n); setPage(0); fetchTrades(0, n); }}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
           
@@ -277,9 +293,19 @@ const Trades = () => {
 
         <div className="flex items-center justify-between mt-4">
           <div className="text-sm text-muted-foreground">
-            Showing page {totalPages === 0 ? 0 : page + 1} of {totalPages} • {totalElements.toLocaleString()} results
+            Showing page {totalPages === 0 ? 0 : page + 1} of {totalPages} • {totalElements.toLocaleString()} results • Total volume: {totalVolume.toLocaleString()}
           </div>
           <div className="flex gap-2">
+            <Select value={String(size)} onValueChange={(v) => { const n = Number(v); setSize(n); setPage(0); fetchTrades(0, n); }}>
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="20">20 / page</SelectItem>
+                <SelectItem value="50">50 / page</SelectItem>
+                <SelectItem value="100">100 / page</SelectItem>
+              </SelectContent>
+            </Select>
             <Button variant="outline" size="sm" disabled={page <= 0 || loading} onClick={() => { const p = page - 1; setPage(p); fetchTrades(p, size); }}>Prev</Button>
             <Button variant="outline" size="sm" disabled={page + 1 >= totalPages || loading} onClick={() => { const p = page + 1; setPage(p); fetchTrades(p, size); }}>Next</Button>
           </div>

@@ -42,4 +42,29 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
             @Param("stockCode") String stockCode,
             @Param("tradeDate") LocalDate tradeDate
     );
+
+    @Query(value = """
+        select coalesce(sum(t.volume), 0)
+        from trades t
+        where (:code is null or upper(t.code) = upper(:code))
+          and (:type is null or t.side = :type)
+          and (:minVolume is null or t.volume >= :minVolume)
+          and (:maxVolume is null or t.volume <= :maxVolume)
+          and (:minPrice is null or t.price >= :minPrice)
+          and (:maxPrice is null or t.price <= :maxPrice)
+          and (:highVolume is null or t.volume >= :highVolume)
+          and (:fromDate is null or t.trade_time::date >= date(:fromDate))
+          and (:toDate is null or t.trade_time::date <= date(:toDate))
+    """, nativeQuery = true)
+    Long sumVolumeFiltered(
+            @Param("code") String code,
+            @Param("type") String type,
+            @Param("minVolume") Long minVolume,
+            @Param("maxVolume") Long maxVolume,
+            @Param("minPrice") java.math.BigDecimal minPrice,
+            @Param("maxPrice") java.math.BigDecimal maxPrice,
+            @Param("highVolume") Integer highVolume,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate
+    );
 }

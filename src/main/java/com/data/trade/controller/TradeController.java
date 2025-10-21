@@ -144,5 +144,34 @@ public class TradeController {
         ingestionService.ingestForCode(normalized);
         return ResponseEntity.ok("Re-ingested for code: " + normalized + " on date: " + today);
     }
+
+    @GetMapping("/volume-sum")
+    public ResponseEntity<Long> sumVolume(
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) Long minVolume,
+            @RequestParam(required = false) Long maxVolume,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Integer highVolume,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        Long sum = tradeRepository.sumVolumeFiltered(
+                (code == null || code.isBlank()) ? null : code,
+                (type == null || type.isBlank()) ? null : type,
+                minVolume,
+                maxVolume,
+                minPrice,
+                maxPrice,
+                highVolume,
+                fromDate,
+                toDate
+        );
+        if (sum == null) sum = 0L;
+        return ResponseEntity.ok(sum);
+    }
 }
 
