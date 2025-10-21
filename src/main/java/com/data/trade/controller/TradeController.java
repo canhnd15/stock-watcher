@@ -8,26 +8,31 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.http.ResponseEntity;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.util.Arrays;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/trades")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:8089")
+@CrossOrigin(origins = "http://localhost:8090")
 public class TradeController {
 
     private final TradeRepository tradeRepository;
     private final TradeIngestionService ingestionService;
+    private final com.data.trade.service.TradeExcelService tradeExcelService;
 
     private final List<String> vn30 = List.of(
             "ACB", "BCM", "BID", "BVH", "CTG", "DGC", "FPT", "GAS",
@@ -172,6 +177,101 @@ public class TradeController {
         );
         if (sum == null) sum = 0L;
         return ResponseEntity.ok(sum);
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<Map<String, Object>> stats(
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) Long minVolume,
+            @RequestParam(required = false) Long maxVolume,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Integer highVolume,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        var rows = tradeRepository.statsBySide(
+                (code == null || code.isBlank()) ? null : code,
+                (type == null || type.isBlank()) ? null : type,
+                minVolume,
+                maxVolume,
+                minPrice,
+                maxPrice,
+                highVolume,
+                fromDate,
+                toDate
+        );
+        Map<String, Object> result = new HashMap<>();
+        for (Object[] r : rows) {
+            String side = String.valueOf(r[0]).toLowerCase();
+            long count = ((Number) r[1]).longValue();
+            java.math.BigDecimal topPrice = (r[2] == null) ? null : (r[2] instanceof java.math.BigDecimal ? (java.math.BigDecimal) r[2] : new java.math.BigDecimal(String.valueOf(r[2])));
+            long topVolume = (r[3] == null) ? 0L : ((Number) r[3]).longValue();
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("count", count);
+            entry.put("topPrice", topPrice);
+            entry.put("topVolume", topVolume);
+            result.put(side, entry);
+        }
+        // Ensure keys exist
+        result.putIfAbsent("buy", Map.of("count", 0, "topPrice", null, "topVolume", 0));
+        result.putIfAbsent("sell", Map.of("count", 0, "topPrice", null, "topVolume", 0));
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportToExcel(
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) Long minVolume,
+            @RequestParam(required = false) Long maxVolume,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Integer highVolume,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        List<Specification<Trade>> specs = new ArrayList<>();
+        if (code != null && !code.isBlank()) specs.add((root, q, cb) -> cb.equal(cb.upper(root.get("code")), code.toUpperCase()));
+        if (type != null && !type.isBlank()) specs.add((root, q, cb) -> cb.equal(root.get("side"), type));
+        if (minVolume != null) specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), minVolume));
+        if (maxVolume != null) specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("volume"), maxVolume));
+        if (minPrice != null) specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("price"), minPrice));
+        if (maxPrice != null) specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("price"), maxPrice));
+        if (highVolume != null) specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), highVolume));
+        // date range
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        if (fromDate != null) {
+            var start = fromDate.atStartOfDay(vnZone).toOffsetDateTime();
+            specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("tradeTime"), start));
+        }
+        if (toDate != null) {
+            var endExclusive = toDate.plusDays(1).atStartOfDay(vnZone).toOffsetDateTime();
+            specs.add((root, q, cb) -> cb.lessThan(root.get("tradeTime"), endExclusive));
+        }
+        Specification<Trade> spec = Specification.allOf(specs);
+        List<Trade> all = tradeRepository.findAll(spec);
+        byte[] bytes = tradeExcelService.exportToXlsx(all);
+        String filename = "trades-export.xlsx";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + filename);
+        headers.setContentLength(bytes.length);
+        return ResponseEntity.ok().headers(headers).body(bytes);
+    }
+
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<String> importFromExcel(@RequestPart("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body("file is required");
+        }
+        int saved = tradeExcelService.importFromXlsx(file);
+        return ResponseEntity.ok("Imported records: " + saved);
     }
 }
 
