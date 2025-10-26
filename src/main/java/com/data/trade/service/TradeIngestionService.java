@@ -56,7 +56,9 @@ public class TradeIngestionService {
                 .map(t -> {
                     LocalDate date = LocalDate.parse(t.getDate(), DATE_FMT);
                     LocalTime time = LocalTime.parse(t.getTime(), TIME_FMT);
-                    OffsetDateTime tradeTime = OffsetDateTime.of(date, time, zone.getRules().getOffset(Instant.now()));
+                    // Combine date and time, then apply the timezone for the actual trade date/time
+                    LocalDateTime localDateTime = LocalDateTime.of(date, time);
+                    OffsetDateTime tradeTime = localDateTime.atZone(zone).toOffsetDateTime();
 
                     return Trade.builder()
                             .code(t.getCode())

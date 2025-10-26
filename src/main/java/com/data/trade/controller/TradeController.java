@@ -20,9 +20,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/trades")
@@ -60,10 +58,6 @@ public class TradeController {
             "VJC",
             "VNM",
             "VPB"
-    );
-
-    private final List<String> deleteStock = List.of(
-            "VPB", "TCB", "MWG"
     );
 
     @GetMapping
@@ -169,78 +163,6 @@ public class TradeController {
         tradeRepository.deleteForCodeOnDate(normalized, today);
         ingestionService.ingestForCode(normalized);
         return ResponseEntity.ok("Re-ingested for code: " + normalized + " on date: " + today);
-    }
-
-    @GetMapping("/volume-sum")
-    public ResponseEntity<Long> sumVolume(
-            @RequestParam(required = false) String code,
-            @RequestParam(required = false) String type,
-            @RequestParam(required = false) Long minVolume,
-            @RequestParam(required = false) Long maxVolume,
-            @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice,
-            @RequestParam(required = false) Integer highVolume,
-            @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
-            @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
-    ) {
-        Long sum = tradeRepository.sumVolumeFiltered(
-                (code == null || code.isBlank()) ? null : code,
-                (type == null || type.isBlank()) ? null : type,
-                minVolume,
-                maxVolume,
-                minPrice,
-                maxPrice,
-                highVolume,
-                fromDate,
-                toDate
-        );
-        if (sum == null) sum = 0L;
-        return ResponseEntity.ok(sum);
-    }
-
-    @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> stats(
-            @RequestParam(required = false) String code,
-            @RequestParam(required = false) String type,
-            @RequestParam(required = false) Long minVolume,
-            @RequestParam(required = false) Long maxVolume,
-            @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice,
-            @RequestParam(required = false) Integer highVolume,
-            @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
-            @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
-    ) {
-        var rows = tradeRepository.statsBySide(
-                (code == null || code.isBlank()) ? null : code,
-                (type == null || type.isBlank()) ? null : type,
-                minVolume,
-                maxVolume,
-                minPrice,
-                maxPrice,
-                highVolume,
-                fromDate,
-                toDate
-        );
-        Map<String, Object> result = new HashMap<>();
-        for (Object[] r : rows) {
-            String side = String.valueOf(r[0]).toLowerCase();
-            long count = ((Number) r[1]).longValue();
-            java.math.BigDecimal topPrice = (r[2] == null) ? null : (r[2] instanceof java.math.BigDecimal ? (java.math.BigDecimal) r[2] : new java.math.BigDecimal(String.valueOf(r[2])));
-            long topVolume = (r[3] == null) ? 0L : ((Number) r[3]).longValue();
-            Map<String, Object> entry = new HashMap<>();
-            entry.put("count", count);
-            entry.put("topPrice", topPrice);
-            entry.put("topVolume", topVolume);
-            result.put(side, entry);
-        }
-        // Ensure keys exist
-        result.putIfAbsent("buy", Map.of("count", 0, "topPrice", null, "topVolume", 0));
-        result.putIfAbsent("sell", Map.of("count", 0, "topPrice", null, "topVolume", 0));
-        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/export")

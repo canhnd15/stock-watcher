@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import {
@@ -9,6 +9,19 @@ import {
   SelectValue,
 } from "@/components/ui/select.tsx";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command.tsx";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover.tsx";
+import {
   Table,
   TableBody,
   TableCell,
@@ -16,19 +29,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table.tsx";
-import { Badge } from "@/components/ui/badge.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Trade {
   id: string;
   time: string;
+  tradeTime: string; // Raw ISO timestamp for sorting
   code: string;
   side: "buy" | "sell";
   price: number;
   volume: number;
 }
+
+// VN30 Stock Codes
+const VN30_STOCKS = [
+  "ACB", "BCM", "CTG", "DGC", "FPT", "BFG", "HDB", "HPG", 
+  "LPB", "MBB", "MSN", "PLX", "SAB", "SHB", "SSB", "SSI", 
+  "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB"
+];
 
 const Trades = () => {
   // Get today's date in yyyy-MM-dd format
@@ -41,43 +62,27 @@ const Trades = () => {
   };
 
   const [code, setCode] = useState("");
+  const [codeOpen, setCodeOpen] = useState(false);
   const [type, setType] = useState("All");
   const [minVolume, setMinVolume] = useState("");
   const [maxVolume, setMaxVolume] = useState("");
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
   const [ingestCode, setIngestCode] = useState("");
+  const [ingestCodeOpen, setIngestCodeOpen] = useState(false);
   const [fromDate, setFromDate] = useState(getTodayDate()); // yyyy-MM-dd - default to today
   const [toDate, setToDate] = useState(getTodayDate());     // yyyy-MM-dd - default to today
   const [page, setPage] = useState(0);
-  const [size, setSize] = useState(50);
+  const [size, setSize] = useState(10);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   
   const [filteredTrades, setFilteredTrades] = useState<Trade[]>([]);
   const [ingesting, setIngesting] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [totalVolume, setTotalVolume] = useState(0);
-  const [stats, setStats] = useState<any>({ buy: { count: 0, topPrice: null, topVolume: 0 }, sell: { count: 0, topPrice: null, topVolume: 0 } });
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
-
-  const fetchTotalVolume = () => {
-    const params = new URLSearchParams();
-    if (code) params.set("code", code.trim());
-    if (type && type !== "All") params.set("type", type.toLowerCase());
-    if (minVolume) params.set("minVolume", String(parseInt(minVolume)));
-    if (maxVolume) params.set("maxVolume", String(parseInt(maxVolume)));
-    if (minPrice) params.set("minPrice", String(parseInt(minPrice)));
-    if (maxPrice) params.set("maxPrice", String(parseInt(maxPrice)));
-    if (fromDate) params.set("fromDate", fromDate);
-    if (toDate) params.set("toDate", toDate);
-    fetch(`http://localhost:8080/api/trades/volume-sum?${params.toString()}`)
-      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-      .then((sum) => setTotalVolume(Number(sum || 0)))
-      .catch(() => setTotalVolume(0));
-  };
+  const [sortField, setSortField] = useState<"time" | "price" | "volume" | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const fetchTrades = (nextPage = page, nextSize = size) => {
     const params = new URLSearchParams();
@@ -85,8 +90,6 @@ const Trades = () => {
     if (type && type !== "All") params.set("type", type.toLowerCase());
     if (minVolume) params.set("minVolume", String(parseInt(minVolume)));
     if (maxVolume) params.set("maxVolume", String(parseInt(maxVolume)));
-    if (minPrice) params.set("minPrice", String(parseInt(minPrice)));
-    if (maxPrice) params.set("maxPrice", String(parseInt(maxPrice)));
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
     params.set("page", String(nextPage));
@@ -99,42 +102,51 @@ const Trades = () => {
         return r.json();
       })
       .then((respPage) => {
-        const items = (respPage?.content || []).map((t: any) => ({
-          id: String(t.id ?? `${t.code}-${t.tradeTime}`),
-          time: t.tradeTime ?? t.time ?? "",
-          code: t.code ?? "",
-          side: (t.side ?? "").toLowerCase() === "buy" ? "buy" : "sell",
-          price: Number(t.price ?? 0),
-          volume: Number(t.volume ?? 0),
-        })) as Trade[];
+        const items = (respPage?.content || []).map((t: any) => {
+          // Format: "HH:mm:ss DD/MM/YYYY" (e.g., "14:45:00 24/10/2025")
+          let formattedTime = "";
+          if (t.tradeTime) {
+            try {
+              const date = new Date(t.tradeTime);
+              const timeStr = date.toLocaleTimeString('en-GB', {
+                timeZone: 'Asia/Ho_Chi_Minh',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+              });
+              const dateStr = date.toLocaleDateString('en-GB', {
+                timeZone: 'Asia/Ho_Chi_Minh',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+              });
+              formattedTime = `${timeStr} ${dateStr}`;
+            } catch (e) {
+              formattedTime = t.tradeTime;
+            }
+          }
+          
+          return {
+            id: String(t.id ?? `${t.code}-${t.tradeTime}`),
+            time: formattedTime,
+            tradeTime: t.tradeTime ?? "", // Keep raw timestamp for sorting
+            code: t.code ?? "",
+            side: (t.side ?? "").toLowerCase() === "buy" ? "buy" : "sell",
+            price: Number(t.price ?? 0),
+            volume: Number(t.volume ?? 0),
+          };
+        }) as Trade[];
         setFilteredTrades(items);
-        setTotalElements(Number(respPage?.totalElements ?? 0));
-        setTotalPages(Number(respPage?.totalPages ?? 0));
-        setPage(Number(respPage?.number ?? nextPage));
-        setSize(Number(respPage?.size ?? nextSize));
+        // Parse pagination data from the 'page' object
+        const pageData = respPage?.page || {};
+        setTotalElements(Number(pageData.totalElements ?? 0));
+        setTotalPages(Number(pageData.totalPages ?? 0));
+        setPage(Number(pageData.number ?? nextPage));
+        setSize(Number(pageData.size ?? nextSize));
       })
       .catch(() => toast.error("Failed to load trades"))
       .finally(() => setLoading(false));
-    // fetch total volume separately (not paged)
-    fetchTotalVolume();
-    // fetch stats per side
-    fetchStats();
-  };
-
-  const fetchStats = () => {
-    const params = new URLSearchParams();
-    if (code) params.set("code", code.trim());
-    if (type && type !== "All") params.set("type", type.toLowerCase());
-    if (minVolume) params.set("minVolume", String(parseInt(minVolume)));
-    if (maxVolume) params.set("maxVolume", String(parseInt(maxVolume)));
-    if (minPrice) params.set("minPrice", String(parseInt(minPrice)));
-    if (maxPrice) params.set("maxPrice", String(parseInt(maxPrice)));
-    if (fromDate) params.set("fromDate", fromDate);
-    if (toDate) params.set("toDate", toDate);
-    fetch(`http://localhost:8080/api/trades/stats?${params.toString()}`)
-      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-      .then((data) => setStats(data || { buy: { count: 0, topPrice: null, topVolume: 0 }, sell: { count: 0, topPrice: null, topVolume: 0 } }))
-      .catch(() => setStats({ buy: { count: 0, topPrice: null, topVolume: 0 }, sell: { count: 0, topPrice: null, topVolume: 0 } }));
   };
 
   const handleSearch = () => {
@@ -142,14 +154,54 @@ const Trades = () => {
     fetchTrades(0, size);
   };
 
+  const handleSort = (field: "time" | "price" | "volume") => {
+    if (sortField === field) {
+      // Toggle direction if same field
+      sortDirection === "asc" ? "desc" : "asc";
+    } else {
+      // New field, default to ascending
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const getSortedTrades = () => {
+    if (!sortField) return filteredTrades;
+
+    const sorted = [...filteredTrades].sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+
+      if (sortField === "time") {
+        // Use raw tradeTime for accurate sorting
+        aVal = new Date(a.tradeTime).getTime();
+        bVal = new Date(b.tradeTime).getTime();
+      } else if (sortField === "price") {
+        aVal = a.price;
+        bVal = b.price;
+      } else {
+        aVal = a.volume;
+        bVal = b.volume;
+      }
+
+      if (sortDirection === "asc") {
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      } else {
+        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+      }
+    });
+
+    return sorted;
+  };
+
+  const displayTrades = getSortedTrades();
+
   const buildFilterParams = () => {
     const params = new URLSearchParams();
     if (code) params.set("code", code.trim());
     if (type && type !== "All") params.set("type", type.toLowerCase());
     if (minVolume) params.set("minVolume", String(parseInt(minVolume)));
     if (maxVolume) params.set("maxVolume", String(parseInt(maxVolume)));
-    if (minPrice) params.set("minPrice", String(parseInt(minPrice)));
-    if (maxPrice) params.set("maxPrice", String(parseInt(maxPrice)));
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
     return params;
@@ -197,26 +249,43 @@ const Trades = () => {
     }
   };
 
-  const setHighVolume = (value: number) => {
-    setMinVolume(value.toString());
-    setPage(0);
-    fetchTrades(0, size);
-  };
-
   const handleIngest = () => {
     if (ingestCode) {
-      const c = ingestCode.trim().toUpperCase();
       setIngesting(true);
-      fetch(`http://localhost:8080/api/trades/ingest/${encodeURIComponent(c)}`, { method: "POST" })
-        .then((r) => {
-          if (!r.ok) throw new Error("Failed");
-          toast.success(`Ingestion completed for ${c}`);
-          setIngestCode("");
-        })
-        .catch(() => toast.error(`Failed to ingest ${c}`))
-        .finally(() => setIngesting(false));
+      
+      // If "All" is selected, call /ingest/all endpoint
+      if (ingestCode === "All") {
+        fetch(`http://localhost:8080/api/trades/ingest/all`, { method: "POST" })
+          .then((r) => {
+            if (!r.ok) throw new Error("Failed");
+            return r.text();
+          })
+          .then((message) => {
+            toast.success(message || "Ingestion completed for all stocks");
+            setIngestCode("");
+          })
+          .catch(() => toast.error("Failed to ingest all stocks"))
+          .finally(() => setIngesting(false));
+      } else {
+        // Otherwise, call /ingest/{code} endpoint
+        const c = ingestCode.trim().toUpperCase();
+        fetch(`http://localhost:8080/api/trades/ingest/${encodeURIComponent(c)}`, { method: "POST" })
+          .then((r) => {
+            if (!r.ok) throw new Error("Failed");
+            toast.success(`Ingestion completed for ${c}`);
+            setIngestCode("");
+          })
+          .catch(() => toast.error(`Failed to ingest ${c}`))
+          .finally(() => setIngesting(false));
+      }
     }
   };
+
+  // Load data on component mount
+  useEffect(() => {
+    fetchTrades(0, size);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   return (
     <div className="min-h-screen bg-background">
@@ -227,16 +296,76 @@ const Trades = () => {
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
               <label className="text-sm font-medium mb-1 block">Code</label>
-              <Input
-                placeholder="FPT"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-              />
+              <Popover open={codeOpen} onOpenChange={setCodeOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={codeOpen}
+                    className="w-full justify-between"
+                  >
+                    {code || "Select stock..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search stock..." />
+                    <CommandList>
+                      <CommandEmpty>No stock found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value=""
+                          onSelect={() => {
+                            setCode("");
+                            setCodeOpen(false);
+                            setPage(0);
+                            setTimeout(() => fetchTrades(0, size), 0);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              code === "" ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          All
+                        </CommandItem>
+                        {VN30_STOCKS.map((stock) => (
+                          <CommandItem
+                            key={stock}
+                            value={stock}
+                            onSelect={(currentValue) => {
+                              const newCode = currentValue === code ? "" : currentValue.toUpperCase();
+                              setCode(newCode);
+                              setCodeOpen(false);
+                              setPage(0);
+                              setTimeout(() => fetchTrades(0, size), 0);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                code === stock ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {stock}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             
             <div>
               <label className="text-sm font-medium mb-1 block">Type</label>
-              <Select value={type} onValueChange={setType}>
+              <Select value={type} onValueChange={(value) => {
+                setType(value);
+                setPage(0);
+                setTimeout(() => fetchTrades(0, size), 0);
+              }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -277,26 +406,6 @@ const Trades = () => {
             </div>
             
             <div>
-              <label className="text-sm font-medium mb-1 block">Min Price</label>
-              <Input
-                type="number"
-                value={minPrice}
-                onChange={(e) => setMinPrice(e.target.value)}
-              />
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium mb-1 block">Max Price</label>
-              <Input
-                type="number"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            <div>
               <label className="text-sm font-medium mb-1 block">From Date</label>
               <Input
                 type="date"
@@ -304,6 +413,7 @@ const Trades = () => {
                 onChange={(e) => setFromDate(e.target.value)}
               />
             </div>
+            
             <div>
               <label className="text-sm font-medium mb-1 block">To Date</label>
               <Input
@@ -319,12 +429,6 @@ const Trades = () => {
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Search
             </Button>
-            <span className="text-sm text-muted-foreground">High volume:</span>
-            <Button variant="outline" size="sm" onClick={() => setHighVolume(10000)}>10k</Button>
-            <Button variant="outline" size="sm" onClick={() => setHighVolume(20000)}>20k</Button>
-            <Button variant="outline" size="sm" onClick={() => setHighVolume(50000)}>50k</Button>
-            <Button variant="outline" size="sm" onClick={() => setHighVolume(100000)}>100k</Button>
-            <Button variant="outline" size="sm" onClick={() => setHighVolume(200000)}>200k</Button>
 
             <div className="flex items-center gap-2">
               <Button variant="secondary" onClick={handleExport} disabled={exporting}>
@@ -339,13 +443,63 @@ const Trades = () => {
             </div>
             
             <div className="ml-auto flex gap-2">
-              <Input
-                placeholder="Ingest code..."
-                value={ingestCode}
-                onChange={(e) => setIngestCode(e.target.value)}
-                className="w-48"
-              />
-              <Button onClick={handleIngest} disabled={ingesting}>
+              <Popover open={ingestCodeOpen} onOpenChange={setIngestCodeOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={ingestCodeOpen}
+                    className="w-48 justify-between"
+                  >
+                    {ingestCode || "Select stock..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search stock..." />
+                    <CommandList>
+                      <CommandEmpty>No stock found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="All"
+                          onSelect={() => {
+                            setIngestCode("All");
+                            setIngestCodeOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              ingestCode === "All" ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          All
+                        </CommandItem>
+                        {VN30_STOCKS.map((stock) => (
+                          <CommandItem
+                            key={stock}
+                            value={stock}
+                            onSelect={(currentValue) => {
+                              setIngestCode(currentValue.toUpperCase());
+                              setIngestCodeOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                ingestCode === stock ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {stock}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <Button onClick={handleIngest} disabled={!ingestCode || ingesting}>
                 {ingesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Ingest Now
               </Button>
@@ -353,45 +507,86 @@ const Trades = () => {
           </div>
         </div>
 
-        {/* Stats panel */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div className="rounded-lg border bg-card p-4">
-            <div className="text-sm font-semibold mb-1">Buy Stats</div>
-            <div className="text-sm text-muted-foreground">Count: {Number(stats?.buy?.count || 0).toLocaleString()}</div>
-            <div className="text-sm text-muted-foreground">Most traded price: {stats?.buy?.topPrice == null ? "-" : Number(stats.buy.topPrice).toLocaleString()}</div>
-            <div className="text-sm text-muted-foreground">Volume at that price: {Number(stats?.buy?.topVolume || 0).toLocaleString()}</div>
-          </div>
-          <div className="rounded-lg border bg-card p-4">
-            <div className="text-sm font-semibold mb-1">Sell Stats</div>
-            <div className="text-sm text-muted-foreground">Count: {Number(stats?.sell?.count || 0).toLocaleString()}</div>
-            <div className="text-sm text-muted-foreground">Most traded price: {stats?.sell?.topPrice == null ? "-" : Number(stats.sell.topPrice).toLocaleString()}</div>
-            <div className="text-sm text-muted-foreground">Volume at that price: {Number(stats?.sell?.topVolume || 0).toLocaleString()}</div>
-          </div>
-        </div>
-
         <div className="rounded-lg border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead>Side</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Volume</TableHead>
+                <TableHead className="w-[80px]">Code</TableHead>
+                <TableHead className="w-[180px]">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => handleSort("time")}
+                  >
+                    Time
+                    {sortField === "time" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="ml-2 h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="ml-2 h-4 w-4" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead className="w-[50px] text-center">Side</TableHead>
+                <TableHead className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => handleSort("price")}
+                  >
+                    Price
+                    {sortField === "price" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="ml-2 h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="ml-2 h-4 w-4" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => handleSort("volume")}
+                  >
+                    Volume
+                    {sortField === "volume" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="ml-2 h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="ml-2 h-4 w-4" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+                    )}
+                  </Button>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTrades.map((trade) => (
+              {displayTrades.map((trade) => (
                 <TableRow key={trade.id}>
-                  <TableCell className="font-mono text-sm">{trade.time}</TableCell>
-                  <TableCell className="font-semibold">{trade.code}</TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant={trade.side === "buy" ? "default" : "destructive"}
-                      className={trade.side === "buy" ? "bg-success hover:bg-success/90" : ""}
+                  <TableCell className="font-bold">{trade.code}</TableCell>
+                  <TableCell className="font-mono text-xs">{trade.time}</TableCell>
+                  <TableCell className="text-center">
+                    <span 
+                      className={`inline-flex items-center justify-center w-8 h-6 rounded text-xs font-bold ${
+                        trade.side === "buy" 
+                          ? "bg-green-600 text-white" 
+                          : "bg-red-600 text-white"
+                      }`}
                     >
-                      {trade.side}
-                    </Badge>
+                      {trade.side === "buy" ? "B" : "S"}
+                    </span>
                   </TableCell>
                   <TableCell className="text-right font-mono">
                     {trade.price.toLocaleString()}
@@ -407,7 +602,19 @@ const Trades = () => {
 
         <div className="flex items-center justify-between mt-4">
           <div className="text-sm text-muted-foreground">
-            Showing page {totalPages === 0 ? 0 : page + 1} of {totalPages} • {totalElements.toLocaleString()} results • Total volume: {totalVolume.toLocaleString()}
+            {totalElements === 0 ? (
+              "No results"
+            ) : (
+              <div className="flex items-center gap-4">
+                <span>Page size: <span className="font-semibold">{size}</span></span>
+                <span>•</span>
+                <span>Current page: <span className="font-semibold">{page + 1}</span></span>
+                <span>•</span>
+                <span>Total pages: <span className="font-semibold">{totalPages}</span></span>
+                <span>•</span>
+                <span>Total records: <span className="font-semibold">{totalElements.toLocaleString()}</span></span>
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             <Select value={String(size)} onValueChange={(v) => { const n = Number(v); setSize(n); setPage(0); fetchTrades(0, n); }}>
@@ -415,6 +622,7 @@ const Trades = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="10">10 / page</SelectItem>
                 <SelectItem value="20">20 / page</SelectItem>
                 <SelectItem value="50">50 / page</SelectItem>
                 <SelectItem value="100">100 / page</SelectItem>
