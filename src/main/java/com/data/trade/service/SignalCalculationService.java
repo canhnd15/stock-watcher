@@ -58,28 +58,26 @@ public class SignalCalculationService {
      */
     public SignalNotification calculateSignalForCode(String code) {
         // Find the latest trade for this stock code
-        Trade latestTrade = tradeRepository.findFirstByCodeOrderByTradeTimeDesc(code);
+        List<Trade> latestTrades = tradeRepository.findLatestByCode(code);
         
-        if (latestTrade == null) {
+        if (latestTrades == null || latestTrades.isEmpty()) {
             log.debug("No trades found for code: {}", code);
             return null;
         }
         
-        // Use the latest trade time as reference point instead of current time
-        // This allows signal calculation to work on weekends with Friday's data
-        OffsetDateTime latestTradeTime = latestTrade.getTradeTime();
-        OffsetDateTime since = latestTradeTime.minusMinutes(30);
+        Trade latestTrade = latestTrades.get(0);
+        String latestTradeDate = latestTrade.getTradeDate(); // Format: "DD/MM/YYYY"
         
-        // Get trades from last 30 minutes before the latest trade
-        List<Trade> recentTrades = tradeRepository.findByCodeAndTradeTimeBetween(code, since, latestTradeTime);
+        // Get all trades from the same date as the latest trade
+        // This simplified approach uses same-day trades instead of 30-minute window
+        List<Trade> recentTrades = tradeRepository.findByCodeAndTradeDate(code, latestTradeDate);
 
         if (recentTrades.isEmpty()) {
-            log.debug("No recent trades found for code: {} in last 30 minutes from {}", code, latestTradeTime);
+            log.debug("No trades found for code: {} on date {}", code, latestTradeDate);
             return null;
         }
 
-        // Sort by time descending (newest first)
-        recentTrades.sort((a, b) -> b.getTradeTime().compareTo(a.getTradeTime()));
+        // Already sorted by time descending from the query
 
         // 1. Volume Analysis
         long buyVolume = recentTrades.stream()

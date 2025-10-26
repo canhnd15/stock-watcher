@@ -30,6 +30,9 @@ public class TradingJobs {
     public void refreshTodayAndRecommend() {
         ZoneId zone = ZoneId.of(appTz);
         LocalDate tradeDate = LocalDate.now(zone);
+        // Convert LocalDate to DD/MM/YYYY format
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        String tradeDateStr = tradeDate.format(formatter);
 
         LocalDateTime now = LocalDateTime.now(zone);
 
@@ -39,13 +42,13 @@ public class TradingJobs {
         for (TrackedStock s : actives) {
             String code = s.getCode();
             try {
-                tradeRepository.deleteForCodeOnDate(code, tradeDate);
+                tradeRepository.deleteForCodeOnDate(code, tradeDateStr);
 
                 ingestionService.ingestForCode(code);
 
-                String rec = tradeRepository.recommendationFor(code, tradeDate);
+                String rec = tradeRepository.recommendationFor(code, tradeDateStr);
 
-                log.info("[{}] Recommendation for {}: {}", tradeDate, code, rec);
+                log.info("[{}] Recommendation for {}: {}", tradeDateStr, code, rec);
             } catch (Exception ex) {
                 log.error("Failed refresh/recommend for {}: {}", code, ex.getMessage(), ex);
             }

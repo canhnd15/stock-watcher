@@ -36,8 +36,8 @@ import { cn } from "@/lib/utils";
 
 interface Trade {
   id: string;
-  time: string;
-  tradeTime: string; // Raw ISO timestamp for sorting
+  tradeTime: string; // Format: "HH:mm:ss"
+  tradeDate: string; // Format: "DD/MM/YYYY"
   code: string;
   side: "buy" | "sell";
   price: number;
@@ -115,34 +115,10 @@ const Trades = () => {
       })
       .then((respPage) => {
         const items = (respPage?.content || []).map((t: any) => {
-          // Format: "HH:mm:ss DD/MM/YYYY" (e.g., "14:45:00 24/10/2025")
-          let formattedTime = "";
-          if (t.tradeTime) {
-            try {
-              const date = new Date(t.tradeTime);
-              const timeStr = date.toLocaleTimeString('en-GB', {
-                timeZone: 'Asia/Ho_Chi_Minh',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: false
-              });
-              const dateStr = date.toLocaleDateString('en-GB', {
-                timeZone: 'Asia/Ho_Chi_Minh',
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit'
-              });
-              formattedTime = `${timeStr} ${dateStr}`;
-            } catch (e) {
-              formattedTime = t.tradeTime;
-            }
-          }
-          
           return {
-            id: String(t.id ?? `${t.code}-${t.tradeTime}`),
-            time: formattedTime,
-            tradeTime: t.tradeTime ?? "", // Keep raw timestamp for sorting
+            id: String(t.id ?? `${t.code}-${t.tradeDate}-${t.tradeTime}`),
+            tradeTime: t.tradeTime ?? "", // Format: "HH:mm:ss"
+            tradeDate: t.tradeDate ?? "", // Format: "DD/MM/YYYY"
             code: t.code ?? "",
             side: (t.side ?? "").toLowerCase() === "buy" ? "buy" : "sell",
             price: Number(t.price ?? 0),
@@ -504,8 +480,8 @@ const Trades = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[80px]">Code</TableHead>
-                <TableHead className="w-[180px]">
+                <TableHead className="w-[120px]">Code</TableHead>
+                <TableHead className="w-[280px]">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -569,7 +545,7 @@ const Trades = () => {
               {displayTrades.map((trade) => (
                 <TableRow key={trade.id}>
                   <TableCell className="font-bold">{trade.code}</TableCell>
-                  <TableCell className="font-mono text-xs">{trade.time}</TableCell>
+                  <TableCell className="font-mono text-xs">{trade.tradeTime} {trade.tradeDate}</TableCell>
                   <TableCell className="text-center">
                     <span 
                       className={`inline-flex items-center justify-center w-8 h-6 rounded text-xs font-bold ${

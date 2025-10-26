@@ -4,11 +4,10 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "trades", indexes = {
-        @Index(name = "idx_trades_code_time", columnList = "code, tradeTime"),
+        @Index(name = "idx_trades_code_date_time", columnList = "code, tradeDate, tradeTime"),
         @Index(name = "idx_trades_volume", columnList = "volume"),
         @Index(name = "idx_trades_price", columnList = "price")
 })
@@ -34,6 +33,9 @@ public class Trade {
     @Column(nullable = false, length = 8)
     private String side; // buy|sell|other
 
-    @Column(nullable = false)
-    private OffsetDateTime tradeTime; // parsed from td+t in Asia/Ho_Chi_Minh
+    @Column(nullable = false, length = 10)
+    private String tradeDate; // Format: "DD/MM/YYYY" as received from API (e.g., "24/10/2025")
+
+    @Column(nullable = false, length = 8)
+    private String tradeTime; // Format: "HH:mm:ss" as received from API (e.g., "14:45:00")
 }

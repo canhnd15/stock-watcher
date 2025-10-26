@@ -17,8 +17,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -111,21 +109,21 @@ public class TradeController {
         if (highVolume != null) {
             specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), highVolume));
         }
-        // Date range on tradeTime (OffsetDateTime) in Asia/Ho_Chi_Minh
-        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        // Date range filtering on tradeDate (string in DD/MM/YYYY format)
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
         if (fromDate != null && toDate != null) {
-            OffsetDateTime start = fromDate.atStartOfDay(vnZone).toOffsetDateTime();
-            OffsetDateTime endExclusive = toDate.plusDays(1).atStartOfDay(vnZone).toOffsetDateTime();
+            String fromDateStr = fromDate.format(formatter);
+            String toDateStr = toDate.format(formatter);
             specs.add((root, q, cb) -> cb.and(
-                    cb.greaterThanOrEqualTo(root.get("tradeTime"), start),
-                    cb.lessThan(root.get("tradeTime"), endExclusive)
+                    cb.greaterThanOrEqualTo(root.get("tradeDate"), fromDateStr),
+                    cb.lessThanOrEqualTo(root.get("tradeDate"), toDateStr)
             ));
         } else if (fromDate != null) {
-            OffsetDateTime start = fromDate.atStartOfDay(vnZone).toOffsetDateTime();
-            specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("tradeTime"), start));
+            String fromDateStr = fromDate.format(formatter);
+            specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("tradeDate"), fromDateStr));
         } else if (toDate != null) {
-            OffsetDateTime endExclusive = toDate.plusDays(1).atStartOfDay(vnZone).toOffsetDateTime();
-            specs.add((root, q, cb) -> cb.lessThan(root.get("tradeTime"), endExclusive));
+            String toDateStr = toDate.format(formatter);
+            specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("tradeDate"), toDateStr));
         }
         Specification<Trade> spec = Specification.allOf(specs);
         return tradeRepository.findAll(spec, pageable);
@@ -160,7 +158,10 @@ public class TradeController {
             return ResponseEntity.badRequest().body("code is required");
         }
         LocalDate tradeDate = (date == null) ? LocalDate.now() : date;
-        String rec = tradeRepository.recommendationFor(normalized, tradeDate);
+        // Convert LocalDate to DD/MM/YYYY format
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        String tradeDateStr = tradeDate.format(formatter);
+        String rec = tradeRepository.recommendationFor(normalized, tradeDateStr);
         if (rec == null) rec = "Neutral — hold";
         return ResponseEntity.ok(rec);
     }
@@ -172,9 +173,12 @@ public class TradeController {
             return ResponseEntity.badRequest().body("code is required");
         }
         LocalDate today = LocalDate.now();
-        tradeRepository.deleteForCodeOnDate(normalized, today);
+        // Convert LocalDate to DD/MM/YYYY format
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        String todayStr = today.format(formatter);
+        tradeRepository.deleteForCodeOnDate(normalized, todayStr);
         ingestionService.ingestForCode(normalized);
-        return ResponseEntity.ok("Re-ingested for code: " + normalized + " on date: " + today);
+        return ResponseEntity.ok("Re-ingested for code: " + normalized + " on date: " + todayStr);
     }
 
     @GetMapping("/export")
@@ -199,15 +203,21 @@ public class TradeController {
         if (minPrice != null) specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("price"), minPrice));
         if (maxPrice != null) specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("price"), maxPrice));
         if (highVolume != null) specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), highVolume));
-        // date range
-        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
-        if (fromDate != null) {
-            var start = fromDate.atStartOfDay(vnZone).toOffsetDateTime();
-            specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("tradeTime"), start));
-        }
-        if (toDate != null) {
-            var endExclusive = toDate.plusDays(1).atStartOfDay(vnZone).toOffsetDateTime();
-            specs.add((root, q, cb) -> cb.lessThan(root.get("tradeTime"), endExclusive));
+        // Date range filtering on tradeDate (string in DD/MM/YYYY format)
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        if (fromDate != null && toDate != null) {
+            String fromDateStr = fromDate.format(formatter);
+            String toDateStr = toDate.format(formatter);
+            specs.add((root, q, cb) -> cb.and(
+                    cb.greaterThanOrEqualTo(root.get("tradeDate"), fromDateStr),
+                    cb.lessThanOrEqualTo(root.get("tradeDate"), toDateStr)
+            ));
+        } else if (fromDate != null) {
+            String fromDateStr = fromDate.format(formatter);
+            specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("tradeDate"), fromDateStr));
+        } else if (toDate != null) {
+            String toDateStr = toDate.format(formatter);
+            specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("tradeDate"), toDateStr));
         }
         Specification<Trade> spec = Specification.allOf(specs);
         List<Trade> all = tradeRepository.findAll(spec);

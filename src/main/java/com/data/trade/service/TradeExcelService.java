@@ -12,7 +12,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
-import java.time.*;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,17 +28,17 @@ public class TradeExcelService {
             int r = 0;
             // header
             Row header = sheet.createRow(r++);
-            String[] cols = new String[]{"time", "code", "side", "price", "volume"};
+            String[] cols = new String[]{"time", "date", "code", "side", "price", "volume"};
             for (int i = 0; i < cols.length; i++) header.createCell(i).setCellValue(cols[i]);
 
-            DateTimeFormatter fmt = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
             for (Trade t : trades) {
                 Row row = sheet.createRow(r++);
-                row.createCell(0).setCellValue(t.getTradeTime() == null ? "" : fmt.format(t.getTradeTime()));
-                row.createCell(1).setCellValue(nullToEmpty(t.getCode()));
-                row.createCell(2).setCellValue(nullToEmpty(t.getSide()));
-                row.createCell(3).setCellValue(t.getPrice() == null ? 0 : t.getPrice().doubleValue());
-                row.createCell(4).setCellValue(t.getVolume() == null ? 0 : t.getVolume());
+                row.createCell(0).setCellValue(nullToEmpty(t.getTradeTime())); // HH:mm:ss
+                row.createCell(1).setCellValue(nullToEmpty(t.getTradeDate())); // DD/MM/YYYY
+                row.createCell(2).setCellValue(nullToEmpty(t.getCode()));
+                row.createCell(3).setCellValue(nullToEmpty(t.getSide()));
+                row.createCell(4).setCellValue(t.getPrice() == null ? 0 : t.getPrice().doubleValue());
+                row.createCell(5).setCellValue(t.getVolume() == null ? 0 : t.getVolume());
             }
             for (int i = 0; i < cols.length; i++) sheet.autoSizeColumn(i);
             wb.write(out);
@@ -56,27 +56,33 @@ public class TradeExcelService {
             if (rows <= 1) return 0; // header only
 
             List<Trade> toSave = new ArrayList<>();
-            ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
 
             for (int i = 1; i < rows; i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
-                String timeStr = getCellString(row.getCell(0));
-                String code = getCellString(row.getCell(1));
-                String side = getCellString(row.getCell(2));
-                BigDecimal price = getCellBigDecimal(row.getCell(3));
-                Long volume = getCellLong(row.getCell(4));
+                String timeStr = getCellString(row.getCell(0)); // HH:mm:ss
+                String dateStr = getCellString(row.getCell(1)); // DD/MM/YYYY
+                String code = getCellString(row.getCell(2));
+                String side = getCellString(row.getCell(3));
+                BigDecimal price = getCellBigDecimal(row.getCell(4));
+                Long volume = getCellLong(row.getCell(5));
 
                 if (code == null || code.isBlank()) continue;
                 if (price == null || volume == null) continue;
-                OffsetDateTime tradeTime = parseTime(timeStr, vnZone);
+                if (timeStr == null || timeStr.isBlank()) timeStr = "00:00:00";
+                if (dateStr == null || dateStr.isBlank()) {
+                    // Use current date in DD/MM/YYYY format
+                    DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                    dateStr = LocalDate.now().format(fmt);
+                }
 
                 Trade t = Trade.builder()
                         .code(code.trim().toUpperCase())
                         .side(side == null ? "other" : side.trim().toLowerCase())
                         .price(price)
                         .volume(volume)
-                        .tradeTime(tradeTime == null ? OffsetDateTime.now(vnZone) : tradeTime)
+                        .tradeTime(timeStr)
+                        .tradeDate(dateStr)
                         .build();
                 toSave.add(t);
             }
@@ -95,8 +101,9 @@ public class TradeExcelService {
             case STRING -> c.getStringCellValue();
             case NUMERIC -> {
                 if (DateUtil.isCellDateFormatted(c)) {
-                    Instant inst = c.getDateCellValue().toInstant();
-                    yield OffsetDateTime.ofInstant(inst, ZoneId.systemDefault()).toString();
+                    // Return date formatted as DD/MM/YYYY
+                    DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                    yield LocalDate.ofInstant(c.getDateCellValue().toInstant(), java.time.ZoneId.systemDefault()).format(fmt);
                 } else {
                     yield String.valueOf(c.getNumericCellValue());
                 }
@@ -129,21 +136,5 @@ public class TradeExcelService {
             }
             default -> null;
         };
-    }
-
-    private static OffsetDateTime parseTime(String s, ZoneId defaultZone) {
-        if (s == null || s.isBlank()) return null;
-        try {
-            return OffsetDateTime.parse(s.trim());
-        } catch (Exception ignored) {}
-        try {
-            LocalDateTime ldt = LocalDateTime.parse(s.trim());
-            return ldt.atZone(defaultZone).toOffsetDateTime();
-        } catch (Exception ignored) {}
-        try {
-            Instant inst = Instant.parse(s.trim());
-            return OffsetDateTime.ofInstant(inst, defaultZone);
-        } catch (Exception ignored) {}
-        return null;
     }
 }
