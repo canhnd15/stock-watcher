@@ -31,6 +31,15 @@ interface Trade {
 }
 
 const Trades = () => {
+  // Get today's date in yyyy-MM-dd format
+  const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [code, setCode] = useState("");
   const [type, setType] = useState("All");
   const [minVolume, setMinVolume] = useState("");
@@ -38,8 +47,8 @@ const Trades = () => {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [ingestCode, setIngestCode] = useState("");
-  const [fromDate, setFromDate] = useState(""); // yyyy-MM-dd
-  const [toDate, setToDate] = useState("");     // yyyy-MM-dd
+  const [fromDate, setFromDate] = useState(getTodayDate()); // yyyy-MM-dd - default to today
+  const [toDate, setToDate] = useState(getTodayDate());     // yyyy-MM-dd - default to today
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(50);
   const [totalElements, setTotalElements] = useState(0);

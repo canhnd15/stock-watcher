@@ -9,8 +9,20 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.List;
 
 public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecificationExecutor<Trade> {
+    
+    @Query("SELECT DISTINCT t.code FROM Trade t")
+    List<String> findDistinctCodes();
+    
+    Trade findFirstByCodeOrderByTradeTimeDesc(String code);
+    
+    List<Trade> findByCodeAndTradeTimeAfter(String code, OffsetDateTime since);
+    
+    List<Trade> findByCodeAndTradeTimeBetween(String code, OffsetDateTime start, OffsetDateTime end);
+
     @Transactional
     @Modifying
     @Query(value = "delete from trades where code = :code and trade_time::date = date(:tradeDate)", nativeQuery = true)

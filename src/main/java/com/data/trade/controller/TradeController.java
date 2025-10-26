@@ -27,7 +27,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/trades")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:8090")
+@CrossOrigin(origins = "http://localhost:8089")
 public class TradeController {
 
     private final TradeRepository tradeRepository;
@@ -35,10 +35,31 @@ public class TradeController {
     private final com.data.trade.service.TradeExcelService tradeExcelService;
 
     private final List<String> vn30 = List.of(
-            "ACB", "BCM", "BID", "BVH", "CTG", "DGC", "FPT", "GAS",
-            "HDB", "HDG", "HPG", "KDH", "MBB", "MSN", "MWG", "NVL",
-            "PDR", "PGD", "PLX", "PNJ", "REE", "SBT", "SSI", "STB",
-            "TCB", "TPB", "VCB", "VJC", "VIC", "VHM", "VNM", "VPB", "VRE"
+            "ACB",
+            "BCM",
+            "CTG",
+            "DGC",
+            "FPT",
+            "BFG",
+            "HDB",
+            "HPG",
+            "LPB",
+            "MBB",
+            "MSN",
+            "PLX",
+            "SAB",
+            "SHB",
+            "SSB",
+            "SSI",
+            "TCB",
+            "TPB",
+            "VCB",
+            "VHM",
+            "VIB",
+            "VIC",
+            "VJC",
+            "VNM",
+            "VPB"
     );
 
     private final List<String> deleteStock = List.of(
