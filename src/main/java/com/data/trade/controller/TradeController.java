@@ -74,9 +74,21 @@ public class TradeController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction
     ) {
-        Pageable pageable = PageRequest.of(page, size);
+        // Create Pageable with sorting if sort parameter is provided
+        Pageable pageable;
+        if (sort != null && !sort.isBlank()) {
+            org.springframework.data.domain.Sort.Direction sortDirection = 
+                "desc".equalsIgnoreCase(direction) ? 
+                org.springframework.data.domain.Sort.Direction.DESC : 
+                org.springframework.data.domain.Sort.Direction.ASC;
+            pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by(sortDirection, sort));
+        } else {
+            pageable = PageRequest.of(page, size);
+        }
         List<Specification<Trade>> specs = new ArrayList<>();
         if (code != null && !code.isBlank()) {
             specs.add((root, q, cb) -> cb.equal(cb.upper(root.get("code")), code.toUpperCase()));

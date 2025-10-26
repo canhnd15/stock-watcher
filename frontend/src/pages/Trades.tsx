@@ -84,7 +84,7 @@ const Trades = () => {
   const [sortField, setSortField] = useState<"time" | "price" | "volume" | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  const fetchTrades = (nextPage = page, nextSize = size) => {
+  const fetchTrades = (nextPage = page, nextSize = size, sortFieldParam = sortField, sortDirectionParam = sortDirection) => {
     const params = new URLSearchParams();
     if (code) params.set("code", code.trim());
     if (type && type !== "All") params.set("type", type.toLowerCase());
@@ -94,6 +94,18 @@ const Trades = () => {
     if (toDate) params.set("toDate", toDate);
     params.set("page", String(nextPage));
     params.set("size", String(nextSize));
+    
+    // Add sorting parameters if sorting is active
+    if (sortFieldParam) {
+      // Map frontend field names to backend field names
+      const fieldMap: Record<string, string> = {
+        time: "tradeTime",
+        price: "price",
+        volume: "volume"
+      };
+      params.set("sort", fieldMap[sortFieldParam] || sortFieldParam);
+      params.set("direction", sortDirectionParam);
+    }
 
     setLoading(true);
     fetch(`http://localhost:8080/api/trades?${params.toString()}`)
@@ -155,46 +167,27 @@ const Trades = () => {
   };
 
   const handleSort = (field: "time" | "price" | "volume") => {
+    let newDirection: "asc" | "desc" = "asc";
+    
     if (sortField === field) {
       // Toggle direction if same field
-      sortDirection === "asc" ? "desc" : "asc";
+      newDirection = sortDirection === "asc" ? "desc" : "asc";
     } else {
       // New field, default to ascending
-      setSortField(field);
-      setSortDirection("asc");
+      newDirection = "asc";
     }
+    
+    // Update state
+    setSortField(field);
+    setSortDirection(newDirection);
+    
+    // Reset to first page and fetch sorted data from backend
+    setPage(0);
+    fetchTrades(0, size, field, newDirection);
   };
 
-  const getSortedTrades = () => {
-    if (!sortField) return filteredTrades;
-
-    const sorted = [...filteredTrades].sort((a, b) => {
-      let aVal: any;
-      let bVal: any;
-
-      if (sortField === "time") {
-        // Use raw tradeTime for accurate sorting
-        aVal = new Date(a.tradeTime).getTime();
-        bVal = new Date(b.tradeTime).getTime();
-      } else if (sortField === "price") {
-        aVal = a.price;
-        bVal = b.price;
-      } else {
-        aVal = a.volume;
-        bVal = b.volume;
-      }
-
-      if (sortDirection === "asc") {
-        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-      } else {
-        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
-      }
-    });
-
-    return sorted;
-  };
-
-  const displayTrades = getSortedTrades();
+  // No client-side sorting - backend handles it
+  const displayTrades = filteredTrades;
 
   const buildFilterParams = () => {
     const params = new URLSearchParams();
