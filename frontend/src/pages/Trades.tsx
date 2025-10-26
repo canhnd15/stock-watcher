@@ -126,12 +126,11 @@ const Trades = () => {
           };
         }) as Trade[];
         setFilteredTrades(items);
-        // Parse pagination data from the 'page' object
-        const pageData = respPage?.page || {};
-        setTotalElements(Number(pageData.totalElements ?? 0));
-        setTotalPages(Number(pageData.totalPages ?? 0));
-        setPage(Number(pageData.number ?? nextPage));
-        setSize(Number(pageData.size ?? nextSize));
+        // Parse pagination data from the root level of response
+        setTotalElements(Number(respPage?.totalElements ?? 0));
+        setTotalPages(Number(respPage?.totalPages ?? 0));
+        setPage(Number(respPage?.number ?? nextPage));
+        setSize(Number(respPage?.size ?? nextSize));
       })
       .catch(() => toast.error("Failed to load trades"))
       .finally(() => setLoading(false));
