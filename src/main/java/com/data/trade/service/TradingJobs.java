@@ -28,9 +28,31 @@ public class TradingJobs {
 
     // VN30 stocks list
     private final List<String> vn30 = List.of(
-            "ACB", "BCM", "CTG", "DGC", "FPT", "BFG", "HDB", "HPG", "LPB", "MBB",
-            "MSN", "PLX", "SAB", "SHB", "SSB", "SSI", "TCB", "TPB", "VCB", "VHM", "MWG",
-            "VIB", "VIC", "VJC", "VNM", "VPB", "DXG", "KDH", "VRE"
+            "ACB",
+            "BCM",
+            "CTG",
+            "DGC",
+            "FPT",
+            "BFG",
+            "HDB",
+            "HPG",
+            "LPB",
+            "MBB",
+            "MSN",
+            "PLX",
+            "SAB",
+            "SHB",
+            "SSB",
+            "SSI",
+            "TCB",
+            "TPB",
+            "VCB",
+            "VHM",
+            "VIB",
+            "VIC",
+            "VJC",
+            "VNM",
+            "VPB"
     );
 
 //    @Scheduled(cron = "0 */5 * * * *", zone = "Asia/Ho_Chi_Minh")

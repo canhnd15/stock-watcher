@@ -98,7 +98,10 @@ const Trades = () => {
   const [totalVolume, setTotalVolume] = useState(0);
   const [buyVolume, setBuyVolume] = useState(0);
   const [sellVolume, setSellVolume] = useState(0);
-  const [otherVolume, setOtherVolume] = useState(0);
+  
+  // Transaction counts
+  const [buyCount, setBuyCount] = useState(0);
+  const [sellCount, setSellCount] = useState(0);
   
   // WebSocket for signals
   const { isConnected, signals, clearSignals } = useWebSocket();
@@ -158,7 +161,10 @@ const Trades = () => {
         setTotalVolume(Number(response?.totalVolume ?? 0));
         setBuyVolume(Number(response?.buyVolume ?? 0));
         setSellVolume(Number(response?.sellVolume ?? 0));
-        setOtherVolume(Number(response?.otherVolume ?? 0));
+        
+        // Update transaction counts
+        setBuyCount(Number(response?.buyCount ?? 0));
+        setSellCount(Number(response?.sellCount ?? 0));
       })
       .catch(() => toast.error("Failed to load trades"))
       .finally(() => setLoading(false));
@@ -504,7 +510,7 @@ const Trades = () => {
         </div>
 
         {/* Volume Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -527,7 +533,8 @@ const Trades = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">{buyVolume.toLocaleString()}</div>
-              <div className="flex items-center gap-2 mt-1">
+              <p className="text-xs text-muted-foreground mt-1 font-bold">{buyCount.toLocaleString()} transactions</p>
+              <div className="flex items-center gap-2 mt-2">
                 <div className="h-2 bg-gray-200 rounded-full flex-1 overflow-hidden">
                   <div 
                     className="h-full bg-green-500 rounded-full transition-all" 
@@ -550,7 +557,8 @@ const Trades = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">{sellVolume.toLocaleString()}</div>
-              <div className="flex items-center gap-2 mt-1">
+              <p className="text-xs text-muted-foreground mt-1 font-bold">{sellCount.toLocaleString()} transactions</p>
+              <div className="flex items-center gap-2 mt-2">
                 <div className="h-2 bg-gray-200 rounded-full flex-1 overflow-hidden">
                   <div 
                     className="h-full bg-red-500 rounded-full transition-all" 
@@ -559,29 +567,6 @@ const Trades = () => {
                 </div>
                 <span className="text-xs text-muted-foreground font-medium">
                   {totalVolume > 0 ? ((sellVolume / totalVolume * 100).toFixed(1)) : 0}%
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Activity className="h-4 w-4 text-gray-500" />
-                Other Volume
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-600">{otherVolume.toLocaleString()}</div>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="h-2 bg-gray-200 rounded-full flex-1 overflow-hidden">
-                  <div 
-                    className="h-full bg-gray-500 rounded-full transition-all" 
-                    style={{ width: `${totalVolume > 0 ? (otherVolume / totalVolume * 100) : 0}%` }}
-                  ></div>
-                </div>
-                <span className="text-xs text-muted-foreground font-medium">
-                  {totalVolume > 0 ? ((otherVolume / totalVolume * 100).toFixed(1)) : 0}%
                 </span>
               </div>
             </CardContent>

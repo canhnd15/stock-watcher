@@ -151,20 +151,23 @@ public class TradeController {
                 .filter(t -> "sell".equalsIgnoreCase(t.getSide()))
                 .mapToLong(Trade::getVolume)
                 .sum();
+
+        long buyCount = allMatchingTrades.stream()
+                .filter(t -> "buy".equalsIgnoreCase(t.getSide()))
+                .count();
         
-        long otherVolume = allMatchingTrades.stream()
-                .filter(t -> "other".equalsIgnoreCase(t.getSide()))
-                .mapToLong(Trade::getVolume)
-                .sum();
+        long sellCount = allMatchingTrades.stream()
+                .filter(t -> "sell".equalsIgnoreCase(t.getSide()))
+                .count();
         
-        // Build response with both page data and volume statistics
         return TradePageResponse.builder()
                 .trades(tradesPage)
                 .totalVolume(totalVolume)
                 .buyVolume(buyVolume)
                 .sellVolume(sellVolume)
-                .otherVolume(otherVolume)
                 .totalRecords(allMatchingTrades.size())
+                .buyCount(buyCount)
+                .sellCount(sellCount)
                 .build();
     }
 
