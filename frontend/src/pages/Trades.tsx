@@ -29,9 +29,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table.tsx";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Trade {
@@ -84,6 +91,12 @@ const Trades = () => {
   const [exporting, setExporting] = useState(false);
   const [sortField, setSortField] = useState<"time" | "price" | "volume" | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  
+  // Volume statistics
+  const [totalVolume, setTotalVolume] = useState(0);
+  const [buyVolume, setBuyVolume] = useState(0);
+  const [sellVolume, setSellVolume] = useState(0);
+  const [otherVolume, setOtherVolume] = useState(0);
 
   const fetchTrades = (nextPage = page, nextSize = size, sortFieldParam = sortField, sortDirectionParam = sortDirection) => {
     const params = new URLSearchParams();
@@ -114,8 +127,10 @@ const Trades = () => {
         if (!r.ok) throw new Error("Failed to load trades");
         return r.json();
       })
-      .then((respPage) => {
-        const items = (respPage?.content || []).map((t: any) => {
+      .then((response) => {
+        // New response structure: { trades: { content: [...], ... }, totalVolume, buyVolume, sellVolume, otherVolume }
+        const tradesPage = response?.trades || {};
+        const items = (tradesPage?.content || []).map((t: any) => {
           return {
             id: String(t.id ?? `${t.code}-${t.tradeDate}-${t.tradeTime}`),
             tradeTime: t.tradeTime ?? "", // Format: "HH:mm:ss"
@@ -127,11 +142,18 @@ const Trades = () => {
           };
         }) as Trade[];
         setFilteredTrades(items);
-        // Parse pagination data from the root level of response
-        setTotalElements(Number(respPage?.totalElements ?? 0));
-        setTotalPages(Number(respPage?.totalPages ?? 0));
-        setPage(Number(respPage?.number ?? nextPage));
-        setSize(Number(respPage?.size ?? nextSize));
+        
+        // Parse pagination data from trades object
+        setTotalElements(Number(tradesPage?.totalElements ?? 0));
+        setTotalPages(Number(tradesPage?.totalPages ?? 0));
+        setPage(Number(tradesPage?.number ?? nextPage));
+        setSize(Number(tradesPage?.size ?? nextSize));
+        
+        // Update volume statistics
+        setTotalVolume(Number(response?.totalVolume ?? 0));
+        setBuyVolume(Number(response?.buyVolume ?? 0));
+        setSellVolume(Number(response?.sellVolume ?? 0));
+        setOtherVolume(Number(response?.otherVolume ?? 0));
       })
       .catch(() => toast.error("Failed to load trades"))
       .finally(() => setLoading(false));
@@ -474,6 +496,91 @@ const Trades = () => {
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* Volume Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Activity className="h-4 w-4 text-blue-500" />
+                Total Volume
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalVolume.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1">All matching trades</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-green-500" />
+                Buy Volume
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{buyVolume.toLocaleString()}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="h-2 bg-gray-200 rounded-full flex-1 overflow-hidden">
+                  <div 
+                    className="h-full bg-green-500 rounded-full transition-all" 
+                    style={{ width: `${totalVolume > 0 ? (buyVolume / totalVolume * 100) : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">
+                  {totalVolume > 0 ? ((buyVolume / totalVolume * 100).toFixed(1)) : 0}%
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-red-500" />
+                Sell Volume
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{sellVolume.toLocaleString()}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="h-2 bg-gray-200 rounded-full flex-1 overflow-hidden">
+                  <div 
+                    className="h-full bg-red-500 rounded-full transition-all" 
+                    style={{ width: `${totalVolume > 0 ? (sellVolume / totalVolume * 100) : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">
+                  {totalVolume > 0 ? ((sellVolume / totalVolume * 100).toFixed(1)) : 0}%
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Activity className="h-4 w-4 text-gray-500" />
+                Other Volume
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-600">{otherVolume.toLocaleString()}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="h-2 bg-gray-200 rounded-full flex-1 overflow-hidden">
+                  <div 
+                    className="h-full bg-gray-500 rounded-full transition-all" 
+                    style={{ width: `${totalVolume > 0 ? (otherVolume / totalVolume * 100) : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">
+                  {totalVolume > 0 ? ((otherVolume / totalVolume * 100).toFixed(1)) : 0}%
+                </span>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="rounded-lg border bg-card">

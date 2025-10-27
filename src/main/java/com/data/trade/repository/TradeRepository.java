@@ -54,4 +54,8 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
             @Param("stockCode") String stockCode,
             @Param("tradeDate") String tradeDate
     );
+
+    // Calculate volume statistics based on specifications
+    @Query("SELECT COALESCE(SUM(t.volume), 0) FROM Trade t WHERE t.side = :side")
+    Long sumVolumeBySide(@Param("side") String side);
 }

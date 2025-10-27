@@ -1,5 +1,6 @@
 package com.data.trade.controller;
 
+import com.data.trade.dto.TradePageResponse;
 import com.data.trade.model.Trade;
 import com.data.trade.repository.TradeRepository;
 import com.data.trade.service.TradeIngestionService;
@@ -59,7 +60,7 @@ public class TradeController {
     );
 
     @GetMapping
-    public Page<Trade> findTrades(
+    public TradePageResponse findTrades(
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) Long minVolume,
@@ -87,6 +88,8 @@ public class TradeController {
         } else {
             pageable = PageRequest.of(page, size);
         }
+        
+        // Build specifications for filtering
         List<Specification<Trade>> specs = new ArrayList<>();
         if (code != null && !code.isBlank()) {
             specs.add((root, q, cb) -> cb.equal(cb.upper(root.get("code")), code.toUpperCase()));
@@ -109,6 +112,7 @@ public class TradeController {
         if (highVolume != null) {
             specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), highVolume));
         }
+        
         // Date range filtering on tradeDate (string in DD/MM/YYYY format)
         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
         if (fromDate != null && toDate != null) {
@@ -125,8 +129,43 @@ public class TradeController {
             String toDateStr = toDate.format(formatter);
             specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("tradeDate"), toDateStr));
         }
+        
         Specification<Trade> spec = Specification.allOf(specs);
-        return tradeRepository.findAll(spec, pageable);
+        
+        // Get paginated results
+        Page<Trade> tradesPage = tradeRepository.findAll(spec, pageable);
+        
+        // Calculate volume statistics from all matching records (not just the current page)
+        List<Trade> allMatchingTrades = tradeRepository.findAll(spec);
+        
+        long totalVolume = allMatchingTrades.stream()
+                .mapToLong(Trade::getVolume)
+                .sum();
+        
+        long buyVolume = allMatchingTrades.stream()
+                .filter(t -> "buy".equalsIgnoreCase(t.getSide()))
+                .mapToLong(Trade::getVolume)
+                .sum();
+        
+        long sellVolume = allMatchingTrades.stream()
+                .filter(t -> "sell".equalsIgnoreCase(t.getSide()))
+                .mapToLong(Trade::getVolume)
+                .sum();
+        
+        long otherVolume = allMatchingTrades.stream()
+                .filter(t -> "other".equalsIgnoreCase(t.getSide()))
+                .mapToLong(Trade::getVolume)
+                .sum();
+        
+        // Build response with both page data and volume statistics
+        return TradePageResponse.builder()
+                .trades(tradesPage)
+                .totalVolume(totalVolume)
+                .buyVolume(buyVolume)
+                .sellVolume(sellVolume)
+                .otherVolume(otherVolume)
+                .totalRecords(allMatchingTrades.size())
+                .build();
     }
 
     @PostMapping("/ingest/{code}")
