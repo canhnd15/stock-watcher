@@ -26,7 +26,7 @@ public class SignalCalculationService {
      * Scheduled job to calculate signals every 5 minutes
      * Runs at: 00:00, 00:05, 00:10, ... 23:55
      */
-    @Scheduled(cron = "0 */5 * * * *", zone = "Asia/Ho_Chi_Minh")
+    @Scheduled(cron = "0 */1 * * * *", zone = "Asia/Ho_Chi_Minh")
     public void calculateAndNotifySignals() {
         log.info("Running signal calculation job...");
 

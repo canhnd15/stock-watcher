@@ -46,9 +46,10 @@ interface Trade {
 
 // VN30 Stock Codes
 const VN30_STOCKS = [
-  "ACB", "BCM", "CTG", "DGC", "FPT", "BFG", "HDB", "HPG", 
-  "LPB", "MBB", "MSN", "PLX", "SAB", "SHB", "SSB", "SSI", 
-  "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB"
+  "ACB", "BCM", "CTG", "DGC", "FPT", "BFG", "HDB", "HPG", "MWG",
+  "LPB", "MBB", "MSN", "PLX", "SAB", "SHB", "SSB", "SSI", "VRE",
+  "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB",
+  "DXG", "KDH"
 ];
 
 const Trades = () => {
@@ -108,7 +109,7 @@ const Trades = () => {
     }
 
     setLoading(true);
-    fetch(`http://localhost:8080/api/trades?${params.toString()}`)
+    fetch(`http://localhost:8899/api/trades?${params.toString()}`)
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load trades");
         return r.json();
@@ -179,7 +180,7 @@ const Trades = () => {
     try {
       setExporting(true);
       const params = buildFilterParams();
-      const resp = await fetch(`http://localhost:8080/api/trades/export?${params.toString()}`);
+      const resp = await fetch(`http://localhost:8899/api/trades/export?${params.toString()}`);
       if (!resp.ok) throw new Error("Failed to export");
       const blob = await resp.blob();
       const url = window.URL.createObjectURL(blob);
@@ -204,7 +205,7 @@ const Trades = () => {
       setImporting(true);
       const form = new FormData();
       form.append('file', importFile);
-      const resp = await fetch('http://localhost:8080/api/trades/import', { method: 'POST', body: form });
+      const resp = await fetch('http://localhost:8899/api/trades/import', { method: 'POST', body: form });
       if (!resp.ok) throw new Error('Failed');
       const text = await resp.text();
       toast.success(text || 'Imported successfully');
@@ -223,7 +224,7 @@ const Trades = () => {
       
       // If "All" is selected, call /ingest/all endpoint
       if (ingestCode === "All") {
-        fetch(`http://localhost:8080/api/trades/ingest/all`, { method: "POST" })
+        fetch(`http://localhost:8899/api/trades/ingest/all`, { method: "POST" })
           .then((r) => {
             if (!r.ok) throw new Error("Failed");
             return r.text();
@@ -237,7 +238,7 @@ const Trades = () => {
       } else {
         // Otherwise, call /ingest/{code} endpoint
         const c = ingestCode.trim().toUpperCase();
-        fetch(`http://localhost:8080/api/trades/ingest/${encodeURIComponent(c)}`, { method: "POST" })
+        fetch(`http://localhost:8899/api/trades/ingest/${encodeURIComponent(c)}`, { method: "POST" })
           .then((r) => {
             if (!r.ok) throw new Error("Failed");
             toast.success(`Ingestion completed for ${c}`);
