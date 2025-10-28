@@ -2,11 +2,8 @@ package com.data.trade.controller;
 
 import com.data.trade.dto.TradePageResponse;
 import com.data.trade.model.Trade;
-import com.data.trade.repository.TradeRepository;
-import com.data.trade.service.TradeIngestionService;
+import com.data.trade.service.TradeService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -27,12 +24,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TradeController {
 
-    private final TradeRepository tradeRepository;
-    private final TradeIngestionService ingestionService;
+    private final TradeService tradeService;
     private final com.data.trade.service.TradeExcelService tradeExcelService;
-
-    @Value("${market.vn30.codes}")
-    private List<String> vn30;
 
     @GetMapping
     public TradePageResponse findTrades(
@@ -107,61 +100,22 @@ public class TradeController {
         
         Specification<Trade> spec = Specification.allOf(specs);
         
-        // Get paginated results
-        Page<Trade> tradesPage = tradeRepository.findAll(spec, pageable);
-        
-        // Calculate volume statistics from all matching records (not just the current page)
-        List<Trade> allMatchingTrades = tradeRepository.findAll(spec);
-        
-        long totalVolume = allMatchingTrades.stream()
-                .mapToLong(Trade::getVolume)
-                .sum();
-        
-        long buyVolume = allMatchingTrades.stream()
-                .filter(t -> "buy".equalsIgnoreCase(t.getSide()))
-                .mapToLong(Trade::getVolume)
-                .sum();
-        
-        long sellVolume = allMatchingTrades.stream()
-                .filter(t -> "sell".equalsIgnoreCase(t.getSide()))
-                .mapToLong(Trade::getVolume)
-                .sum();
-
-        long buyCount = allMatchingTrades.stream()
-                .filter(t -> "buy".equalsIgnoreCase(t.getSide()))
-                .count();
-        
-        long sellCount = allMatchingTrades.stream()
-                .filter(t -> "sell".equalsIgnoreCase(t.getSide()))
-                .count();
-        
-        return TradePageResponse.builder()
-                .trades(tradesPage)
-                .totalVolume(totalVolume)
-                .buyVolume(buyVolume)
-                .sellVolume(sellVolume)
-                .totalRecords(allMatchingTrades.size())
-                .buyCount(buyCount)
-                .sellCount(sellCount)
-                .build();
+        return tradeService.findTrades(spec, pageable);
     }
 
     @PostMapping("/ingest/{code}")
     public ResponseEntity<?> ingestNow(@PathVariable String code) {
-        String normalized = code == null ? null : code.trim().toUpperCase();
-        if (normalized == null || normalized.isBlank()) {
+        if (code == null || code.isBlank()) {
             return ResponseEntity.badRequest().body("code is required");
         }
-        ingestionService.ingestForCode(normalized);
-        return ResponseEntity.ok("Ingestion completed for code: " + normalized);
+        tradeService.ingestForCode(code);
+        return ResponseEntity.ok("Ingestion completed for code: " + code.trim().toUpperCase());
     }
 
     @PostMapping("/ingest/all")
     public ResponseEntity<?> ingestAllNow() {
-        for (String stockCode: vn30) {
-            ingestionService.ingestForCode(stockCode);
-        }
-        return ResponseEntity.ok("Ingestion completed for all vn30: ");
+        tradeService.ingestAllVn30();
+        return ResponseEntity.ok("Ingestion completed for all vn30");
     }
 
     @GetMapping("/recommendation")
@@ -170,32 +124,20 @@ public class TradeController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
     ) {
-        String normalized = code == null ? null : code.trim().toUpperCase();
-        if (normalized == null || normalized.isBlank()) {
+        if (code == null || code.isBlank()) {
             return ResponseEntity.badRequest().body("code is required");
         }
-        LocalDate tradeDate = (date == null) ? LocalDate.now() : date;
-        // Convert LocalDate to DD/MM/YYYY format
-        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
-        String tradeDateStr = tradeDate.format(formatter);
-        String rec = tradeRepository.recommendationFor(normalized, tradeDateStr);
-        if (rec == null) rec = "Neutral — hold";
-        return ResponseEntity.ok(rec);
+        String recommendation = tradeService.getRecommendation(code, date);
+        return ResponseEntity.ok(recommendation);
     }
 
     @PostMapping("/reingest/{code}")
     public ResponseEntity<?> reingest(@PathVariable String code) {
-        String normalized = code == null ? null : code.trim().toUpperCase();
-        if (normalized == null || normalized.isBlank()) {
+        if (code == null || code.isBlank()) {
             return ResponseEntity.badRequest().body("code is required");
         }
-        LocalDate today = LocalDate.now();
-        // Convert LocalDate to DD/MM/YYYY format
-        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
-        String todayStr = today.format(formatter);
-        tradeRepository.deleteForCodeOnDate(normalized, todayStr);
-        ingestionService.ingestForCode(normalized);
-        return ResponseEntity.ok("Re-ingested for code: " + normalized + " on date: " + todayStr);
+        tradeService.reingestForCode(code);
+        return ResponseEntity.ok("Re-ingested for code: " + code.trim().toUpperCase());
     }
 
     @GetMapping("/export")
@@ -237,7 +179,7 @@ public class TradeController {
             specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("tradeDate"), toDateStr));
         }
         Specification<Trade> spec = Specification.allOf(specs);
-        List<Trade> all = tradeRepository.findAll(spec);
+        List<Trade> all = tradeService.findAllTrades(spec);
         byte[] bytes = tradeExcelService.exportToXlsx(all);
         String filename = "trades-export.xlsx";
         HttpHeaders headers = new HttpHeaders();
