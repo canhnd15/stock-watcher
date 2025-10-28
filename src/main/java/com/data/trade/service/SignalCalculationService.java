@@ -21,20 +21,29 @@ public class SignalCalculationService {
 
     private final TradeRepository tradeRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ConfigService configService;
 
     /**
-     * Scheduled job to calculate signals every 5 minutes
-     * Runs at: 00:00, 00:05, 00:10, ... 23:55
+     * Scheduled job to calculate signals every minute
+     * Runs at: 00:00, 00:01, 00:02, ... 23:59
      */
     @Scheduled(cron = "0 */1 * * * *", zone = "Asia/Ho_Chi_Minh")
     public void calculateAndNotifySignals() {
-        log.info("Running signal calculation job...");
+        // Check if cron job is enabled
+        if (!configService.isSignalCalculationCronEnabled()) {
+            log.info("Signal calculation cron job is disabled. Skipping...");
+            return;
+        }
+        
+        log.info("========== Starting signal calculation job ==========");
 
         // Get all distinct stock codes from database
         List<String> codes = tradeRepository.findDistinctCodes();
         log.info("Found {} distinct stock codes", codes.size());
 
         int signalsSent = 0;
+        int failCount = 0;
+        
         for (String code : codes) {
             try {
                 SignalNotification signal = calculateSignalForCode(code);
@@ -45,11 +54,13 @@ public class SignalCalculationService {
                     signalsSent++;
                 }
             } catch (Exception e) {
+                failCount++;
                 log.error("Failed to calculate signal for {}: {}", code, e.getMessage());
             }
         }
 
-        log.info("Signal calculation completed. Sent {} signals", signalsSent);
+        log.info("========== Signal calculation completed. Signals sent: {}, Failed: {} ==========", 
+                signalsSent, failCount);
     }
 
     /**

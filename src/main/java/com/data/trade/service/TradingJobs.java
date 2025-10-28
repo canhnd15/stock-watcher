@@ -22,6 +22,7 @@ public class TradingJobs {
     private final TrackedStockRepository trackedStockRepository;
     private final TradeRepository tradeRepository;
     private final TradeIngestionService ingestionService;
+    private final ConfigService configService;
 
     @Value("${app.timezone:Asia/Ho_Chi_Minh}")
     private String appTz;
@@ -29,19 +30,33 @@ public class TradingJobs {
     @Value("${market.vn30.codes}")
     private List<String> vn30;
 
-//    @Scheduled(cron = "0 */5 * * * *", zone = "Asia/Ho_Chi_Minh")
+    /**
+     * Refresh tracked stocks and generate recommendations every 5 minutes
+     * Runs at: 00:00, 00:05, 00:10, ... 23:55
+     */
+    @Scheduled(cron = "0 */5 * * * *", zone = "Asia/Ho_Chi_Minh")
     public void refreshTodayAndRecommend() {
+        // Check if cron job is enabled
+        if (!configService.isTrackedStocksCronEnabled()) {
+            log.info("Tracked stocks refresh cron job is disabled. Skipping...");
+            return;
+        }
+        
         ZoneId zone = ZoneId.of(appTz);
         LocalDate tradeDate = LocalDate.now(zone);
-        // Convert LocalDate to DD/MM/YYYY format
+
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         String tradeDateStr = tradeDate.format(formatter);
 
         LocalDateTime now = LocalDateTime.now(zone);
 
-        log.info("------------ {} ------------", now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        log.info("========== Starting tracked stocks refresh at {} ==========", 
+                now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
         List<TrackedStock> actives = trackedStockRepository.findAllByActiveTrue();
+        int successCount = 0;
+        int failCount = 0;
+        
         for (TrackedStock s : actives) {
             String code = s.getCode();
             try {
@@ -52,10 +67,15 @@ public class TradingJobs {
                 String rec = tradeRepository.recommendationFor(code, tradeDateStr);
 
                 log.info("[{}] Recommendation for {}: {}", tradeDateStr, code, rec);
+                successCount++;
             } catch (Exception ex) {
+                failCount++;
                 log.error("Failed refresh/recommend for {}: {}", code, ex.getMessage(), ex);
             }
         }
+        
+        log.info("========== Tracked stocks refresh completed. Success: {}, Failed: {} ==========", 
+                successCount, failCount);
     }
 
     /**
@@ -64,6 +84,12 @@ public class TradingJobs {
      */
     @Scheduled(cron = "0 */10 * * * *", zone = "Asia/Ho_Chi_Minh")
     public void ingestAllVn30Stocks() {
+        // Check if cron job is enabled
+        if (!configService.isVn30CronEnabled()) {
+            log.info("VN30 ingestion cron job is disabled. Skipping...");
+            return;
+        }
+        
         ZoneId zone = ZoneId.of(appTz);
         LocalDateTime now = LocalDateTime.now(zone);
         LocalDate tradeDate = LocalDate.now(zone);

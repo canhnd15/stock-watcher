@@ -7,6 +7,7 @@ import Trades from "./pages/Trades.tsx";
 import TrackedStocks from "./pages/TrackedStocks.tsx";
 import Suggestions from "./pages/Suggestions.tsx";
 import Signals from "./pages/Signals.tsx";
+import Config from "./pages/Config.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/tracked" element={<TrackedStocks />} />
           <Route path="/suggestions" element={<Suggestions />} />
           <Route path="/signals" element={<Signals />} />
+          <Route path="/config" element={<Config />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
