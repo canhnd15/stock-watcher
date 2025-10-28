@@ -26,34 +26,8 @@ public class TradingJobs {
     @Value("${app.timezone:Asia/Ho_Chi_Minh}")
     private String appTz;
 
-    // VN30 stocks list
-    private final List<String> vn30 = List.of(
-            "ACB",
-            "BCM",
-            "CTG",
-            "DGC",
-            "FPT",
-            "BFG",
-            "HDB",
-            "HPG",
-            "LPB",
-            "MBB",
-            "MSN",
-            "PLX",
-            "SAB",
-            "SHB",
-            "SSB",
-            "SSI",
-            "TCB",
-            "TPB",
-            "VCB",
-            "VHM",
-            "VIB",
-            "VIC",
-            "VJC",
-            "VNM",
-            "VPB"
-    );
+    @Value("${market.vn30.codes}")
+    private List<String> vn30;
 
 //    @Scheduled(cron = "0 */5 * * * *", zone = "Asia/Ho_Chi_Minh")
     public void refreshTodayAndRecommend() {
@@ -92,6 +66,10 @@ public class TradingJobs {
     public void ingestAllVn30Stocks() {
         ZoneId zone = ZoneId.of(appTz);
         LocalDateTime now = LocalDateTime.now(zone);
+        LocalDate tradeDate = LocalDate.now(zone);
+        
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        String tradeDateStr = tradeDate.format(formatter);
         
         log.info("========== Starting VN30 ingestion job at {} ==========", 
                 now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
@@ -101,7 +79,8 @@ public class TradingJobs {
         
         for (String stockCode : vn30) {
             try {
-                log.info("Ingesting data for stock: {}", stockCode);
+                tradeRepository.deleteForCodeOnDate(stockCode, tradeDateStr);
+                
                 ingestionService.ingestForCode(stockCode);
                 successCount++;
                 log.info("Successfully ingested data for {}", stockCode);

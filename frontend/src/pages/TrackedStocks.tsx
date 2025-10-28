@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
 import {
   Table,
   TableBody,
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/table.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check } from "lucide-react";
 
 interface TrackedStock {
   code: string;
@@ -23,6 +24,9 @@ const TrackedStocks = () => {
   const [stockInput, setStockInput] = useState("");
   const [trackedStocks, setTrackedStocks] = useState<TrackedStock[]>([]);
   const [ingestingMap, setIngestingMap] = useState<Record<string, boolean>>({});
+  const [vn30Codes, setVn30Codes] = useState<string[]>([]);
+  const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
+  const [loadingVn30, setLoadingVn30] = useState(true);
 
   useEffect(() => {
     // Load tracked stocks from backend
@@ -33,7 +37,63 @@ const TrackedStocks = () => {
       })
       .then((data: TrackedStock[]) => setTrackedStocks(data))
       .catch(() => toast.error("Failed to load tracked stocks"));
+    
+    // Load VN30 codes from backend
+    setLoadingVn30(true);
+    fetch("/api/stocks/vn30")
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load VN30 codes");
+        return r.json();
+      })
+      .then((data: string[]) => {
+        console.log("VN30 codes loaded:", data);
+        setVn30Codes(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load VN30 codes:", err);
+        toast.error("Failed to load VN30 codes");
+      })
+      .finally(() => setLoadingVn30(false));
   }, []);
+
+  const toggleCodeSelection = (code: string) => {
+    setSelectedCodes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(code)) {
+        newSet.delete(code);
+      } else {
+        newSet.add(code);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSaveSelectedCodes = () => {
+    if (selectedCodes.size === 0) {
+      toast.error("Please select at least one stock code");
+      return;
+    }
+
+    const codes = Array.from(selectedCodes);
+    
+    fetch("/api/stocks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codes })
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to save");
+        return r.json().catch(() => ({}));
+      })
+      .then(() => {
+        setSelectedCodes(new Set());
+        toast.success(`Saved ${codes.length} stock code(s)`);
+        return fetch("/api/stocks");
+      })
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: TrackedStock[]) => setTrackedStocks(data))
+      .catch(() => toast.error("Failed to save codes"));
+  };
 
   const handleSaveCodes = () => {
     const codes = stockInput
@@ -96,14 +156,59 @@ const TrackedStocks = () => {
       <main className="container mx-auto px-4 py-8">
         <h2 className="text-2xl font-bold mb-6">Tracked Stocks</h2>
         
+        {/* VN30 Stock Selector */}
         <div className="mb-8 space-y-4">
-          <Textarea
-            placeholder="Enter stock codes separated by comma, space, or newline. Example: FPT, VCB, HPG"
-            value={stockInput}
-            onChange={(e) => setStockInput(e.target.value)}
-            className="min-h-32"
-          />
-          <Button onClick={handleSaveCodes}>Save Codes</Button>
+          <div className="rounded-lg border bg-card p-6">
+            <h3 className="text-lg font-semibold mb-4">
+              Select VN30 Stocks {selectedCodes.size > 0 && (
+                <span className="text-sm font-normal text-muted-foreground ml-2">
+                  ({selectedCodes.size} selected)
+                </span>
+              )}
+            </h3>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {loadingVn30 ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading VN30 codes...</span>
+                </div>
+              ) : vn30Codes.length === 0 ? (
+                <div className="text-muted-foreground">No VN30 codes available</div>
+              ) : (
+                vn30Codes.map((code) => {
+                  const isSelected = selectedCodes.has(code);
+                  return (
+                    <Badge
+                      key={code}
+                      variant={isSelected ? "default" : "outline"}
+                      className="cursor-pointer text-sm px-3 py-1.5 transition-all hover:scale-105"
+                      onClick={() => toggleCodeSelection(code)}
+                    >
+                      {isSelected && <Check className="w-3 h-3 mr-1" />}
+                      {code}
+                    </Badge>
+                  );
+                })
+              )}
+            </div>
+            <Button 
+              onClick={handleSaveSelectedCodes}
+              disabled={selectedCodes.size === 0}
+            >
+              Save Selected Codes
+            </Button>
+          </div>
+          
+          <div className="rounded-lg border bg-card p-6">
+            <h3 className="text-lg font-semibold mb-4">Or Enter Custom Codes</h3>
+            <Textarea
+              placeholder="Enter stock codes separated by comma, space, or newline. Example: FPT, VCB, HPG"
+              value={stockInput}
+              onChange={(e) => setStockInput(e.target.value)}
+              className="min-h-32 mb-4"
+            />
+            <Button onClick={handleSaveCodes}>Save Custom Codes</Button>
+          </div>
         </div>
 
         <div className="rounded-lg border bg-card">

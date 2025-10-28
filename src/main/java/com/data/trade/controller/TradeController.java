@@ -5,6 +5,7 @@ import com.data.trade.model.Trade;
 import com.data.trade.repository.TradeRepository;
 import com.data.trade.service.TradeIngestionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -31,33 +32,8 @@ public class TradeController {
     private final TradeIngestionService ingestionService;
     private final com.data.trade.service.TradeExcelService tradeExcelService;
 
-    private final List<String> vn30 = List.of(
-            "ACB",
-            "BCM",
-            "CTG",
-            "DGC",
-            "FPT",
-            "BFG",
-            "HDB",
-            "HPG",
-            "LPB",
-            "MBB",
-            "MSN",
-            "PLX",
-            "SAB",
-            "SHB",
-            "SSB",
-            "SSI",
-            "TCB",
-            "TPB",
-            "VCB",
-            "VHM",
-            "VIB",
-            "VIC",
-            "VJC",
-            "VNM",
-            "VPB"
-    );
+    @Value("${market.vn30.codes}")
+    private List<String> vn30;
 
     @GetMapping
     public TradePageResponse findTrades(

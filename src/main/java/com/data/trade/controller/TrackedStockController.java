@@ -4,6 +4,7 @@ import com.data.trade.model.TrackedStock;
 import com.data.trade.repository.TrackedStockRepository;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,10 +17,18 @@ import java.util.List;
 public class TrackedStockController {
 
     private final TrackedStockRepository trackedStockRepository;
+    
+    @Value("${market.vn30.codes}")
+    private List<String> vn30Codes;
 
     @GetMapping
     public List<TrackedStock> list() {
         return trackedStockRepository.findAll();
+    }
+    
+    @GetMapping("/vn30")
+    public ResponseEntity<List<String>> getVn30Codes() {
+        return ResponseEntity.ok(vn30Codes);
     }
 
     @PostMapping

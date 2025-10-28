@@ -26,7 +26,7 @@ export const useWebSocket = () => {
       return;
     }
 
-    const socketFactory = () => new SockJS('http://localhost:8899/ws');
+    const socketFactory = () => new SockJS('/ws');
 
     const client = new Client({
       webSocketFactory: socketFactory as any,

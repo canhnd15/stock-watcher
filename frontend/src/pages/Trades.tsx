@@ -130,7 +130,7 @@ const Trades = () => {
     }
 
     setLoading(true);
-    fetch(`http://localhost:8899/api/trades?${params.toString()}`)
+    fetch(`/api/trades?${params.toString()}`)
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load trades");
         return r.json();
@@ -213,7 +213,7 @@ const Trades = () => {
     try {
       setExporting(true);
       const params = buildFilterParams();
-      const resp = await fetch(`http://localhost:8899/api/trades/export?${params.toString()}`);
+      const resp = await fetch(`/api/trades/export?${params.toString()}`);
       if (!resp.ok) throw new Error("Failed to export");
       const blob = await resp.blob();
       const url = window.URL.createObjectURL(blob);
@@ -238,7 +238,7 @@ const Trades = () => {
       setImporting(true);
       const form = new FormData();
       form.append('file', importFile);
-      const resp = await fetch('http://localhost:8899/api/trades/import', { method: 'POST', body: form });
+      const resp = await fetch('/api/trades/import', { method: 'POST', body: form });
       if (!resp.ok) throw new Error('Failed');
       const text = await resp.text();
       toast.success(text || 'Imported successfully');
@@ -257,7 +257,7 @@ const Trades = () => {
       
       // If "All" is selected, call /ingest/all endpoint
       if (ingestCode === "All") {
-        fetch(`http://localhost:8899/api/trades/ingest/all`, { method: "POST" })
+        fetch(`/api/trades/ingest/all`, { method: "POST" })
           .then((r) => {
             if (!r.ok) throw new Error("Failed");
             return r.text();
@@ -271,7 +271,7 @@ const Trades = () => {
       } else {
         // Otherwise, call /ingest/{code} endpoint
         const c = ingestCode.trim().toUpperCase();
-        fetch(`http://localhost:8899/api/trades/ingest/${encodeURIComponent(c)}`, { method: "POST" })
+        fetch(`/api/trades/ingest/${encodeURIComponent(c)}`, { method: "POST" })
           .then((r) => {
             if (!r.ok) throw new Error("Failed");
             toast.success(`Ingestion completed for ${c}`);
