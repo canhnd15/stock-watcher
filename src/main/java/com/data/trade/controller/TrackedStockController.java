@@ -13,7 +13,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/stocks")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:8089")
 public class TrackedStockController {
 
     private final TrackedStockRepository trackedStockRepository;
@@ -52,6 +51,21 @@ public class TrackedStockController {
         ts.setActive(active);
         trackedStockRepository.save(ts);
         return ResponseEntity.ok(ts);
+    }
+
+    @DeleteMapping("/{code}")
+    public ResponseEntity<?> delete(@PathVariable String code) {
+        TrackedStock ts = trackedStockRepository.findAll().stream()
+                .filter(x -> x.getCode().equalsIgnoreCase(code))
+                .findFirst()
+                .orElse(null);
+        
+        if (ts != null) {
+            trackedStockRepository.delete(ts);
+            return ResponseEntity.ok().build();
+        }
+        
+        return ResponseEntity.notFound().build();
     }
 
     @Data

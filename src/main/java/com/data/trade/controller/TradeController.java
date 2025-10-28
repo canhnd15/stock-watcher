@@ -25,7 +25,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/trades")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:8089")
 public class TradeController {
 
     private final TradeRepository tradeRepository;

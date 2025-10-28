@@ -4,6 +4,25 @@ import { Textarea } from "@/components/ui/textarea.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog.tsx";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog.tsx";
+import {
   Table,
   TableBody,
   TableCell,
@@ -13,7 +32,7 @@ import {
 } from "@/components/ui/table.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check } from "lucide-react";
+import { Loader2, Check, Trash2 } from "lucide-react";
 
 interface TrackedStock {
   code: string;
@@ -27,6 +46,7 @@ const TrackedStocks = () => {
   const [vn30Codes, setVn30Codes] = useState<string[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [loadingVn30, setLoadingVn30] = useState(true);
+  const [customCodesModalOpen, setCustomCodesModalOpen] = useState(false);
 
   useEffect(() => {
     // Load tracked stocks from backend
@@ -114,6 +134,7 @@ const TrackedStocks = () => {
       .then(() => {
         setStockInput("");
         toast.success(`Saved ${codes.length} stock code(s)`);
+        setCustomCodesModalOpen(false);
         return fetch("/api/stocks");
       })
       .then((r) => r.ok ? r.json() : [])
@@ -147,6 +168,17 @@ const TrackedStocks = () => {
       })
       .catch(() => toast.error(`Failed to ingest ${code}`))
       .finally(() => setIngestingMap(prev => ({ ...prev, [code]: false })));
+  };
+
+  const handleDelete = (code: string) => {
+    fetch(`/api/stocks/${encodeURIComponent(code)}`, { method: "DELETE" })
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed");
+        toast.success(`Deleted ${code} from tracked stocks`);
+        // Remove from local state
+        setTrackedStocks(prev => prev.filter(s => s.code !== code));
+      })
+      .catch(() => toast.error(`Failed to delete ${code}`));
   };
 
   return (
@@ -191,23 +223,41 @@ const TrackedStocks = () => {
                 })
               )}
             </div>
-            <Button 
-              onClick={handleSaveSelectedCodes}
-              disabled={selectedCodes.size === 0}
-            >
-              Save Selected Codes
-            </Button>
-          </div>
-          
-          <div className="rounded-lg border bg-card p-6">
-            <h3 className="text-lg font-semibold mb-4">Or Enter Custom Codes</h3>
-            <Textarea
-              placeholder="Enter stock codes separated by comma, space, or newline. Example: FPT, VCB, HPG"
-              value={stockInput}
-              onChange={(e) => setStockInput(e.target.value)}
-              className="min-h-32 mb-4"
-            />
-            <Button onClick={handleSaveCodes}>Save Custom Codes</Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleSaveSelectedCodes}
+                disabled={selectedCodes.size === 0}
+              >
+                Save Selected Codes
+              </Button>
+              
+              <Dialog open={customCodesModalOpen} onOpenChange={setCustomCodesModalOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    Custom Codes
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[525px]">
+                  <DialogHeader>
+                    <DialogTitle>Enter Custom Stock Codes</DialogTitle>
+                    <DialogDescription>
+                      Add stock codes that are not in the VN30 list. Enter codes separated by comma, space, or newline.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <Textarea
+                      placeholder="Example: FPT, VCB, HPG"
+                      value={stockInput}
+                      onChange={(e) => setStockInput(e.target.value)}
+                      className="min-h-32"
+                    />
+                    <Button onClick={handleSaveCodes} className="w-full">
+                      Save Custom Codes
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </div>
 
@@ -240,13 +290,49 @@ const TrackedStocks = () => {
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleIngestNow(stock.code)}
-                    >
-                      Ingest Now
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleIngestNow(stock.code)}
+                        disabled={ingestingMap[stock.code]}
+                      >
+                        {ingestingMap[stock.code] ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Ingesting...
+                          </>
+                        ) : (
+                          "Ingest Now"
+                        )}
+                      </Button>
+                      
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Tracked Stock</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to remove <strong>{stock.code}</strong> from tracked stocks?
+                              This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(stock.code)}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
