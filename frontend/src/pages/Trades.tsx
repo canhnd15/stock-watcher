@@ -88,9 +88,6 @@ const Trades = () => {
   const [filteredTrades, setFilteredTrades] = useState<Trade[]>([]);
   const [ingesting, setIngesting] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [importing, setImporting] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [sortField, setSortField] = useState<"time" | "price" | "volume" | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   
@@ -207,48 +204,6 @@ const Trades = () => {
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
     return params;
-  };
-
-  const handleExport = async () => {
-    try {
-      setExporting(true);
-      const params = buildFilterParams();
-      const resp = await fetch(`/api/trades/export?${params.toString()}`);
-      if (!resp.ok) throw new Error("Failed to export");
-      const blob = await resp.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'trades-export.xlsx';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success("Exported trades to Excel");
-    } catch {
-      toast.error("Failed to export trades");
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const handleImport = async () => {
-    if (!importFile) return;
-    try {
-      setImporting(true);
-      const form = new FormData();
-      form.append('file', importFile);
-      const resp = await fetch('/api/trades/import', { method: 'POST', body: form });
-      if (!resp.ok) throw new Error('Failed');
-      const text = await resp.text();
-      toast.success(text || 'Imported successfully');
-      setImportFile(null);
-      fetchTrades(0, size);
-    } catch {
-      toast.error("Failed to import trades");
-    } finally {
-      setImporting(false);
-    }
   };
 
   const handleIngest = () => {
@@ -431,18 +386,6 @@ const Trades = () => {
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Search
             </Button>
-
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" onClick={handleExport} disabled={exporting}>
-                {exporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Export Excel
-              </Button>
-              <Input type="file" accept=".xlsx" className="w-[220px]" onChange={(e) => setImportFile(e.target.files?.[0] || null)} />
-              <Button onClick={handleImport} disabled={!importFile || importing}>
-                {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Import Excel
-              </Button>
-            </div>
             
             <div className="ml-auto flex gap-2">
               <Popover open={ingestCodeOpen} onOpenChange={setIngestCodeOpen}>

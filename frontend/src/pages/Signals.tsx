@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,11 +11,34 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { TrendingUp, TrendingDown, X, Activity } from "lucide-react";
+import { TrendingUp, TrendingDown, X, Activity, RefreshCw } from "lucide-react";
 import Header from "@/components/Header";
+import { toast } from "sonner";
 
 const Signals = () => {
   const { isConnected, signals, clearSignals } = useWebSocket();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      const response = await fetch('/api/signals/refresh', {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to refresh signals');
+      }
+      
+      const data = await response.json();
+      toast.success(data.message || 'Signals refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing signals:', error);
+      toast.error('Failed to refresh signals');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -31,15 +55,28 @@ const Signals = () => {
               </div>
             </div>
             
-            {/* Connection Status */}
-            <Card className={`${isConnected ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'} transition-colors`}>
-              <CardContent className="p-3 flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                <span className={`text-sm font-semibold ${isConnected ? 'text-green-700' : 'text-red-700'}`}>
-                  {isConnected ? 'Active' : 'Disconnected'}
-                </span>
-              </CardContent>
-            </Card>
+            <div className="flex items-center gap-3">
+              {/* Refresh Button */}
+              <Button
+                variant="outline"
+                onClick={handleRefresh}
+                disabled={refreshing || !isConnected}
+                className="border-2"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              
+              {/* Connection Status */}
+              <Card className={`${isConnected ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'} transition-colors`}>
+                <CardContent className="p-3 flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                  <span className={`text-sm font-semibold ${isConnected ? 'text-green-700' : 'text-red-700'}`}>
+                    {isConnected ? 'Active' : 'Disconnected'}
+                  </span>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {/* Clear Button */}

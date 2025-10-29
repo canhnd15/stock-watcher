@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { Switch } from "@/components/ui/switch.tsx";
+import { Input } from "@/components/ui/input.tsx";
 import {
   Card,
   CardContent,
@@ -10,7 +11,7 @@ import {
 } from "@/components/ui/card.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Upload, Download } from "lucide-react";
 
 const Config = () => {
   const [vn30CronEnabled, setVn30CronEnabled] = useState(true);
@@ -20,6 +21,9 @@ const Config = () => {
   const [updatingVn30, setUpdatingVn30] = useState(false);
   const [updatingTracked, setUpdatingTracked] = useState(false);
   const [updatingSignal, setUpdatingSignal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const loadConfig = () => {
     setLoading(true);
@@ -110,13 +114,59 @@ const Config = () => {
       .finally(() => setUpdatingSignal(false));
   };
 
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      const resp = await fetch(`/api/trades/export`);
+      if (!resp.ok) throw new Error("Failed to export");
+      const blob = await resp.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'trades-export.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("Exported trades to Excel");
+    } catch {
+      toast.error("Failed to export trades");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+    try {
+      setImporting(true);
+      const form = new FormData();
+      form.append('file', importFile);
+      const resp = await fetch('/api/trades/import', { method: 'POST', body: form });
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(errorText || 'Failed to import');
+      }
+      const text = await resp.text();
+      toast.success(text || 'Imported successfully');
+      setImportFile(null);
+      // Reset file input
+      const fileInput = document.getElementById('import-file-input') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+    } catch (error: any) {
+      toast.error(error.message || "Failed to import trades");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
       
       <main className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">Configuration</h2>
+          <h2 className="text-2xl font-bold">Management</h2>
           <Button
             variant="outline"
             size="sm"
@@ -129,6 +179,65 @@ const Config = () => {
         </div>
 
         <div className="grid gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Data Import/Export</CardTitle>
+              <CardDescription>
+                Import trades from Excel or export all trades to Excel
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <label htmlFor="import-file-input" className="text-sm font-medium mb-2 block">
+                      Import Trades from Excel
+                    </label>
+                    <Input
+                      id="import-file-input"
+                      type="file"
+                      accept=".xlsx"
+                      onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                      disabled={importing}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Upload an Excel file (.xlsx) with trade data
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleImport}
+                    disabled={!importFile || importing}
+                    className="mt-6"
+                  >
+                    {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {!importing && <Upload className="mr-2 h-4 w-4" />}
+                    Import
+                  </Button>
+                </div>
+
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Export All Trades to Excel</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Download all trades data as an Excel file
+                      </p>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      onClick={handleExport}
+                      disabled={exporting}
+                    >
+                      {exporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {!exporting && <Download className="mr-2 h-4 w-4" />}
+                      Export
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Scheduled Jobs</CardTitle>

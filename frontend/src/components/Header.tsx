@@ -9,7 +9,7 @@ const Header = () => {
     { path: "/", label: "Trades" },
     { path: "/tracked", label: "Tracked Stocks" },
     { path: "/suggestions", label: "Suggestions" },
-    { path: "/config", label: "Config" },
+    { path: "/config", label: "Management" },
   ];
 
   return (
