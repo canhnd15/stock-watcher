@@ -44,7 +44,6 @@ interface TrackedStock {
 const TrackedStocks = () => {
   const [stockInput, setStockInput] = useState("");
   const [trackedStocks, setTrackedStocks] = useState<TrackedStock[]>([]);
-  const [ingestingMap, setIngestingMap] = useState<Record<string, boolean>>({});
   const [vn30Codes, setVn30Codes] = useState<string[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [loadingVn30, setLoadingVn30] = useState(true);
@@ -169,16 +168,6 @@ const TrackedStocks = () => {
       });
   };
 
-  const handleIngestNow = (code: string) => {
-    setIngestingMap(prev => ({ ...prev, [code]: true }));
-    fetch(`/api/trades/reingest/${encodeURIComponent(code)}`, { method: "POST" })
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed");
-        toast.success(`Re-ingested ${code}`);
-      })
-      .catch(() => toast.error(`Failed to ingest ${code}`))
-      .finally(() => setIngestingMap(prev => ({ ...prev, [code]: false })));
-  };
 
   const handleDelete = (code: string) => {
     fetch(`/api/stocks/${encodeURIComponent(code)}`, { method: "DELETE" })
@@ -336,49 +325,31 @@ const TrackedStocks = () => {
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleIngestNow(stock.code)}
-                        disabled={ingestingMap[stock.code]}
-                      >
-                        {ingestingMap[stock.code] ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Ingesting...
-                          </>
-                        ) : (
-                          "Ingest Now"
-                        )}
-                      </Button>
-                      
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Tracked Stock</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to remove <strong>{stock.code}</strong> from tracked stocks?
-                              This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(stock.code)}>
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Tracked Stock</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to remove <strong>{stock.code}</strong> from tracked stocks?
+                            This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(stock.code)}>
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))}

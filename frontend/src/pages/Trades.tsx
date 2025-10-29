@@ -76,8 +76,6 @@ const Trades = () => {
   const [type, setType] = useState("All");
   const [minVolume, setMinVolume] = useState("");
   const [maxVolume, setMaxVolume] = useState("");
-  const [ingestCode, setIngestCode] = useState("");
-  const [ingestCodeOpen, setIngestCodeOpen] = useState(false);
   const [fromDate, setFromDate] = useState(getTodayDate()); // yyyy-MM-dd - default to today
   const [toDate, setToDate] = useState(getTodayDate());     // yyyy-MM-dd - default to today
   const [page, setPage] = useState(0);
@@ -86,7 +84,6 @@ const Trades = () => {
   const [totalPages, setTotalPages] = useState(0);
   
   const [filteredTrades, setFilteredTrades] = useState<Trade[]>([]);
-  const [ingesting, setIngesting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sortField, setSortField] = useState<"time" | "price" | "volume" | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -232,37 +229,6 @@ const Trades = () => {
     return params;
   };
 
-  const handleIngest = () => {
-    if (ingestCode) {
-      setIngesting(true);
-      
-      // If "All" is selected, call /ingest/all endpoint
-      if (ingestCode === "All") {
-        fetch(`/api/trades/ingest/all`, { method: "POST" })
-          .then((r) => {
-            if (!r.ok) throw new Error("Failed");
-            return r.text();
-          })
-          .then((message) => {
-            toast.success(message || "Ingestion completed for all stocks");
-            setIngestCode("");
-          })
-          .catch(() => toast.error("Failed to ingest all stocks"))
-          .finally(() => setIngesting(false));
-      } else {
-        // Otherwise, call /ingest/{code} endpoint
-        const c = ingestCode.trim().toUpperCase();
-        fetch(`/api/trades/ingest/${encodeURIComponent(c)}`, { method: "POST" })
-          .then((r) => {
-            if (!r.ok) throw new Error("Failed");
-            toast.success(`Ingestion completed for ${c}`);
-            setIngestCode("");
-          })
-          .catch(() => toast.error(`Failed to ingest ${c}`))
-          .finally(() => setIngesting(false));
-      }
-    }
-  };
 
   // Load data on component mount
   useEffect(() => {
@@ -412,69 +378,6 @@ const Trades = () => {
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Search
             </Button>
-            
-            <div className="ml-auto flex gap-2">
-              <Popover open={ingestCodeOpen} onOpenChange={setIngestCodeOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={ingestCodeOpen}
-                    className="w-48 justify-between"
-                  >
-                    {ingestCode || "Select stock..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[200px] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search stock..." />
-                    <CommandList>
-                      <CommandEmpty>No stock found.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="All"
-                          onSelect={() => {
-                            setIngestCode("All");
-                            setIngestCodeOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              ingestCode === "All" ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          All
-                        </CommandItem>
-                        {VN30_STOCKS.map((stock) => (
-                          <CommandItem
-                            key={stock}
-                            value={stock}
-                            onSelect={(currentValue) => {
-                              setIngestCode(currentValue.toUpperCase());
-                              setIngestCodeOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                ingestCode === stock ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {stock}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <Button onClick={handleIngest} disabled={!ingestCode || ingesting}>
-                {ingesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Ingest Now
-              </Button>
-            </div>
           </div>
         </div>
 

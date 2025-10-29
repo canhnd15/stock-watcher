@@ -3,6 +3,19 @@ import { Button } from "@/components/ui/button.tsx";
 import { Switch } from "@/components/ui/switch.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command.tsx";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover.tsx";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -11,7 +24,16 @@ import {
 } from "@/components/ui/card.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Upload, Download } from "lucide-react";
+import { Loader2, RefreshCw, Upload, Download, Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+// VN30 Stock Codes
+const VN30_STOCKS = [
+  "ACB", "BCM", "CTG", "DGC", "FPT", "BFG", "HDB", "HPG", "MWG",
+  "LPB", "MBB", "MSN", "PLX", "SAB", "SHB", "SSB", "SSI", "VRE",
+  "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB",
+  "DXG", "KDH"
+];
 
 const Config = () => {
   const [vn30CronEnabled, setVn30CronEnabled] = useState(true);
@@ -24,6 +46,9 @@ const Config = () => {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [ingestCode, setIngestCode] = useState("");
+  const [ingestCodeOpen, setIngestCodeOpen] = useState(false);
+  const [ingesting, setIngesting] = useState(false);
 
   const loadConfig = () => {
     setLoading(true);
@@ -160,6 +185,38 @@ const Config = () => {
     }
   };
 
+  const handleIngest = () => {
+    if (ingestCode) {
+      setIngesting(true);
+      
+      // If "All" is selected, call /ingest/all endpoint
+      if (ingestCode === "All") {
+        fetch(`/api/trades/ingest/all`, { method: "POST" })
+          .then((r) => {
+            if (!r.ok) throw new Error("Failed");
+            return r.text();
+          })
+          .then((message) => {
+            toast.success(message || "Ingestion completed for all stocks");
+            setIngestCode("");
+          })
+          .catch(() => toast.error("Failed to ingest all stocks"))
+          .finally(() => setIngesting(false));
+      } else {
+        // Otherwise, call /ingest/{code} endpoint
+        const c = ingestCode.trim().toUpperCase();
+        fetch(`/api/trades/ingest/${encodeURIComponent(c)}`, { method: "POST" })
+          .then((r) => {
+            if (!r.ok) throw new Error("Failed");
+            toast.success(`Ingestion completed for ${c}`);
+            setIngestCode("");
+          })
+          .catch(() => toast.error(`Failed to ingest ${c}`))
+          .finally(() => setIngesting(false));
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -179,6 +236,85 @@ const Config = () => {
         </div>
 
         <div className="grid gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Stock Data Ingestion</CardTitle>
+              <CardDescription>
+                Manually ingest trade data for specific stocks or all VN30 stocks
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <Popover open={ingestCodeOpen} onOpenChange={setIngestCodeOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={ingestCodeOpen}
+                      className="w-64 justify-between"
+                    >
+                      {ingestCode || "Select stock..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[250px] p-0">
+                    <Command>
+                      <CommandInput placeholder="Search stock..." />
+                      <CommandList>
+                        <CommandEmpty>No stock found.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="All"
+                            onSelect={() => {
+                              setIngestCode("All");
+                              setIngestCodeOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                ingestCode === "All" ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            All VN30 Stocks
+                          </CommandItem>
+                          {VN30_STOCKS.map((stock) => (
+                            <CommandItem
+                              key={stock}
+                              value={stock}
+                              onSelect={(currentValue) => {
+                                setIngestCode(currentValue.toUpperCase());
+                                setIngestCodeOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  ingestCode === stock ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {stock}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <Button onClick={handleIngest} disabled={!ingestCode || ingesting}>
+                  {ingesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {!ingesting && <RefreshCw className="mr-2 h-4 w-4" />}
+                  Ingest Now
+                </Button>
+                {ingestCode && !ingesting && (
+                  <p className="text-sm text-muted-foreground">
+                    {ingestCode === "All" ? "Ingest all VN30 stocks" : `Ingest ${ingestCode}`}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Data Import/Export</CardTitle>
