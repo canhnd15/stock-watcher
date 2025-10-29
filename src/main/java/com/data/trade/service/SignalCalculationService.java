@@ -27,7 +27,7 @@ public class SignalCalculationService {
      * Scheduled job to calculate signals every minute
      * Runs at: 00:00, 00:01, 00:02, ... 23:59
      */
-    @Scheduled(cron = "0 */1 * * * *", zone = "Asia/Ho_Chi_Minh")
+    @Scheduled(cron = "${cron.signal-calculation}", zone = "${cron.timezone}")
     public void calculateAndNotifySignals() {
         // Check if cron job is enabled
         if (!configService.isSignalCalculationCronEnabled()) {

@@ -34,7 +34,7 @@ public class TradingJobs {
      * Refresh tracked stocks and generate recommendations every 5 minutes
      * Runs at: 00:00, 00:05, 00:10, ... 23:55
      */
-    @Scheduled(cron = "0 */5 * * * *", zone = "Asia/Ho_Chi_Minh")
+    @Scheduled(cron = "${cron.tracked-stocks-refresh}", zone = "${cron.timezone}")
     public void refreshTodayAndRecommend() {
         // Check if cron job is enabled
         if (!configService.isTrackedStocksCronEnabled()) {
@@ -82,7 +82,7 @@ public class TradingJobs {
      * Ingest trade data for all VN30 stocks every 10 minutes
      * Runs at: 00:00, 00:10, 00:20, ... 23:50
      */
-    @Scheduled(cron = "0 */10 * * * *", zone = "Asia/Ho_Chi_Minh")
+    @Scheduled(cron = "${cron.vn30-ingestion}", zone = "${cron.timezone}")
     public void ingestAllVn30Stocks() {
         // Check if cron job is enabled
         if (!configService.isVn30CronEnabled()) {
