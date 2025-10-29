@@ -1,16 +1,39 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils.ts";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, LogOut, User } from "lucide-react";
 
 const Header = () => {
   const location = useLocation();
-  
+  const navigate = useNavigate();
+  const { user, logout, hasRole } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   const navItems = [
-    { path: "/", label: "Trades" },
-    { path: "/tracked", label: "Tracked Stocks" },
-    { path: "/suggestions", label: "Suggestions" },
-    { path: "/config", label: "Management" },
+    { path: "/", label: "Trades", roles: ['NORMAL', 'VIP', 'ADMIN'] },
+    { path: "/tracked", label: "Tracked Stocks", roles: ['VIP', 'ADMIN'] },
+    { path: "/suggestions", label: "Suggestions", roles: ['VIP', 'ADMIN'] },
+    { path: "/admin", label: "Management", roles: ['ADMIN'] },
   ];
+
+  const visibleNavItems = navItems.filter(item => hasRole(item.roles));
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case 'ADMIN':
+        return 'bg-red-500 hover:bg-red-600';
+      case 'VIP':
+        return 'bg-yellow-500 hover:bg-yellow-600';
+      default:
+        return 'bg-gray-500 hover:bg-gray-600';
+    }
+  };
 
   return (
     <header className="border-b bg-card">
@@ -20,8 +43,9 @@ const Header = () => {
             <TrendingUp className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-bold text-foreground">Trade Tracker</h1>
           </div>
+          
           <nav className="flex gap-1">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <Link
                 key={item.path}
                 to={item.path}
@@ -36,6 +60,20 @@ const Header = () => {
               </Link>
             ))}
           </nav>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">{user?.username}</span>
+              <Badge className={cn("text-xs", getRoleBadgeColor(user?.role || 'NORMAL'))}>
+                {user?.role}
+              </Badge>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
       </div>
     </header>

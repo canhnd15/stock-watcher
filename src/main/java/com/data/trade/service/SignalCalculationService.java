@@ -2,7 +2,9 @@ package com.data.trade.service;
 
 import com.data.trade.dto.SignalNotification;
 import com.data.trade.model.Trade;
+import com.data.trade.model.TrackedStock;
 import com.data.trade.repository.TradeRepository;
+import com.data.trade.repository.TrackedStockRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +15,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -20,36 +24,78 @@ import java.util.List;
 public class SignalCalculationService {
 
     private final TradeRepository tradeRepository;
+    private final TrackedStockRepository trackedStockRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     @Value("${market.vn30.codes}")
     private List<String> vn30;
 
     public void calculateAndNotifySignals() {
-        log.info("========== Starting signal calculation for VN30 stocks ==========");
+        log.info("========== Starting signal calculation for tracked stocks ==========");
 
-        // Use VN30 codes from configuration instead of all distinct codes
-        log.info("Processing {} VN30 stock codes", vn30.size());
+        // Get all active tracked stocks grouped by user
+        List<TrackedStock> allTrackedStocks = trackedStockRepository.findAllByActiveTrue();
+        
+        if (allTrackedStocks.isEmpty()) {
+            log.info("No active tracked stocks found. Using VN30 default for broadcast.");
+            calculateForVN30Broadcast();
+            return;
+        }
+        
+        Map<Long, List<TrackedStock>> stocksByUser = allTrackedStocks.stream()
+                .collect(Collectors.groupingBy(ts -> ts.getUser().getId()));
+        
+        log.info("Processing signals for {} users with tracked stocks", stocksByUser.size());
 
         int signalsSent = 0;
         int failCount = 0;
         
-        for (String code : vn30) {
-            try {
-                SignalNotification signal = calculateSignalForCode(code);
-                if (signal != null) {
-                    messagingTemplate.convertAndSend("/topic/signals", signal);
-                    log.info("Signal sent: {} for {} (score: {})", signal.getSignalType(), code, signal.getScore());
-                    signalsSent++;
+        for (Map.Entry<Long, List<TrackedStock>> entry : stocksByUser.entrySet()) {
+            Long userId = entry.getKey();
+            List<TrackedStock> userStocks = entry.getValue();
+            
+            log.info("Processing {} tracked stocks for user {}", userStocks.size(), userId);
+            
+            for (TrackedStock stock : userStocks) {
+                try {
+                    SignalNotification signal = calculateSignalForCode(stock.getCode());
+                    if (signal != null) {
+                        // Send to specific user's topic
+                        messagingTemplate.convertAndSend("/topic/signals/user/" + userId, signal);
+                        log.info("Signal sent to user {}: {} for {} (score: {})", 
+                            userId, signal.getSignalType(), stock.getCode(), signal.getScore());
+                        signalsSent++;
+                    }
+                } catch (Exception e) {
+                    failCount++;
+                    log.error("Failed to calculate signal for {} (user {}): {}", 
+                        stock.getCode(), userId, e.getMessage());
                 }
-            } catch (Exception e) {
-                failCount++;
-                log.error("Failed to calculate signal for {}: {}", code, e.getMessage());
             }
         }
 
         log.info("========== Signal calculation completed. Signals sent: {}, Failed: {} ==========", 
                 signalsSent, failCount);
+    }
+    
+    private void calculateForVN30Broadcast() {
+        log.info("Broadcasting signals for {} VN30 stocks", vn30.size());
+        
+        int signalsSent = 0;
+        for (String code : vn30) {
+            try {
+                SignalNotification signal = calculateSignalForCode(code);
+                if (signal != null) {
+                    messagingTemplate.convertAndSend("/topic/signals", signal);
+                    log.info("Broadcast signal: {} for {} (score: {})", 
+                        signal.getSignalType(), code, signal.getScore());
+                    signalsSent++;
+                }
+            } catch (Exception e) {
+                log.error("Failed to calculate VN30 signal for {}: {}", code, e.getMessage());
+            }
+        }
+        log.info("VN30 broadcast completed. Signals sent: {}", signalsSent);
     }
 
     /**
