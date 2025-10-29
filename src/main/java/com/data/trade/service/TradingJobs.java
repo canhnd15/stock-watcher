@@ -24,6 +24,7 @@ public class TradingJobs {
     private final TradeIngestionService ingestionService;
     private final ConfigService configService;
     private final SignalCalculationService signalCalculationService;
+    private final TrackedStockNotificationService trackedStockNotificationService;
 
     @Value("${app.timezone:Asia/Ho_Chi_Minh}")
     private String appTz;
@@ -126,5 +127,21 @@ public class TradingJobs {
         } catch (Exception ex) {
             log.error("Failed to run signal calculation after VN30 ingestion: {}", ex.getMessage(), ex);
         }
+    }
+
+    /**
+     * Check tracked stocks and send notifications for BIG signals every 3 minutes
+     * Runs at: 00:00, 00:03, 00:06, ... 23:57
+     */
+    @Scheduled(cron = "0 */3 * * * *", zone = "${cron.timezone}")
+    public void checkTrackedStocksNotifications() {
+        // Check if cron job is enabled
+        if (!configService.isTrackedStocksCronEnabled()) {
+            log.debug("Tracked stocks notifications cron job is disabled. Skipping...");
+            return;
+        }
+        
+        log.info("Starting tracked stock notifications check...");
+        trackedStockNotificationService.checkTrackedStocksAndNotify();
     }
 }

@@ -39,7 +39,7 @@ import {
 import { Badge } from "@/components/ui/badge.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X } from "lucide-react";
+import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWebSocket, SignalNotification } from "@/hooks/useWebSocket.ts";
 
@@ -102,6 +102,32 @@ const Trades = () => {
   
   // WebSocket for signals
   const { isConnected, signals, clearSignals } = useWebSocket();
+  const [refreshingSignals, setRefreshingSignals] = useState(false);
+
+  const handleRefreshSignals = async () => {
+    try {
+      setRefreshingSignals(true);
+      
+      // Clear old signals first
+      clearSignals();
+      
+      const response = await fetch('/api/signals/refresh', {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to refresh signals');
+      }
+      
+      const data = await response.json();
+      toast.success(data.message || 'Signals refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing signals:', error);
+      toast.error('Failed to refresh signals');
+    } finally {
+      setRefreshingSignals(false);
+    }
+  };
 
   const fetchTrades = (nextPage = page, nextSize = size, sortFieldParam = sortField, sortDirectionParam = sortDirection) => {
     const params = new URLSearchParams();
@@ -654,15 +680,28 @@ const Trades = () => {
                 </div>
               </div>
               
-              {/* Connection Status */}
-              <Card className={`${isConnected ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'} transition-colors`}>
-                <CardContent className="p-3 flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                  <span className={`text-sm font-semibold ${isConnected ? 'text-green-700' : 'text-red-700'}`}>
-                    {isConnected ? 'Active' : 'Disconnected'}
-                  </span>
-                </CardContent>
-              </Card>
+              <div className="flex items-center gap-3">
+                {/* Refresh Button */}
+                <Button
+                  variant="outline"
+                  onClick={handleRefreshSignals}
+                  disabled={refreshingSignals || !isConnected}
+                  className="border-2"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${refreshingSignals ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                
+                {/* Connection Status */}
+                <Card className={`${isConnected ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'} transition-colors`}>
+                  <CardContent className="p-3 flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                    <span className={`text-sm font-semibold ${isConnected ? 'text-green-700' : 'text-red-700'}`}>
+                      {isConnected ? 'Active' : 'Disconnected'}
+                    </span>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
             {/* Clear Button */}

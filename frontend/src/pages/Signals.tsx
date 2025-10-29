@@ -22,6 +22,10 @@ const Signals = () => {
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
+      
+      // Clear old signals first
+      clearSignals();
+      
       const response = await fetch('/api/signals/refresh', {
         method: 'POST',
       });

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notification Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 10px 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .warning { background: #fff3cd; color: #856404; }
+        #log {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 Tracked Stock Notification Test</h1>
+        
+        <div id="status" class="status info">
+            Checking notification permission...
+        </div>
+
+        <div style="margin: 20px 0;">
+            <h3>Step 1: Grant Permission</h3>
+            <button id="requestPermission" onclick="requestNotificationPermission()">
+                Request Notification Permission
+            </button>
+            <p>Current permission: <strong id="permissionStatus">unknown</strong></p>
+        </div>
+
+        <div style="margin: 20px 0;">
+            <h3>Step 2: Test Simple Notification</h3>
+            <button id="testSimple" onclick="testSimpleNotification()" disabled>
+                Test Simple Notification
+            </button>
+        </div>
+
+        <div style="margin: 20px 0;">
+            <h3>Step 3: Test Tracked Stock Notification</h3>
+            <button id="testTracked" onclick="testTrackedNotification()" disabled>
+                Test Tracked Stock Notification
+            </button>
+        </div>
+
+        <div style="margin: 20px 0;">
+            <h3>Step 4: Connect to WebSocket</h3>
+            <button id="connectWS" onclick="connectWebSocket()" disabled>
+                Connect to WebSocket
+            </button>
+            <button id="disconnectWS" onclick="disconnectWebSocket()" disabled>
+                Disconnect
+            </button>
+            <p>WebSocket status: <strong id="wsStatus">Not connected</strong></p>
+        </div>
+
+        <div style="margin: 20px 0;">
+            <h3>Step 5: Trigger Backend Check</h3>
+            <button id="triggerBackend" onclick="triggerBackendCheck()">
+                Trigger Backend Notification Check
+            </button>
+        </div>
+
+        <div id="log"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
+    <script>
+        let stompClient = null;
+
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.style.borderLeftColor = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#007bff';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.insertBefore(entry, log.firstChild);
+        }
+
+        function updateStatus(message, className) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${className}`;
+        }
+
+        function checkPermission() {
+            if (!('Notification' in window)) {
+                updateStatus('❌ This browser does not support notifications', 'error');
+                addLog('Notification API not supported', 'error');
+                return;
+            }
+
+            const permission = Notification.permission;
+            document.getElementById('permissionStatus').textContent = permission;
+            addLog(`Current permission: ${permission}`);
+
+            if (permission === 'granted') {
+                updateStatus('✅ Notification permission granted', 'success');
+                document.getElementById('testSimple').disabled = false;
+                document.getElementById('testTracked').disabled = false;
+                document.getElementById('connectWS').disabled = false;
+            } else if (permission === 'denied') {
+                updateStatus('❌ Notification permission denied. Please enable in browser settings.', 'error');
+            } else {
+                updateStatus('⚠️ Notification permission not granted yet', 'warning');
+            }
+        }
+
+        async function requestNotificationPermission() {
+            addLog('Requesting notification permission...');
+            try {
+                const permission = await Notification.requestPermission();
+                addLog(`Permission result: ${permission}`, permission === 'granted' ? 'success' : 'error');
+                checkPermission();
+            } catch (error) {
+                addLog(`Error requesting permission: ${error.message}`, 'error');
+            }
+        }
+
+        function testSimpleNotification() {
+            addLog('Creating simple test notification...');
+            try {
+                const notification = new Notification('Test Notification', {
+                    body: 'This is a simple test notification',
+                    icon: '/favicon.ico',
+                    badge: '/favicon.ico',
+                });
+                
+                notification.onclick = () => {
+                    addLog('Notification clicked!', 'success');
+                    window.focus();
+                    notification.close();
+                };
+
+                addLog('Simple notification created successfully!', 'success');
+                setTimeout(() => notification.close(), 5000);
+            } catch (error) {
+                addLog(`Error creating notification: ${error.message}`, 'error');
+            }
+        }
+
+        function testTrackedNotification() {
+            addLog('Creating tracked stock notification...');
+            try {
+                const notification = new Notification('📈 BUY SIGNAL: FPT', {
+                    body: 'Score: 8/10 | Price: 89,500\nStrong buying pressure detected with high volume',
+                    icon: '/favicon.ico',
+                    badge: '/favicon.ico',
+                    silent: false,
+                    requireInteraction: false,
+                });
+                
+                notification.onclick = () => {
+                    addLog('Tracked notification clicked!', 'success');
+                    window.focus();
+                    notification.close();
+                };
+
+                addLog('Tracked stock notification created successfully!', 'success');
+                setTimeout(() => notification.close(), 10000);
+            } catch (error) {
+                addLog(`Error creating tracked notification: ${error.message}`, 'error');
+            }
+        }
+
+        function connectWebSocket() {
+            if (stompClient && stompClient.connected) {
+                addLog('Already connected to WebSocket', 'info');
+                return;
+            }
+
+            addLog('Connecting to WebSocket...');
+            document.getElementById('wsStatus').textContent = 'Connecting...';
+
+            const socket = new SockJS('http://localhost:8899/ws');
+            stompClient = window.StompJs.Stomp.over(socket);
+
+            stompClient.connect({}, 
+                (frame) => {
+                    addLog('✅ WebSocket connected!', 'success');
+                    document.getElementById('wsStatus').textContent = 'Connected';
+                    document.getElementById('wsStatus').style.color = 'green';
+                    document.getElementById('disconnectWS').disabled = false;
+                    document.getElementById('connectWS').disabled = true;
+
+                    // Subscribe to tracked notifications topic
+                    stompClient.subscribe('/topic/tracked-notifications', (message) => {
+                        addLog('📨 Received tracked notification from WebSocket', 'success');
+                        const notification = JSON.parse(message.body);
+                        addLog(`Data: ${JSON.stringify(notification, null, 2)}`);
+                        
+                        // Show OS notification
+                        if (Notification.permission === 'granted') {
+                            const icon = notification.signalType === 'BUY' ? '📈' : '📉';
+                            const title = `${icon} ${notification.signalType} SIGNAL: ${notification.code}`;
+                            const body = `Score: ${notification.score}/10 | Price: ${notification.lastPrice.toLocaleString()}\n${notification.reason.substring(0, 100)}`;
+                            
+                            const osNotification = new Notification(title, {
+                                body: body,
+                                icon: '/favicon.ico',
+                                badge: '/favicon.ico',
+                                silent: false,
+                            });
+
+                            osNotification.onclick = () => {
+                                window.focus();
+                                osNotification.close();
+                            };
+
+                            setTimeout(() => osNotification.close(), 10000);
+                            addLog('OS notification displayed!', 'success');
+                        }
+                    });
+
+                    addLog('Subscribed to /topic/tracked-notifications');
+                },
+                (error) => {
+                    addLog(`❌ WebSocket error: ${error}`, 'error');
+                    document.getElementById('wsStatus').textContent = 'Error';
+                    document.getElementById('wsStatus').style.color = 'red';
+                }
+            );
+        }
+
+        function disconnectWebSocket() {
+            if (stompClient) {
+                stompClient.disconnect();
+                addLog('WebSocket disconnected');
+                document.getElementById('wsStatus').textContent = 'Disconnected';
+                document.getElementById('wsStatus').style.color = 'gray';
+                document.getElementById('connectWS').disabled = false;
+                document.getElementById('disconnectWS').disabled = true;
+            }
+        }
+
+        async function triggerBackendCheck() {
+            addLog('Triggering backend notification check...');
+            try {
+                const response = await fetch('http://localhost:8899/api/signals/check-tracked', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                addLog(`Backend response: ${JSON.stringify(data)}`, 'success');
+                
+                if (data.status === 'success') {
+                    updateStatus('✅ Backend check completed. Check WebSocket for notifications.', 'success');
+                }
+            } catch (error) {
+                addLog(`❌ Backend error: ${error.message}`, 'error');
+            }
+        }
+
+        // Check permission on load
+        window.onload = () => {
+            checkPermission();
+            addLog('Test page loaded. Follow the steps above.');
+        };
+    </script>
+</body>
+</html>
+

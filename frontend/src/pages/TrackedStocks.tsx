@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
+import { Card, CardContent } from "@/components/ui/card.tsx";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,8 @@ import {
 } from "@/components/ui/table.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, Trash2 } from "lucide-react";
+import { Loader2, Check, Trash2, Bell, BellOff } from "lucide-react";
+import { useTrackedStockNotifications } from "@/hooks/useTrackedStockNotifications";
 
 interface TrackedStock {
   code: string;
@@ -47,6 +49,14 @@ const TrackedStocks = () => {
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [loadingVn30, setLoadingVn30] = useState(true);
   const [customCodesModalOpen, setCustomCodesModalOpen] = useState(false);
+
+  // Tracked stock notifications
+  const {
+    isConnected: notificationsConnected,
+    notifications,
+    permissionGranted,
+    requestPermission,
+  } = useTrackedStockNotifications();
 
   useEffect(() => {
     // Load tracked stocks from backend
@@ -186,7 +196,43 @@ const TrackedStocks = () => {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold mb-6">Tracked Stocks</h2>
+        {/* Header with notification status */}
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Tracked Stocks</h2>
+          
+          <Card className={`${notificationsConnected && permissionGranted ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'} transition-colors`}>
+            <CardContent className="p-3 flex items-center gap-3">
+              {permissionGranted ? (
+                <>
+                  <Bell className="h-4 w-4 text-green-600" />
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${notificationsConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                    <span className="text-sm font-medium">
+                      🔔 Notifications: {notificationsConnected ? 'Active' : 'Connecting...'}
+                    </span>
+                  </div>
+                  {notifications.length > 0 && (
+                    <Badge variant="default" className="ml-1 bg-green-600">
+                      {notifications.length}
+                    </Badge>
+                  )}
+                </>
+              ) : (
+                <>
+                  <BellOff className="h-4 w-4 text-gray-400" />
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={requestPermission}
+                    className="text-sm"
+                  >
+                    Enable Notifications
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
         
         {/* VN30 Stock Selector */}
         <div className="mb-8 space-y-4">
