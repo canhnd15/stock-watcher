@@ -23,6 +23,7 @@ public class TradingJobs {
     private final TradeRepository tradeRepository;
     private final TradeIngestionService ingestionService;
     private final ConfigService configService;
+    private final SignalCalculationService signalCalculationService;
 
     @Value("${app.timezone:Asia/Ho_Chi_Minh}")
     private String appTz;
@@ -36,7 +37,6 @@ public class TradingJobs {
      */
     @Scheduled(cron = "${cron.tracked-stocks-refresh}", zone = "${cron.timezone}")
     public void refreshTodayAndRecommend() {
-        // Check if cron job is enabled
         if (!configService.isTrackedStocksCronEnabled()) {
             log.info("Tracked stocks refresh cron job is disabled. Skipping...");
             return;
@@ -80,11 +80,10 @@ public class TradingJobs {
 
     /**
      * Ingest trade data for all VN30 stocks every 10 minutes
-     * Runs at: 00:00, 00:10, 00:20, ... 23:50
+     * Runs at: 00:00, 00:05, 00:10, ... 23:55
      */
     @Scheduled(cron = "${cron.vn30-ingestion}", zone = "${cron.timezone}")
     public void ingestAllVn30Stocks() {
-        // Check if cron job is enabled
         if (!configService.isVn30CronEnabled()) {
             log.info("VN30 ingestion cron job is disabled. Skipping...");
             return;
@@ -118,5 +117,14 @@ public class TradingJobs {
         
         log.info("========== VN30 ingestion completed. Success: {}, Failed: {} ==========", 
                 successCount, failCount);
+        
+        // Trigger signal calculation after VN30 ingestion completes
+        log.info("Triggering signal calculation after VN30 ingestion...");
+        try {
+            signalCalculationService.calculateAndNotifySignals();
+            log.info("Signal calculation triggered successfully after VN30 ingestion");
+        } catch (Exception ex) {
+            log.error("Failed to run signal calculation after VN30 ingestion: {}", ex.getMessage(), ex);
+        }
     }
 }

@@ -5,8 +5,8 @@ import com.data.trade.model.Trade;
 import com.data.trade.repository.TradeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -21,34 +21,23 @@ public class SignalCalculationService {
 
     private final TradeRepository tradeRepository;
     private final SimpMessagingTemplate messagingTemplate;
-    private final ConfigService configService;
 
-    /**
-     * Scheduled job to calculate signals every minute
-     * Runs at: 00:00, 00:01, 00:02, ... 23:59
-     */
-    @Scheduled(cron = "${cron.signal-calculation}", zone = "${cron.timezone}")
+    @Value("${market.vn30.codes}")
+    private List<String> vn30;
+
     public void calculateAndNotifySignals() {
-        // Check if cron job is enabled
-        if (!configService.isSignalCalculationCronEnabled()) {
-            log.info("Signal calculation cron job is disabled. Skipping...");
-            return;
-        }
-        
-        log.info("========== Starting signal calculation job ==========");
+        log.info("========== Starting signal calculation for VN30 stocks ==========");
 
-        // Get all distinct stock codes from database
-        List<String> codes = tradeRepository.findDistinctCodes();
-        log.info("Found {} distinct stock codes", codes.size());
+        // Use VN30 codes from configuration instead of all distinct codes
+        log.info("Processing {} VN30 stock codes", vn30.size());
 
         int signalsSent = 0;
         int failCount = 0;
         
-        for (String code : codes) {
+        for (String code : vn30) {
             try {
                 SignalNotification signal = calculateSignalForCode(code);
                 if (signal != null) {
-                    // Broadcast to all WebSocket subscribers
                     messagingTemplate.convertAndSend("/topic/signals", signal);
                     log.info("Signal sent: {} for {} (score: {})", signal.getSignalType(), code, signal.getScore());
                     signalsSent++;
@@ -211,7 +200,7 @@ public class SignalCalculationService {
         }
 
         if (signalType == null) {
-            return null; // No strong signal
+            return null;
         }
 
         return SignalNotification.builder()
