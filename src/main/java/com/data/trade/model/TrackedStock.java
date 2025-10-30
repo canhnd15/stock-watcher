@@ -1,6 +1,7 @@
 package com.data.trade.model;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
 
 import java.time.OffsetDateTime;
@@ -25,6 +26,7 @@ public class TrackedStock {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonIgnore
     private User user;
 
     @Column(nullable = false, length = 16)

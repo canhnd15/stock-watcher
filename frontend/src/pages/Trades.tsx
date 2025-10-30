@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWebSocket, SignalNotification } from "@/hooks/useWebSocket.ts";
+import { api } from "@/lib/api";
 
 interface Trade {
   id: string;
@@ -108,9 +109,7 @@ const Trades = () => {
       // Clear old signals first
       clearSignals();
       
-      const response = await fetch('/api/signals/refresh', {
-        method: 'POST',
-      });
+      const response = await api.post('/api/signals/refresh');
       
       if (!response.ok) {
         throw new Error('Failed to refresh signals');
@@ -150,14 +149,17 @@ const Trades = () => {
     }
 
     setLoading(true);
-    fetch(`/api/trades?${params.toString()}`)
+    api.get(`/api/trades?${params.toString()}`)
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load trades");
         return r.json();
       })
       .then((response) => {
-        // New response structure: { trades: { content: [...], ... }, totalVolume, buyVolume, sellVolume, otherVolume }
-        const tradesPage = response?.trades || {};
+        // Backend may return either:
+        // A) Page<Trade> at root level (Spring Data default)
+        // B) Wrapped object: { trades: Page<Trade>, ...stats }
+        const tradesPage = response?.trades ?? response ?? {};
+
         const items = (tradesPage?.content || []).map((t: any) => {
           return {
             id: String(t.id ?? `${t.code}-${t.tradeDate}-${t.tradeTime}`),
@@ -171,20 +173,25 @@ const Trades = () => {
         }) as Trade[];
         setFilteredTrades(items);
         
-        // Parse pagination data from trades object
-        setTotalElements(Number(tradesPage?.totalElements ?? 0));
+        // Parse pagination data (prefer tradesPage, fallback to wrapper fields)
+        setTotalElements(Number(tradesPage?.totalElements ?? response?.totalRecords ?? 0));
         setTotalPages(Number(tradesPage?.totalPages ?? 0));
         setPage(Number(tradesPage?.number ?? nextPage));
         setSize(Number(tradesPage?.size ?? nextSize));
         
-        // Update volume statistics
-        setTotalVolume(Number(response?.totalVolume ?? 0));
-        setBuyVolume(Number(response?.buyVolume ?? 0));
-        setSellVolume(Number(response?.sellVolume ?? 0));
+        // Calculate volume statistics from trades
+        const buyTrades = items.filter(t => t.side === 'buy');
+        const sellTrades = items.filter(t => t.side === 'sell');
         
-        // Update transaction counts
-        setBuyCount(Number(response?.buyCount ?? 0));
-        setSellCount(Number(response?.sellCount ?? 0));
+        const buyVol = buyTrades.reduce((sum, t) => sum + t.volume, 0);
+        const sellVol = sellTrades.reduce((sum, t) => sum + t.volume, 0);
+        
+        // If backend provided stats, prefer them; else compute from page items
+        setTotalVolume(Number(response?.totalVolume ?? (buyVol + sellVol)));
+        setBuyVolume(Number(response?.buyVolume ?? buyVol));
+        setSellVolume(Number(response?.sellVolume ?? sellVol));
+        setBuyCount(Number(response?.buyCount ?? buyTrades.length));
+        setSellCount(Number(response?.sellCount ?? sellTrades.length));
       })
       .catch(() => toast.error("Failed to load trades"))
       .finally(() => setLoading(false));

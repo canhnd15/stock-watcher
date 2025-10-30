@@ -35,8 +35,10 @@ import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
 import { Loader2, Check, Trash2, Bell, BellOff } from "lucide-react";
 import { useTrackedStockNotifications } from "@/hooks/useTrackedStockNotifications";
+import { api } from "@/lib/api";
 
 interface TrackedStock {
+  id: number;
   code: string;
   active: boolean;
 }
@@ -59,7 +61,7 @@ const TrackedStocks = () => {
 
   useEffect(() => {
     // Load tracked stocks from backend
-    fetch("/api/stocks")
+    api.get("/api/tracked-stocks")
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load stocks");
         return r.json();
@@ -67,22 +69,16 @@ const TrackedStocks = () => {
       .then((data: TrackedStock[]) => setTrackedStocks(data))
       .catch(() => toast.error("Failed to load tracked stocks"));
     
-    // Load VN30 codes from backend
+    // Load VN30 codes - using hardcoded list
     setLoadingVn30(true);
-    fetch("/api/stocks/vn30")
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to load VN30 codes");
-        return r.json();
-      })
-      .then((data: string[]) => {
-        console.log("VN30 codes loaded:", data);
-        setVn30Codes(data);
-      })
-      .catch((err) => {
-        console.error("Failed to load VN30 codes:", err);
-        toast.error("Failed to load VN30 codes");
-      })
-      .finally(() => setLoadingVn30(false));
+    const vn30List = [
+      "ACB", "BCM", "CTG", "DGC", "FPT", "BFG", "HDB", "HPG", "MWG",
+      "LPB", "MBB", "MSN", "PLX", "SAB", "SHB", "SSB", "SSI", "VRE",
+      "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB",
+      "DXG", "KDH"
+    ];
+    setVn30Codes(vn30List);
+    setLoadingVn30(false);
   }, []);
 
   const toggleCodeSelection = (code: string) => {
@@ -97,87 +93,100 @@ const TrackedStocks = () => {
     });
   };
 
-  const handleSaveSelectedCodes = () => {
+  const handleSaveSelectedCodes = async () => {
     if (selectedCodes.size === 0) {
       toast.error("Please select at least one stock code");
       return;
     }
 
     const codes = Array.from(selectedCodes);
+    let successCount = 0;
     
-    fetch("/api/stocks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ codes })
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to save");
-        return r.json().catch(() => ({}));
-      })
-      .then(() => {
-        setSelectedCodes(new Set());
-        toast.success(`Saved ${codes.length} stock code(s)`);
-        return fetch("/api/stocks");
-      })
-      .then((r) => r.ok ? r.json() : [])
-      .then((data: TrackedStock[]) => setTrackedStocks(data))
-      .catch(() => toast.error("Failed to save codes"));
+    try {
+      // Add stocks one by one
+      for (const code of codes) {
+        const response = await api.post("/api/tracked-stocks", { code });
+        if (response.ok) {
+          successCount++;
+        }
+      }
+      
+      setSelectedCodes(new Set());
+      toast.success(`Added ${successCount} stock code(s)`);
+      
+      // Refresh the list
+      const refreshResponse = await api.get("/api/tracked-stocks");
+      if (refreshResponse.ok) {
+        const data = await refreshResponse.json();
+        setTrackedStocks(data);
+      }
+    } catch (error) {
+      toast.error("Failed to add some codes");
+    }
   };
 
-  const handleSaveCodes = () => {
+  const handleSaveCodes = async () => {
     const codes = stockInput
       .split(/[\s\n,]+/)
       .map(code => code.trim().toUpperCase())
       .filter(code => code.length > 0);
     if (codes.length === 0) return;
 
-    fetch("/api/stocks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ codes })
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to save");
-        return r.json().catch(() => ({}));
-      })
-      .then(() => {
-        setStockInput("");
-        toast.success(`Saved ${codes.length} stock code(s)`);
-        setCustomCodesModalOpen(false);
-        return fetch("/api/stocks");
-      })
-      .then((r) => r.ok ? r.json() : [])
-      .then((data: TrackedStock[]) => setTrackedStocks(data))
-      .catch(() => toast.error("Failed to save codes"));
+    let successCount = 0;
+    
+    try {
+      // Add stocks one by one
+      for (const code of codes) {
+        const response = await api.post("/api/tracked-stocks", { code });
+        if (response.ok) {
+          successCount++;
+        }
+      }
+      
+      setStockInput("");
+      toast.success(`Added ${successCount} stock code(s)`);
+      setCustomCodesModalOpen(false);
+      
+      // Refresh the list
+      const refreshResponse = await api.get("/api/tracked-stocks");
+      if (refreshResponse.ok) {
+        const data = await refreshResponse.json();
+        setTrackedStocks(data);
+      }
+    } catch (error) {
+      toast.error("Failed to add some codes");
+    }
   };
 
-  const toggleActive = (code: string) => {
-    const current = trackedStocks.find(s => s.code === code);
+  const toggleActive = async (id: number) => {
+    const current = trackedStocks.find(s => s.id === id);
     if (!current) return;
     const nextActive = !current.active;
+    
     // Optimistic update
-    setTrackedStocks(prev => prev.map(s => s.code === code ? { ...s, active: nextActive } : s));
-    fetch(`/api/stocks/${encodeURIComponent(code)}/active/${nextActive}`, { method: "PUT" })
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed");
-      })
-      .catch(() => {
-        // Revert on failure
-        setTrackedStocks(prev => prev.map(s => s.code === code ? { ...s, active: !nextActive } : s));
-        toast.error(`Failed to update ${code}`);
-      });
+    setTrackedStocks(prev => prev.map(s => s.id === id ? { ...s, active: nextActive } : s));
+    
+    try {
+      const response = await api.put(`/api/tracked-stocks/${id}/toggle`);
+      if (!response.ok) throw new Error("Failed");
+    } catch (error) {
+      // Revert on failure
+      setTrackedStocks(prev => prev.map(s => s.id === id ? { ...s, active: !nextActive } : s));
+      toast.error(`Failed to update ${current.code}`);
+    }
   };
 
-
-  const handleDelete = (code: string) => {
-    fetch(`/api/stocks/${encodeURIComponent(code)}`, { method: "DELETE" })
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed");
-        toast.success(`Deleted ${code} from tracked stocks`);
-        // Remove from local state
-        setTrackedStocks(prev => prev.filter(s => s.code !== code));
-      })
-      .catch(() => toast.error(`Failed to delete ${code}`));
+  const handleDelete = async (id: number, code: string) => {
+    try {
+      const response = await api.delete(`/api/tracked-stocks/${id}`);
+      if (!response.ok) throw new Error("Failed");
+      
+      toast.success(`Deleted ${code} from tracked stocks`);
+      // Remove from local state
+      setTrackedStocks(prev => prev.filter(s => s.id !== id));
+    } catch (error) {
+      toast.error(`Failed to delete ${code}`);
+    }
   };
 
   return (
@@ -313,7 +322,7 @@ const TrackedStocks = () => {
                     <div className="flex items-center gap-2">
                       <Checkbox
                         checked={stock.active}
-                        onCheckedChange={() => toggleActive(stock.code)}
+                        onCheckedChange={() => toggleActive(stock.id)}
                         id={`active-${stock.code}`}
                       />
                       <label
@@ -344,7 +353,7 @@ const TrackedStocks = () => {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(stock.code)}>
+                          <AlertDialogAction onClick={() => handleDelete(stock.id, stock.code)}>
                             Delete
                           </AlertDialogAction>
                         </AlertDialogFooter>
