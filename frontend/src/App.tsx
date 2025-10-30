@@ -9,6 +9,7 @@ import Trades from "./pages/Trades.tsx";
 import TrackedStocks from "./pages/TrackedStocks.tsx";
 import Suggestions from "./pages/Suggestions.tsx";
 import AdminPanel from "./pages/AdminPanel.tsx";
+import Config from "./pages/Config.tsx";
 import Login from "./pages/Login.tsx";
 import Register from "./pages/Register.tsx";
 import Unauthorized from "./pages/Unauthorized.tsx";
@@ -53,6 +54,12 @@ const App = () => (
             <Route path="/admin" element={
               <ProtectedRoute requiredRoles={['ADMIN']}>
                 <AdminPanel />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/config" element={
+              <ProtectedRoute requiredRoles={['ADMIN']}>
+                <Config />
               </ProtectedRoute>
             } />
             

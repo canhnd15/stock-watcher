@@ -23,6 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card.tsx";
 import Header from "@/components/Header.tsx";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, Upload, Download, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ const VN30_STOCKS = [
 ];
 
 const Config = () => {
+  const { token } = useAuth();
   const [vn30CronEnabled, setVn30CronEnabled] = useState(true);
   const [trackedStocksCronEnabled, setTrackedStocksCronEnabled] = useState(true);
   const [signalCalculationCronEnabled, setSignalCalculationCronEnabled] = useState(true);
@@ -52,10 +54,11 @@ const Config = () => {
 
   const loadConfig = () => {
     setLoading(true);
+    const headers = { 'Authorization': `Bearer ${token}` };
     Promise.all([
-      fetch("/api/config/vn30-cron").then(r => r.json()),
-      fetch("/api/config/tracked-stocks-cron").then(r => r.json()),
-      fetch("/api/config/signal-calculation-cron").then(r => r.json())
+      fetch("/api/config/vn30-cron", { headers }).then(r => r.json()),
+      fetch("/api/config/tracked-stocks-cron", { headers }).then(r => r.json()),
+      fetch("/api/config/signal-calculation-cron", { headers }).then(r => r.json())
     ])
       .then(([vn30Data, trackedData, signalData]) => {
         setVn30CronEnabled(vn30Data.enabled);
@@ -74,7 +77,10 @@ const Config = () => {
     setUpdatingVn30(true);
     fetch("/api/config/vn30-cron", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
       body: JSON.stringify({ enabled: checked }),
     })
       .then((r) => {
@@ -97,7 +103,10 @@ const Config = () => {
     setUpdatingTracked(true);
     fetch("/api/config/tracked-stocks-cron", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
       body: JSON.stringify({ enabled: checked }),
     })
       .then((r) => {
@@ -120,7 +129,10 @@ const Config = () => {
     setUpdatingSignal(true);
     fetch("/api/config/signal-calculation-cron", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
       body: JSON.stringify({ enabled: checked }),
     })
       .then((r) => {
@@ -142,7 +154,9 @@ const Config = () => {
   const handleExport = async () => {
     try {
       setExporting(true);
-      const resp = await fetch(`/api/trades/export`);
+      const resp = await fetch(`/api/trades/export`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!resp.ok) throw new Error("Failed to export");
       const blob = await resp.blob();
       const url = window.URL.createObjectURL(blob);
@@ -167,7 +181,11 @@ const Config = () => {
       setImporting(true);
       const form = new FormData();
       form.append('file', importFile);
-      const resp = await fetch('/api/trades/import', { method: 'POST', body: form });
+      const resp = await fetch('/api/trades/import', { 
+        method: 'POST', 
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: form 
+      });
       if (!resp.ok) {
         const errorText = await resp.text();
         throw new Error(errorText || 'Failed to import');
@@ -188,10 +206,11 @@ const Config = () => {
   const handleIngest = () => {
     if (ingestCode) {
       setIngesting(true);
+      const headers = { 'Authorization': `Bearer ${token}` };
       
       // If "All" is selected, call /ingest/all endpoint
       if (ingestCode === "All") {
-        fetch(`/api/trades/ingest/all`, { method: "POST" })
+        fetch(`/api/trades/ingest/all`, { method: "POST", headers })
           .then((r) => {
             if (!r.ok) throw new Error("Failed");
             return r.text();
@@ -205,7 +224,7 @@ const Config = () => {
       } else {
         // Otherwise, call /ingest/{code} endpoint
         const c = ingestCode.trim().toUpperCase();
-        fetch(`/api/trades/ingest/${encodeURIComponent(c)}`, { method: "POST" })
+        fetch(`/api/trades/ingest/${encodeURIComponent(c)}`, { method: "POST", headers })
           .then((r) => {
             if (!r.ok) throw new Error("Failed");
             toast.success(`Ingestion completed for ${c}`);

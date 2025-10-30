@@ -19,7 +19,8 @@ const Header = () => {
     { path: "/", label: "Trades", roles: ['NORMAL', 'VIP', 'ADMIN'] },
     { path: "/tracked", label: "Tracked Stocks", roles: ['VIP', 'ADMIN'] },
     { path: "/suggestions", label: "Suggestions", roles: ['VIP', 'ADMIN'] },
-    { path: "/admin", label: "Management", roles: ['ADMIN'] },
+    { path: "/admin", label: "User Management", roles: ['ADMIN'] },
+    { path: "/config", label: "System Config", roles: ['ADMIN'] },
   ];
 
   const visibleNavItems = navItems.filter(item => hasRole(item.roles));
