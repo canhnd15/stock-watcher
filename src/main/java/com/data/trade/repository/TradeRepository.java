@@ -8,7 +8,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecificationExecutor<Trade> {
     
@@ -58,4 +60,14 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
     // Calculate volume statistics based on specifications
     @Query("SELECT COALESCE(SUM(t.volume), 0) FROM Trade t WHERE t.side = :side")
     Long sumVolumeBySide(@Param("side") String side);
+
+    // Statistics queries for tracked stocks
+    @Query("SELECT MIN(t.price) FROM Trade t WHERE t.code = :code AND t.side = :side AND t.tradeDate = :tradeDate")
+    Optional<BigDecimal> findMinPriceByCodeAndSideAndDate(@Param("code") String code, @Param("side") String side, @Param("tradeDate") String tradeDate);
+
+    @Query("SELECT MAX(t.price) FROM Trade t WHERE t.code = :code AND t.side = :side AND t.tradeDate = :tradeDate")
+    Optional<BigDecimal> findMaxPriceByCodeAndSideAndDate(@Param("code") String code, @Param("side") String side, @Param("tradeDate") String tradeDate);
+
+    @Query("SELECT MAX(t.volume) FROM Trade t WHERE t.code = :code AND t.side = :side AND t.tradeDate = :tradeDate")
+    Optional<Long> findMaxVolumeByCodeAndSideAndDate(@Param("code") String code, @Param("side") String side, @Param("tradeDate") String tradeDate);
 }

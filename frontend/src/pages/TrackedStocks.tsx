@@ -35,12 +35,24 @@ import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
 import { Loader2, Check, Trash2, Bell, BellOff } from "lucide-react";
 import { useTrackedStockNotifications } from "@/hooks/useTrackedStockNotifications";
+import { useTrackedStockStats } from "@/hooks/useTrackedStockStats";
 import { api } from "@/lib/api";
+
+interface TrackedStockStats {
+  lowestPriceBuy?: number;
+  highestPriceBuy?: number;
+  lowestPriceSell?: number;
+  highestPriceSell?: number;
+  largestVolumeBuy?: number;
+  largestVolumeSell?: number;
+  lastUpdated?: string;
+}
 
 interface TrackedStock {
   id: number;
   code: string;
   active: boolean;
+  stats?: TrackedStockStats;
 }
 
 const TrackedStocks = () => {
@@ -59,6 +71,9 @@ const TrackedStocks = () => {
     requestPermission,
   } = useTrackedStockNotifications();
 
+  // Tracked stock stats
+  const { statsMap, isConnected: statsConnected } = useTrackedStockStats();
+
   useEffect(() => {
     // Load tracked stocks from backend
     api.get("/api/tracked-stocks")
@@ -66,8 +81,29 @@ const TrackedStocks = () => {
         if (!r.ok) throw new Error("Failed to load stocks");
         return r.json();
       })
-      .then((data: TrackedStock[]) => setTrackedStocks(data))
-      .catch(() => toast.error("Failed to load tracked stocks"));
+      .then((data: TrackedStock[]) => {
+        setTrackedStocks(data);
+        // Load stats for tracked stocks
+        return api.get("/api/tracked-stocks/stats");
+      })
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load stats");
+        return r.json();
+      })
+      .then((statsData: Record<string, TrackedStockStats>) => {
+        // Merge stats with tracked stocks
+        setTrackedStocks((prev) => 
+          prev.map((stock) => ({
+            ...stock,
+            stats: statsData[stock.code],
+          }))
+        );
+      })
+      .catch((error) => {
+        if (error.message !== "Failed to load stats") {
+          toast.error("Failed to load tracked stocks");
+        }
+      });
     
     // Load VN30 codes - using hardcoded list
     setLoadingVn30(true);
@@ -80,6 +116,18 @@ const TrackedStocks = () => {
     setVn30Codes(vn30List);
     setLoadingVn30(false);
   }, []);
+
+  // Update stats when WebSocket stats map changes
+  useEffect(() => {
+    if (statsMap.size > 0) {
+      setTrackedStocks((prev) =>
+        prev.map((stock) => {
+          const stats = statsMap.get(stock.code);
+          return stats ? { ...stock, stats } : stock;
+        })
+      );
+    }
+  }, [statsMap]);
 
   const toggleCodeSelection = (code: string) => {
     setSelectedCodes(prev => {
@@ -305,66 +353,104 @@ const TrackedStocks = () => {
           </div>
         </div>
 
-        <div className="rounded-lg border bg-card">
+        <div className="rounded-lg border bg-card overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Code</TableHead>
                 <TableHead>Active</TableHead>
+                <TableHead className="text-center bg-green-50">Buy Low Price</TableHead>
+                <TableHead className="text-center bg-green-50">Buy High Price</TableHead>
+                <TableHead className="text-center bg-green-50 border-r-2 border-gray-300">Buy Max Volume</TableHead>
+                <TableHead className="text-center bg-red-50">Sell Low Price</TableHead>
+                <TableHead className="text-center bg-red-50">Sell High Price</TableHead>
+                <TableHead className="text-center bg-red-50">Sell Max Volume</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {trackedStocks.map((stock) => (
-                <TableRow key={stock.code}>
-                  <TableCell className="font-semibold text-lg">{stock.code}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        checked={stock.active}
-                        onCheckedChange={() => toggleActive(stock.id)}
-                        id={`active-${stock.code}`}
-                      />
-                      <label
-                        htmlFor={`active-${stock.code}`}
-                        className="text-sm font-medium cursor-pointer"
-                      >
-                        Active
-                      </label>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="destructive"
-                          size="sm"
+              {trackedStocks.map((stock) => {
+                const stats = stock.stats;
+                const formatNumber = (value?: number) => {
+                  if (value === null || value === undefined) return "N/A";
+                  // Format with period as thousands separator
+                  return Math.round(value).toLocaleString('de-DE');
+                };
+                const formatPrice = (value?: number) => {
+                  if (value === null || value === undefined) return "N/A";
+                  // Format with period as thousands separator and remove decimals
+                  return Math.round(value).toLocaleString('de-DE');
+                };
+
+                return (
+                  <TableRow key={stock.code}>
+                    <TableCell className="font-semibold text-lg">{stock.code}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={stock.active}
+                          onCheckedChange={() => toggleActive(stock.id)}
+                          id={`active-${stock.code}`}
+                        />
+                        <label
+                          htmlFor={`active-${stock.code}`}
+                          className="text-sm font-medium cursor-pointer"
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Tracked Stock</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to remove <strong>{stock.code}</strong> from tracked stocks?
-                            This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(stock.id, stock.code)}>
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
-                </TableRow>
-              ))}
+                          Active
+                        </label>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center bg-green-50/30">
+                      <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceBuy)}</span>
+                    </TableCell>
+                    <TableCell className="text-center bg-green-50/30">
+                      <span className="text-sm text-muted-foreground">{formatPrice(stats?.highestPriceBuy)}</span>
+                    </TableCell>
+                    <TableCell className="text-center bg-green-50/30 border-r-2 border-gray-300">
+                      <span className="text-sm font-medium text-green-600">{formatNumber(stats?.largestVolumeBuy)}</span>
+                    </TableCell>
+                    <TableCell className="text-center bg-red-50/30">
+                      <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceSell)}</span>
+                    </TableCell>
+                    <TableCell className="text-center bg-red-50/30">
+                      <span className="text-sm text-muted-foreground">{formatPrice(stats?.highestPriceSell)}</span>
+                    </TableCell>
+                    <TableCell className="text-center bg-red-50/30">
+                      <span className="text-sm font-medium text-red-600">{formatNumber(stats?.largestVolumeSell)}</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Tracked Stock</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to remove <strong>{stock.code}</strong> from tracked stocks?
+                              This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(stock.id, stock.code)}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               {trackedStocks.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     No tracked stocks yet. Add some codes above to get started.
                   </TableCell>
                 </TableRow>

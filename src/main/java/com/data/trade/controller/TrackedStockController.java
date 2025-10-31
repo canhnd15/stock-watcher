@@ -1,8 +1,10 @@
 package com.data.trade.controller;
 
+import com.data.trade.dto.TrackedStockStatsDTO;
 import com.data.trade.model.TrackedStock;
 import com.data.trade.model.User;
 import com.data.trade.repository.TrackedStockRepository;
+import com.data.trade.service.TrackedStockStatsService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/tracked-stocks")
@@ -21,10 +24,16 @@ import java.util.List;
 public class TrackedStockController {
 
     private final TrackedStockRepository trackedStockRepository;
+    private final TrackedStockStatsService trackedStockStatsService;
 
     @GetMapping
     public List<TrackedStock> getAllTrackedStocks(@AuthenticationPrincipal User currentUser) {
         return trackedStockRepository.findAllByUserId(currentUser.getId());
+    }
+
+    @GetMapping("/stats")
+    public Map<String, TrackedStockStatsDTO> getTrackedStockStats(@AuthenticationPrincipal User currentUser) {
+        return trackedStockStatsService.getStatsForUser(currentUser.getId());
     }
 
     @PostMapping
