@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -14,18 +15,19 @@ const Register = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error(t('auth.passwordMismatch'));
       return;
     }
 
     if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+      toast.error(t('auth.passwordTooShort'));
       return;
     }
 
@@ -33,10 +35,10 @@ const Register = () => {
     
     try {
       await register(username, email, password);
-      toast.success('Registration successful! Welcome to Trade Tracker.');
+      toast.success(t('auth.welcomeMessage'));
       navigate('/');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Registration failed. Please try again.');
+      toast.error(error instanceof Error ? error.message : t('auth.registerFailed'));
     } finally {
       setLoading(false);
     }
@@ -48,21 +50,21 @@ const Register = () => {
         <CardHeader className="space-y-3">
           <div className="flex items-center justify-center gap-2">
             <TrendingUp className="h-8 w-8 text-primary" />
-            <CardTitle className="text-3xl text-center">Create Account</CardTitle>
+            <CardTitle className="text-3xl text-center">{t('auth.createAccount')}</CardTitle>
           </div>
           <CardDescription className="text-center">
-            Join Trade Tracker to start monitoring stocks
+            {t('auth.joinTradeTracker')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Username</label>
+              <label className="text-sm font-medium">{t('auth.username')}</label>
               <Input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Choose a username"
+                placeholder={t('auth.chooseUsername')}
                 required
                 minLength={3}
                 className="mt-1"
@@ -70,7 +72,7 @@ const Register = () => {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Email</label>
+              <label className="text-sm font-medium">{t('auth.email')}</label>
               <Input
                 type="email"
                 value={email}
@@ -82,12 +84,12 @@ const Register = () => {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Password</label>
+              <label className="text-sm font-medium">{t('auth.password')}</label>
               <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Create a password (min 6 characters)"
+                placeholder={t('auth.passwordMinLength')}
                 required
                 minLength={6}
                 className="mt-1"
@@ -95,12 +97,12 @@ const Register = () => {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Confirm Password</label>
+              <label className="text-sm font-medium">{t('auth.confirmPassword')}</label>
               <Input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm your password"
+                placeholder={t('auth.confirmPasswordPlaceholder')}
                 required
                 className="mt-1"
                 disabled={loading}
@@ -108,13 +110,13 @@ const Register = () => {
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {loading ? 'Creating account...' : 'Register'}
+              {loading ? t('auth.creatingAccount') : t('auth.register')}
             </Button>
           </form>
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
+            {t('auth.alreadyHaveAccount')}{' '}
             <Link to="/login" className="text-primary font-medium hover:underline">
-              Login here
+              {t('auth.loginHere')}
             </Link>
           </p>
         </CardContent>

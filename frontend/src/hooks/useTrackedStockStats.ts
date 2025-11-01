@@ -22,7 +22,6 @@ export const useTrackedStockStats = () => {
 
   const connect = useCallback(() => {
     if (!user?.id) {
-      console.log('[TrackedStockStats] No user ID, skipping connection');
       return;
     }
 
@@ -34,12 +33,10 @@ export const useTrackedStockStats = () => {
 
     const client = new Client({
       webSocketFactory: socketFactory as any,
-      debug: (str) => console.log('Tracked Stock Stats STOMP:', str),
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
       onConnect: () => {
-        console.log('✅ Tracked Stock Stats Connected');
         setIsConnected(true);
         
         // Subscribe to user-specific stats topic
@@ -47,7 +44,6 @@ export const useTrackedStockStats = () => {
         client.subscribe(topic, (message: Message) => {
           try {
             const statsUpdate: Record<string, TrackedStockStats> = JSON.parse(message.body);
-            console.log('📊 Tracked Stock Stats Update:', statsUpdate);
             
             // Update stats map
             setStatsMap((prev) => {
@@ -61,19 +57,15 @@ export const useTrackedStockStats = () => {
             console.error('Failed to parse tracked stock stats:', error);
           }
         });
-        
-        console.log(`📡 Subscribed to ${topic}`);
       },
       onStompError: (frame) => {
         console.error('❌ Tracked Stock Stats STOMP error:', frame);
         setIsConnected(false);
       },
       onWebSocketClose: () => {
-        console.log('🔌 Tracked Stock Stats WebSocket closed');
         setIsConnected(false);
       },
       onDisconnect: () => {
-        console.log('⚠️ Tracked Stock Stats Disconnected');
         setIsConnected(false);
       },
     });

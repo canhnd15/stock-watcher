@@ -22,7 +22,6 @@ export const useWebSocket = () => {
 
   const connect = useCallback(() => {
     if (clientRef.current?.active) {
-      console.log('WebSocket already connected');
       return;
     }
 
@@ -30,21 +29,16 @@ export const useWebSocket = () => {
 
     const client = new Client({
       webSocketFactory: socketFactory as any,
-      debug: (str) => {
-        console.log('STOMP:', str);
-      },
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
       onConnect: () => {
-        console.log('✅ WebSocket Connected');
         setIsConnected(true);
         
         // Subscribe to signals
         client.subscribe('/topic/signals', (message: Message) => {
           try {
             const signal: SignalNotification = JSON.parse(message.body);
-            console.log('📊 Signal received:', signal);
             
             setSignals((prev) => {
               const newSignals = [signal, ...prev];
@@ -70,8 +64,6 @@ export const useWebSocket = () => {
             console.error('Failed to parse signal:', error);
           }
         });
-        
-        console.log('📡 Subscribed to /topic/signals');
       },
       onStompError: (frame) => {
         console.error('❌ STOMP error:', frame.headers['message']);
@@ -79,11 +71,9 @@ export const useWebSocket = () => {
         setIsConnected(false);
       },
       onWebSocketClose: () => {
-        console.log('🔌 WebSocket connection closed');
         setIsConnected(false);
       },
       onDisconnect: () => {
-        console.log('⚠️ WebSocket Disconnected');
         setIsConnected(false);
       },
     });
@@ -95,7 +85,6 @@ export const useWebSocket = () => {
   const disconnect = useCallback(() => {
     if (clientRef.current) {
       clientRef.current.deactivate();
-      console.log('WebSocket disconnected manually');
     }
   }, []);
 
