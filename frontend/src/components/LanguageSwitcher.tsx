@@ -20,9 +20,8 @@ const LanguageSwitcher = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="sm" title={languages.find(l => l.code === language)?.label || 'Language'}>
           <Languages className="h-4 w-4" />
-          <span className="hidden sm:inline">{languages.find(l => l.code === language)?.flag || '🌐'}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40">

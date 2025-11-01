@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 @Entity
@@ -35,6 +36,9 @@ public class TrackedStock {
     @Column(nullable = false)
     @Builder.Default
     private Boolean active = true;
+
+    @Column(nullable = true, precision = 19, scale = 2)
+    private BigDecimal costBasis;
 
     @Column(nullable = false)
     private OffsetDateTime createdAt;

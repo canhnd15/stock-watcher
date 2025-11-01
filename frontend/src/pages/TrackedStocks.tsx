@@ -1,9 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Card, CardContent } from "@/components/ui/card.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.tsx";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +40,8 @@ import {
 } from "@/components/ui/table.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, Trash2, Bell, BellOff } from "lucide-react";
+import { Loader2, Check, Trash2, Bell, BellOff, ArrowUpDown, ArrowUp, ArrowDown, Pencil, X } from "lucide-react";
+import { Input } from "@/components/ui/input.tsx";
 import { useTrackedStockNotifications } from "@/hooks/useTrackedStockNotifications";
 import { useTrackedStockStats } from "@/hooks/useTrackedStockStats";
 import { api } from "@/lib/api";
@@ -52,8 +60,11 @@ interface TrackedStock {
   id: number;
   code: string;
   active: boolean;
+  costBasis?: number;
   stats?: TrackedStockStats;
 }
+
+type SortField = "buyLowPrice" | "buyHighPrice" | "buyMaxVolume" | "sellLowPrice" | "sellHighPrice" | "sellMaxVolume";
 
 const TrackedStocks = () => {
   const [stockInput, setStockInput] = useState("");
@@ -62,6 +73,21 @@ const TrackedStocks = () => {
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [loadingVn30, setLoadingVn30] = useState(true);
   const [customCodesModalOpen, setCustomCodesModalOpen] = useState(false);
+  const [costBasisDialogOpen, setCostBasisDialogOpen] = useState(false);
+  const [costBasisValues, setCostBasisValues] = useState<Record<string, string>>({});
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingStock, setEditingStock] = useState<TrackedStock | null>(null);
+  const [editCode, setEditCode] = useState("");
+  const [editActive, setEditActive] = useState(true);
+  const [editCostBasis, setEditCostBasis] = useState("");
+  
+  // Pagination state
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(10);
+  
+  // Sorting state
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   // Tracked stock notifications
   const {
@@ -141,25 +167,51 @@ const TrackedStocks = () => {
     });
   };
 
-  const handleSaveSelectedCodes = async () => {
+  const handleSaveSelectedCodes = () => {
     if (selectedCodes.size === 0) {
       toast.error("Please select at least one stock code");
       return;
     }
 
+    // Initialize cost basis values for selected codes
+    const codes = Array.from(selectedCodes);
+    const initialValues: Record<string, string> = {};
+    codes.forEach(code => {
+      initialValues[code] = "";
+    });
+    setCostBasisValues(initialValues);
+    setCostBasisDialogOpen(true);
+  };
+
+  const handleSaveWithCostBasis = async () => {
     const codes = Array.from(selectedCodes);
     let successCount = 0;
     
     try {
-      // Add stocks one by one
+      // Add stocks one by one with cost basis
       for (const code of codes) {
-        const response = await api.post("/api/tracked-stocks", { code });
+        const costBasisValue = costBasisValues[code]?.trim();
+        const costBasis = costBasisValue ? parseFloat(costBasisValue) : undefined;
+        
+        if (costBasis !== undefined && (isNaN(costBasis) || costBasis < 0)) {
+          toast.error(`Invalid cost basis for ${code}. Please enter a valid positive number.`);
+          continue;
+        }
+
+        const requestBody: { code: string; costBasis?: number } = { code };
+        if (costBasis !== undefined && !isNaN(costBasis)) {
+          requestBody.costBasis = costBasis;
+        }
+
+        const response = await api.post("/api/tracked-stocks", requestBody);
         if (response.ok) {
           successCount++;
         }
       }
       
       setSelectedCodes(new Set());
+      setCostBasisValues({});
+      setCostBasisDialogOpen(false);
       toast.success(`Added ${successCount} stock code(s)`);
       
       // Refresh the list
@@ -167,6 +219,17 @@ const TrackedStocks = () => {
       if (refreshResponse.ok) {
         const data = await refreshResponse.json();
         setTrackedStocks(data);
+        // Reload stats
+        const statsResponse = await api.get("/api/tracked-stocks/stats");
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setTrackedStocks((prev) => 
+            prev.map((stock) => ({
+              ...stock,
+              stats: statsData[stock.code],
+            }))
+          );
+        }
       }
     } catch (error) {
       toast.error("Failed to add some codes");
@@ -224,6 +287,67 @@ const TrackedStocks = () => {
     }
   };
 
+  const handleEdit = (stock: TrackedStock) => {
+    setEditingStock(stock);
+    setEditCode(stock.code);
+    setEditActive(stock.active);
+    setEditCostBasis(stock.costBasis?.toString() || "");
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateStock = async () => {
+    if (!editingStock) return;
+
+    const costBasisValue = editCostBasis.trim();
+    let costBasis: number | undefined = undefined;
+    if (costBasisValue) {
+      const parsed = parseFloat(costBasisValue);
+      if (isNaN(parsed) || parsed < 0) {
+        toast.error("Invalid cost basis. Please enter a valid positive number.");
+        return;
+      }
+      costBasis = parsed;
+    }
+
+    try {
+      const requestBody: { code?: string; active?: boolean; costBasis?: number | null } = {};
+      if (editCode !== editingStock.code) {
+        requestBody.code = editCode.toUpperCase();
+      }
+      requestBody.active = editActive;
+      // Always send costBasis - null to clear, number to set value
+      requestBody.costBasis = costBasisValue.trim() !== "" && costBasis !== undefined ? costBasis : null;
+
+      const response = await api.put(`/api/tracked-stocks/${editingStock.id}`, requestBody);
+      if (!response.ok) throw new Error("Failed");
+
+      toast.success(`Updated ${editCode}`);
+      setEditDialogOpen(false);
+      setEditingStock(null);
+      
+      // Refresh the list
+      const refreshResponse = await api.get("/api/tracked-stocks");
+      if (refreshResponse.ok) {
+        const data = await refreshResponse.json();
+        setTrackedStocks(data);
+        // Reload stats
+        const statsResponse = await api.get("/api/tracked-stocks/stats");
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setTrackedStocks((prev) => 
+            prev.map((stock) => ({
+              ...stock,
+              stats: statsData[stock.code],
+            }))
+          );
+        }
+      }
+    } catch (error: any) {
+      const errorMessage = error?.response?.data || error?.message || "Failed to update stock";
+      toast.error(errorMessage);
+    }
+  };
+
   const handleDelete = async (id: number, code: string) => {
     try {
       const response = await api.delete(`/api/tracked-stocks/${id}`);
@@ -236,6 +360,101 @@ const TrackedStocks = () => {
       toast.error(`Failed to delete ${code}`);
     }
   };
+
+  // Calculate percentage difference helper
+  const calculatePercentageDiff = (costBasis: number | undefined, currentPrice: number | undefined): number | null => {
+    if (!costBasis || costBasis <= 0 || !currentPrice) return null;
+    return ((currentPrice - costBasis) / costBasis) * 100;
+  };
+
+  const formatPercentage = (percentage: number | null): string => {
+    if (percentage === null) return "";
+    const sign = percentage >= 0 ? "+" : "";
+    return `(${sign}${percentage.toFixed(2)}%)`;
+  };
+
+  // Sorting and pagination logic
+  const handleSort = (field: SortField) => {
+    let newDirection: "asc" | "desc" = "asc";
+    
+    if (sortField === field) {
+      // Toggle direction if same field
+      newDirection = sortDirection === "asc" ? "desc" : "asc";
+    } else {
+      // New field, default to ascending
+      newDirection = "asc";
+    }
+    
+    setSortField(field);
+    setSortDirection(newDirection);
+    setPage(0); // Reset to first page when sorting changes
+  };
+
+  const formatNumber = (value?: number) => {
+    if (value === null || value === undefined) return null;
+    return Math.round(value);
+  };
+
+  const formatPrice = (value?: number) => {
+    if (value === null || value === undefined) return null;
+    return Math.round(value);
+  };
+
+  // Sort and paginate data
+  const sortedAndPaginatedStocks = useMemo(() => {
+    let sorted = [...trackedStocks];
+
+    if (sortField) {
+      sorted.sort((a, b) => {
+        let aValue: number | null = null;
+        let bValue: number | null = null;
+
+        switch (sortField) {
+          case "buyLowPrice":
+            aValue = formatPrice(a.stats?.lowestPriceBuy);
+            bValue = formatPrice(b.stats?.lowestPriceBuy);
+            break;
+          case "buyHighPrice":
+            aValue = formatPrice(a.stats?.highestPriceBuy);
+            bValue = formatPrice(b.stats?.highestPriceBuy);
+            break;
+          case "buyMaxVolume":
+            aValue = formatNumber(a.stats?.largestVolumeBuy);
+            bValue = formatNumber(b.stats?.largestVolumeBuy);
+            break;
+          case "sellLowPrice":
+            aValue = formatPrice(a.stats?.lowestPriceSell);
+            bValue = formatPrice(b.stats?.lowestPriceSell);
+            break;
+          case "sellHighPrice":
+            aValue = formatPrice(a.stats?.highestPriceSell);
+            bValue = formatPrice(b.stats?.highestPriceSell);
+            break;
+          case "sellMaxVolume":
+            aValue = formatNumber(a.stats?.largestVolumeSell);
+            bValue = formatNumber(b.stats?.largestVolumeSell);
+            break;
+        }
+
+        // Handle null values (put them at the end)
+        if (aValue === null && bValue === null) return 0;
+        if (aValue === null) return 1;
+        if (bValue === null) return -1;
+
+        const comparison = aValue - bValue;
+        return sortDirection === "asc" ? comparison : -comparison;
+      });
+    }
+
+    // Apply pagination
+    const startIndex = page * size;
+    const endIndex = startIndex + size;
+    return {
+      data: sorted.slice(startIndex, endIndex),
+      total: sorted.length,
+      totalPages: Math.ceil(sorted.length / size),
+    };
+  }, [trackedStocks, sortField, sortDirection, page, size]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -284,7 +503,7 @@ const TrackedStocks = () => {
         <div className="mb-8 space-y-4">
           <div className="rounded-lg border bg-card p-6">
             <h3 className="text-lg font-semibold mb-4">
-              Select VN30 Stocks {selectedCodes.size > 0 && (
+              Select Stocks For Tracking {selectedCodes.size > 0 && (
                 <span className="text-sm font-normal text-muted-foreground ml-2">
                   ({selectedCodes.size} selected)
                 </span>
@@ -315,7 +534,7 @@ const TrackedStocks = () => {
                 })
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 justify-between items-center">
               <Button 
                 onClick={handleSaveSelectedCodes}
                 disabled={selectedCodes.size === 0}
@@ -353,23 +572,230 @@ const TrackedStocks = () => {
           </div>
         </div>
 
+        {/* Cost Basis Input Dialog */}
+        <Dialog open={costBasisDialogOpen} onOpenChange={setCostBasisDialogOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Enter Cost Basis for Selected Stocks</DialogTitle>
+              <DialogDescription>
+                Enter the cost basis (purchase price) for each stock. Leave empty if not applicable.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4 max-h-[400px] overflow-y-auto">
+              {Array.from(selectedCodes).map((code) => (
+                <div key={code} className="flex items-center gap-4">
+                  <label className="text-sm font-medium w-20">{code}</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Cost basis (optional)"
+                    value={costBasisValues[code] || ""}
+                    onChange={(e) => {
+                      setCostBasisValues(prev => ({
+                        ...prev,
+                        [code]: e.target.value
+                      }));
+                    }}
+                    className="flex-1"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setCostBasisDialogOpen(false);
+                setCostBasisValues({});
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveWithCostBasis}>
+                Save
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Tracked Stock Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Edit Tracked Stock</DialogTitle>
+              <DialogDescription>
+                Update the stock code, active status, and cost basis.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Stock Code</label>
+                <Input
+                  value={editCode}
+                  onChange={(e) => setEditCode(e.target.value.toUpperCase())}
+                  placeholder="Stock code"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Cost Basis</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editCostBasis}
+                  onChange={(e) => setEditCostBasis(e.target.value)}
+                  placeholder="Cost basis (optional)"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={editActive}
+                  onCheckedChange={(checked) => setEditActive(checked === true)}
+                  id="edit-active"
+                />
+                <label htmlFor="edit-active" className="text-sm font-medium cursor-pointer">
+                  Active
+                </label>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setEditDialogOpen(false);
+                setEditingStock(null);
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateStock}>
+                Save Changes
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <div className="rounded-lg border bg-card overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Active</TableHead>
-                <TableHead className="text-center bg-green-50">Buy Low Price</TableHead>
-                <TableHead className="text-center bg-green-50">Buy High Price</TableHead>
-                <TableHead className="text-center bg-green-50 border-r-2 border-gray-300">Buy Max Volume</TableHead>
-                <TableHead className="text-center bg-red-50">Sell Low Price</TableHead>
-                <TableHead className="text-center bg-red-50">Sell High Price</TableHead>
-                <TableHead className="text-center bg-red-50">Sell Max Volume</TableHead>
+                <TableHead>Stock</TableHead>
+                <TableHead>Cost Basis</TableHead>
+                <TableHead className="text-center bg-green-50 w-28">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => handleSort("buyLowPrice")}
+                  >
+                    Low Price
+                    {sortField === "buyLowPrice" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="ml-2 h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="ml-2 h-4 w-4" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead className="text-center bg-green-50 w-28">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => handleSort("buyHighPrice")}
+                  >
+                    High Price
+                    {sortField === "buyHighPrice" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="ml-2 h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="ml-2 h-4 w-4" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead className="text-center bg-green-50 border-r-2 border-gray-300 w-28">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => handleSort("buyMaxVolume")}
+                  >
+                    Max Volume
+                    {sortField === "buyMaxVolume" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="ml-2 h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="ml-2 h-4 w-4" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead className="text-center bg-red-50 w-28">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => handleSort("sellLowPrice")}
+                  >
+                    Low Price
+                    {sortField === "sellLowPrice" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="ml-2 h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="ml-2 h-4 w-4" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead className="text-center bg-red-50 w-28">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => handleSort("sellHighPrice")}
+                  >
+                    High Price
+                    {sortField === "sellHighPrice" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="ml-2 h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="ml-2 h-4 w-4" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead className="text-center bg-red-50 w-28">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => handleSort("sellMaxVolume")}
+                  >
+                    Max Volume
+                    {sortField === "sellMaxVolume" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="ml-2 h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="ml-2 h-4 w-4" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+                    )}
+                  </Button>
+                </TableHead>
+                <TableHead className="text-center">Active</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {trackedStocks.map((stock) => {
+              {sortedAndPaginatedStocks.data.map((stock) => {
                 const stats = stock.stats;
                 const formatNumber = (value?: number) => {
                   if (value === null || value === undefined) return "N/A";
@@ -382,44 +808,84 @@ const TrackedStocks = () => {
                   return Math.round(value).toLocaleString('de-DE');
                 };
 
+                const buyLowPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.lowestPriceBuy);
+                const buyHighPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.highestPriceBuy);
+                const sellLowPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.lowestPriceSell);
+                const sellHighPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.highestPriceSell);
+
                 return (
                   <TableRow key={stock.code}>
                     <TableCell className="font-semibold text-lg">{stock.code}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={stock.active}
-                          onCheckedChange={() => toggleActive(stock.id)}
-                          id={`active-${stock.code}`}
-                        />
-                        <label
-                          htmlFor={`active-${stock.code}`}
-                          className="text-sm font-medium cursor-pointer"
-                        >
-                          Active
-                        </label>
+                      {stock.costBasis ? (
+                        <span className="text-sm font-medium">{formatPrice(stock.costBasis)}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">N/A</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center bg-green-50/30 w-28">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceBuy)}</span>
+                        {buyLowPriceDiff !== null && (
+                          <span className={`text-xs ${buyLowPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatPercentage(buyLowPriceDiff)}
+                          </span>
+                        )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-center bg-green-50/30">
-                      <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceBuy)}</span>
+                    <TableCell className="text-center bg-green-50/30 w-28">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-sm text-muted-foreground">{formatPrice(stats?.highestPriceBuy)}</span>
+                        {buyHighPriceDiff !== null && (
+                          <span className={`text-xs ${buyHighPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatPercentage(buyHighPriceDiff)}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-center bg-green-50/30">
-                      <span className="text-sm text-muted-foreground">{formatPrice(stats?.highestPriceBuy)}</span>
-                    </TableCell>
-                    <TableCell className="text-center bg-green-50/30 border-r-2 border-gray-300">
+                    <TableCell className="text-center bg-green-50/30 border-r-2 border-gray-300 w-28">
                       <span className="text-sm font-medium text-green-600">{formatNumber(stats?.largestVolumeBuy)}</span>
                     </TableCell>
-                    <TableCell className="text-center bg-red-50/30">
-                      <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceSell)}</span>
+                    <TableCell className="text-center bg-red-50/30 w-28">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceSell)}</span>
+                        {sellLowPriceDiff !== null && (
+                          <span className={`text-xs ${sellLowPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatPercentage(sellLowPriceDiff)}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-center bg-red-50/30">
-                      <span className="text-sm text-muted-foreground">{formatPrice(stats?.highestPriceSell)}</span>
+                    <TableCell className="text-center bg-red-50/30 w-28">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-sm text-muted-foreground">{formatPrice(stats?.highestPriceSell)}</span>
+                        {sellHighPriceDiff !== null && (
+                          <span className={`text-xs ${sellHighPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatPercentage(sellHighPriceDiff)}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-center bg-red-50/30">
+                    <TableCell className="text-center bg-red-50/30 w-28">
                       <span className="text-sm font-medium text-red-600">{formatNumber(stats?.largestVolumeSell)}</span>
                     </TableCell>
+                    <TableCell className="text-center">
+                      <Checkbox
+                        checked={stock.active}
+                        onCheckedChange={() => toggleActive(stock.id)}
+                        id={`active-${stock.code}`}
+                      />
+                    </TableCell>
                     <TableCell className="text-right">
-                      <AlertDialog>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(stock)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
                             variant="destructive"
@@ -444,20 +910,74 @@ const TrackedStocks = () => {
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
               })}
-              {trackedStocks.length === 0 && (
+              {sortedAndPaginatedStocks.data.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                    No tracked stocks yet. Add some codes above to get started.
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                    {trackedStocks.length === 0 
+                      ? "No tracked stocks yet. Add some codes above to get started."
+                      : "No results on this page."
+                    }
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </div>
+
+        {/* Pagination */}
+        {sortedAndPaginatedStocks.total > 0 && (
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-muted-foreground">
+              <div className="flex items-center gap-4">
+                <span>Page size: <span className="font-semibold">{size}</span></span>
+                <span>•</span>
+                <span>Current page: <span className="font-semibold">{page + 1}</span></span>
+                <span>•</span>
+                <span>Total pages: <span className="font-semibold">{sortedAndPaginatedStocks.totalPages}</span></span>
+                <span>•</span>
+                <span>Total records: <span className="font-semibold">{sortedAndPaginatedStocks.total.toLocaleString()}</span></span>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Select value={String(size)} onValueChange={(v) => { 
+                const n = Number(v); 
+                setSize(n); 
+                setPage(0); 
+              }}>
+                <SelectTrigger className="w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 / page</SelectItem>
+                  <SelectItem value="20">20 / page</SelectItem>
+                  <SelectItem value="50">50 / page</SelectItem>
+                  <SelectItem value="100">100 / page</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={page <= 0} 
+                onClick={() => setPage(page - 1)}
+              >
+                Prev
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={page + 1 >= sortedAndPaginatedStocks.totalPages} 
+                onClick={() => setPage(page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

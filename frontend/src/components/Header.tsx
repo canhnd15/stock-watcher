@@ -2,7 +2,6 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils.ts";
 import { TrendingUp, LogOut, User } from "lucide-react";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -27,17 +26,6 @@ const Header = () => {
   ];
 
   const visibleNavItems = navItems.filter(item => hasRole(item.roles));
-
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'ADMIN':
-        return 'bg-red-500 hover:bg-red-600';
-      case 'VIP':
-        return 'bg-yellow-500 hover:bg-yellow-600';
-      default:
-        return 'bg-gray-500 hover:bg-gray-600';
-    }
-  };
 
   return (
     <header className="border-b bg-card">
@@ -69,14 +57,10 @@ const Header = () => {
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">{user?.username}</span>
-              <Badge className={cn("text-xs", getRoleBadgeColor(user?.role || 'NORMAL'))}>
-                {t(`role.${user?.role || 'NORMAL'}`)}
-              </Badge>
             </div>
             <LanguageSwitcher />
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              {t('auth.logout')}
+            <Button variant="outline" size="sm" onClick={handleLogout} title={t('auth.logout')}>
+              <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
