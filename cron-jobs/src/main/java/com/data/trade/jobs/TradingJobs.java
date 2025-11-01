@@ -1,8 +1,13 @@
-package com.data.trade.service;
+package com.data.trade.jobs;
 
 import com.data.trade.model.TrackedStock;
 import com.data.trade.repository.TrackedStockRepository;
 import com.data.trade.repository.TradeRepository;
+import com.data.trade.service.ConfigService;
+import com.data.trade.service.SignalCalculationService;
+import com.data.trade.service.TradeIngestionService;
+import com.data.trade.service.TrackedStockNotificationService;
+import com.data.trade.service.TrackedStockStatsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
