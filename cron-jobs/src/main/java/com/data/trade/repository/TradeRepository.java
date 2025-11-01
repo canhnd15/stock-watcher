@@ -27,8 +27,8 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
 
     @Transactional
     @Modifying
-    @Query(value = "delete from trades where code = :code and trade_date = :tradeDate", nativeQuery = true)
-    void deleteForCodeOnDate(@Param("code") String code, @Param("tradeDate") String tradeDate);
+    @Query(value = "delete from trades where TO_DATE(trade_date, 'DD/MM/YYYY') = TO_DATE(:tradeDate, 'DD/MM/YYYY')", nativeQuery = true)
+    void deleteOnDate(@Param("tradeDate") String tradeDate);
 
     @Query(value = """
         select case

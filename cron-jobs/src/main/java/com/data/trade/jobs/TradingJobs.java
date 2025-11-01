@@ -65,12 +65,12 @@ public class TradingJobs {
         List<TrackedStock> actives = trackedStockRepository.findAllByActiveTrue();
         int successCount = 0;
         int failCount = 0;
-        
+
+        tradeRepository.deleteOnDate(tradeDateStr);
+
         for (TrackedStock s : actives) {
             String code = s.getCode();
             try {
-                tradeRepository.deleteForCodeOnDate(code, tradeDateStr);
-
                 ingestionService.ingestForCode(code);
 
                 String rec = tradeRepository.recommendationFor(code, tradeDateStr);
@@ -113,9 +113,9 @@ public class TradingJobs {
         // Check if time is within trading hours: 9:15 AM to 3:00 PM (15:00) inclusive
         LocalTime startTime = LocalTime.of(9, 15);  // 9:15 AM
         LocalTime endTime = LocalTime.of(15, 0);     // 3:00 PM (15:00)
-        
+
         if (currentTime.isBefore(startTime) || currentTime.isAfter(endTime)) {
-            log.debug("VN30 ingestion skipped: Current time {} is outside trading hours (9:15 AM - 3:00 PM)", 
+            log.debug("VN30 ingestion skipped: Current time {} is outside trading hours (9:15 AM - 3:00 PM)",
                     currentTime.format(DateTimeFormatter.ofPattern("HH:mm:ss")));
             return;
         }
@@ -128,11 +128,11 @@ public class TradingJobs {
         
         int successCount = 0;
         int failCount = 0;
-        
+
+        tradeRepository.deleteOnDate(tradeDateStr);
+
         for (String stockCode : vn30) {
             try {
-                tradeRepository.deleteForCodeOnDate(stockCode, tradeDateStr);
-                
                 ingestionService.ingestForCode(stockCode);
                 successCount++;
             } catch (Exception ex) {
