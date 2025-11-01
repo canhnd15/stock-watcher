@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +27,6 @@ public class TradeExcelService {
         try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = wb.createSheet("trades");
             int r = 0;
-            // header
             Row header = sheet.createRow(r++);
             String[] cols = new String[]{"time", "date", "code", "side", "price", "volume"};
             for (int i = 0; i < cols.length; i++) header.createCell(i).setCellValue(cols[i]);
@@ -53,25 +53,24 @@ public class TradeExcelService {
             Sheet sheet = wb.getSheetAt(0);
             if (sheet == null) return 0;
             int rows = sheet.getPhysicalNumberOfRows();
-            if (rows <= 1) return 0; // header only
+            if (rows <= 1) return 0;
 
             List<Trade> toSave = new ArrayList<>();
 
             for (int i = 1; i < rows; i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
-                String timeStr = getCellString(row.getCell(0)); // HH:mm:ss
-                String dateStr = getCellString(row.getCell(1)); // DD/MM/YYYY
-                String code = getCellString(row.getCell(2));
+                String code = getCellString(row.getCell(1));
+                BigDecimal price = getCellBigDecimal(row.getCell(2));
                 String side = getCellString(row.getCell(3));
-                BigDecimal price = getCellBigDecimal(row.getCell(4));
-                Long volume = getCellLong(row.getCell(5));
+                String dateStr = getCellString(row.getCell(4)); // DD/MM/YYYY
+                String timeStr = getCellString(row.getCell(5)); // HH:mm:ss
+                Long volume = getCellLong(row.getCell(6));
 
                 if (code == null || code.isBlank()) continue;
                 if (price == null || volume == null) continue;
                 if (timeStr == null || timeStr.isBlank()) timeStr = "00:00:00";
                 if (dateStr == null || dateStr.isBlank()) {
-                    // Use current date in DD/MM/YYYY format
                     DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
                     dateStr = LocalDate.now().format(fmt);
                 }
@@ -101,9 +100,45 @@ public class TradeExcelService {
             case STRING -> c.getStringCellValue();
             case NUMERIC -> {
                 if (DateUtil.isCellDateFormatted(c)) {
-                    // Return date formatted as DD/MM/YYYY
+                    // Excel stores dates as serial numbers (days since 1900-01-01)
+                    // Use DataFormatter first to get Excel's display format, which avoids timezone conversion issues
                     DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-                    yield LocalDate.ofInstant(c.getDateCellValue().toInstant(), java.time.ZoneId.systemDefault()).format(fmt);
+                    try {
+                        DataFormatter formatter = new DataFormatter();
+                        String dateStr = formatter.formatCellValue(c);
+                        // If DataFormatter returns a date string that matches our format, use it directly
+                        // This preserves Excel's display format and avoids timezone conversion
+                        if (dateStr.matches("\\d{1,2}/\\d{1,2}/\\d{4}")) {
+                            yield dateStr;
+                        }
+                        // If DataFormatter gave us a different format, try to parse it
+                        // Try common Excel date formats
+                        String[] patterns = {"dd/MM/yyyy", "MM/dd/yyyy", "yyyy-MM-dd", "dd-MM-yyyy"};
+                        for (String pattern : patterns) {
+                            try {
+                                DateTimeFormatter testFmt = DateTimeFormatter.ofPattern(pattern);
+                                LocalDate parsed = LocalDate.parse(dateStr, testFmt);
+                                yield parsed.format(fmt);
+                            } catch (Exception ignored) {
+                                // Try next pattern
+                            }
+                        }
+                        // Last resort: convert using Java Date but ensure we're at midnight in Vietnam timezone
+                        // Get Excel date as Java Date (this may have timezone issues)
+                        java.util.Date excelDate = c.getDateCellValue();
+                        // Convert to LocalDate using Vietnam timezone to prevent day shifts
+                        LocalDate date = excelDate.toInstant()
+                                .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                                .toLocalDate();
+                        yield date.format(fmt);
+                    } catch (Exception e) {
+                        // Final fallback: use Vietnam timezone
+                        java.util.Date excelDate = c.getDateCellValue();
+                        LocalDate date = excelDate.toInstant()
+                                .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                                .toLocalDate();
+                        yield date.format(fmt);
+                    }
                 } else {
                     yield String.valueOf(c.getNumericCellValue());
                 }

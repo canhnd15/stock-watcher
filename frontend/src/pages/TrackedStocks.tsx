@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Card, CardContent } from "@/components/ui/card.tsx";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
 import {
   Select,
   SelectContent,
@@ -72,6 +73,7 @@ const TrackedStocks = () => {
   const [vn30Codes, setVn30Codes] = useState<string[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [loadingVn30, setLoadingVn30] = useState(true);
+  const [loadingStocks, setLoadingStocks] = useState(true);
   const [customCodesModalOpen, setCustomCodesModalOpen] = useState(false);
   const [costBasisDialogOpen, setCostBasisDialogOpen] = useState(false);
   const [costBasisValues, setCostBasisValues] = useState<Record<string, string>>({});
@@ -100,23 +102,19 @@ const TrackedStocks = () => {
   // Tracked stock stats
   const { statsMap, isConnected: statsConnected } = useTrackedStockStats();
 
-  useEffect(() => {
-    // Load tracked stocks from backend
-    api.get("/api/tracked-stocks")
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to load stocks");
-        return r.json();
-      })
-      .then((data: TrackedStock[]) => {
-        setTrackedStocks(data);
-        // Load stats for tracked stocks
-        return api.get("/api/tracked-stocks/stats");
-      })
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to load stats");
-        return r.json();
-      })
-      .then((statsData: Record<string, TrackedStockStats>) => {
+  // Function to load tracked stocks and stats
+  const loadTrackedStocks = async () => {
+    try {
+      setLoadingStocks(true);
+      const stocksResponse = await api.get("/api/tracked-stocks");
+      if (!stocksResponse.ok) throw new Error("Failed to load stocks");
+      const stocksData: TrackedStock[] = await stocksResponse.json();
+      setTrackedStocks(stocksData);
+      
+      // Load stats for tracked stocks
+      const statsResponse = await api.get("/api/tracked-stocks/stats");
+      if (statsResponse.ok) {
+        const statsData: Record<string, TrackedStockStats> = await statsResponse.json();
         // Merge stats with tracked stocks
         setTrackedStocks((prev) => 
           prev.map((stock) => ({
@@ -124,12 +122,16 @@ const TrackedStocks = () => {
             stats: statsData[stock.code],
           }))
         );
-      })
-      .catch((error) => {
-        if (error.message !== "Failed to load stats") {
-          toast.error("Failed to load tracked stocks");
-        }
-      });
+      }
+    } catch (error) {
+      toast.error("Failed to load tracked stocks");
+    } finally {
+      setLoadingStocks(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTrackedStocks();
     
     // Load VN30 codes - using hardcoded list
     setLoadingVn30(true);
@@ -215,22 +217,7 @@ const TrackedStocks = () => {
       toast.success(`Added ${successCount} stock code(s)`);
       
       // Refresh the list
-      const refreshResponse = await api.get("/api/tracked-stocks");
-      if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setTrackedStocks(data);
-        // Reload stats
-        const statsResponse = await api.get("/api/tracked-stocks/stats");
-        if (statsResponse.ok) {
-          const statsData = await statsResponse.json();
-          setTrackedStocks((prev) => 
-            prev.map((stock) => ({
-              ...stock,
-              stats: statsData[stock.code],
-            }))
-          );
-        }
-      }
+      await loadTrackedStocks();
     } catch (error) {
       toast.error("Failed to add some codes");
     }
@@ -259,11 +246,7 @@ const TrackedStocks = () => {
       setCustomCodesModalOpen(false);
       
       // Refresh the list
-      const refreshResponse = await api.get("/api/tracked-stocks");
-      if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setTrackedStocks(data);
-      }
+      await loadTrackedStocks();
     } catch (error) {
       toast.error("Failed to add some codes");
     }
@@ -326,22 +309,7 @@ const TrackedStocks = () => {
       setEditingStock(null);
       
       // Refresh the list
-      const refreshResponse = await api.get("/api/tracked-stocks");
-      if (refreshResponse.ok) {
-        const data = await refreshResponse.json();
-        setTrackedStocks(data);
-        // Reload stats
-        const statsResponse = await api.get("/api/tracked-stocks/stats");
-        if (statsResponse.ok) {
-          const statsData = await statsResponse.json();
-          setTrackedStocks((prev) => 
-            prev.map((stock) => ({
-              ...stock,
-              stats: statsData[stock.code],
-            }))
-          );
-        }
-      }
+      await loadTrackedStocks();
     } catch (error: any) {
       const errorMessage = error?.response?.data || error?.message || "Failed to update stock";
       toast.error(errorMessage);
@@ -795,7 +763,59 @@ const TrackedStocks = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedAndPaginatedStocks.data.map((stock) => {
+              {loadingStocks ? (
+                // Loading skeleton rows
+                Array.from({ length: size }).map((_, index) => (
+                  <TableRow key={`skeleton-${index}`}>
+                    <TableCell>
+                      <Skeleton className="h-5 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-20" />
+                    </TableCell>
+                    <TableCell className="text-center bg-green-50/30 w-28">
+                      <div className="flex flex-col items-center gap-1">
+                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-3 w-14" />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center bg-green-50/30 w-28">
+                      <div className="flex flex-col items-center gap-1">
+                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-3 w-14" />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center bg-green-50/30 border-r-2 border-gray-300 w-28">
+                      <Skeleton className="h-4 w-16 mx-auto" />
+                    </TableCell>
+                    <TableCell className="text-center bg-red-50/30 w-28">
+                      <div className="flex flex-col items-center gap-1">
+                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-3 w-14" />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center bg-red-50/30 w-28">
+                      <div className="flex flex-col items-center gap-1">
+                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-3 w-14" />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center bg-red-50/30 w-28">
+                      <Skeleton className="h-4 w-16 mx-auto" />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Skeleton className="h-4 w-4 rounded mx-auto" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Skeleton className="h-8 w-8" />
+                        <Skeleton className="h-8 w-8" />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                sortedAndPaginatedStocks.data.map((stock) => {
                 const stats = stock.stats;
                 const formatNumber = (value?: number) => {
                   if (value === null || value === undefined) return "N/A";
@@ -914,8 +934,9 @@ const TrackedStocks = () => {
                     </TableCell>
                   </TableRow>
                 );
-              })}
-              {sortedAndPaginatedStocks.data.length === 0 && (
+              })
+              )}
+              {!loadingStocks && sortedAndPaginatedStocks.data.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     {trackedStocks.length === 0 
