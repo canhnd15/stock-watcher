@@ -51,6 +51,9 @@ const Config = () => {
   const [ingestCode, setIngestCode] = useState("");
   const [ingestCodeOpen, setIngestCodeOpen] = useState(false);
   const [ingesting, setIngesting] = useState(false);
+  const [exportFromDate, setExportFromDate] = useState("");
+  const [exportToDate, setExportToDate] = useState("");
+  const [exportAllTrades, setExportAllTrades] = useState(true);
 
   const loadConfig = () => {
     setLoading(true);
@@ -154,20 +157,33 @@ const Config = () => {
   const handleExport = async () => {
     try {
       setExporting(true);
-      const resp = await fetch(`/api/trades/export`, {
+      const params = new URLSearchParams();
+      
+      // Add date parameters only if exportAllTrades is false
+      if (!exportAllTrades) {
+        if (exportFromDate) {
+          params.set('fromDate', exportFromDate);
+        }
+        if (exportToDate) {
+          params.set('toDate', exportToDate);
+        }
+      }
+      
+      const url = `/api/trades/export${params.toString() ? `?${params.toString()}` : ''}`;
+      const resp = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!resp.ok) throw new Error("Failed to export");
       const blob = await resp.blob();
-      const url = window.URL.createObjectURL(blob);
+      const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = blobUrl;
       a.download = 'trades-export.xlsx';
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success("Exported trades to Excel");
+      window.URL.revokeObjectURL(blobUrl);
+      toast.success(exportAllTrades ? "Exported all trades to Excel" : "Exported trades to Excel");
     } catch {
       toast.error("Failed to export trades");
     } finally {
@@ -343,50 +359,98 @@ const Config = () => {
             </CardHeader>
             <CardContent>
               <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex-1">
-                    <label htmlFor="import-file-input" className="text-sm font-medium mb-2 block">
-                      Import Trades from Excel
-                    </label>
+                {/* Import Section */}
+                <div>
+                  <label htmlFor="import-file-input" className="text-sm font-medium mb-2 block">
+                    Import Trades from Excel
+                  </label>
+                  <div className="flex items-center gap-4">
                     <Input
                       id="import-file-input"
                       type="file"
                       accept=".xlsx"
                       onChange={(e) => setImportFile(e.target.files?.[0] || null)}
                       disabled={importing}
+                      className="flex-1 cursor-pointer"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Upload an Excel file (.xlsx) with trade data
-                    </p>
+                    <Button
+                      onClick={handleImport}
+                      disabled={!importFile || importing}
+                    >
+                      {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {!importing && <Upload className="mr-2 h-4 w-4" />}
+                      Import
+                    </Button>
                   </div>
-                  <Button
-                    onClick={handleImport}
-                    disabled={!importFile || importing}
-                    className="mt-6"
-                  >
-                    {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {!importing && <Upload className="mr-2 h-4 w-4" />}
-                    Import
-                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upload an Excel file (.xlsx) with trade data
+                  </p>
                 </div>
 
+                {/* Export Section */}
                 <div className="border-t pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Export All Trades to Excel</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Download all trades data as an Excel file
-                      </p>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Export Trades to Excel</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {exportAllTrades 
+                            ? "Download all trades data as an Excel file"
+                            : "Download trades by date range as an Excel file"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="export-all-checkbox"
+                          checked={exportAllTrades}
+                          onChange={(e) => setExportAllTrades(e.target.checked)}
+                          className="w-4 h-4 cursor-pointer"
+                        />
+                        <label htmlFor="export-all-checkbox" className="text-sm text-muted-foreground cursor-pointer">
+                          Export All
+                        </label>
+                      </div>
                     </div>
-                    <Button
-                      variant="secondary"
-                      onClick={handleExport}
-                      disabled={exporting}
-                    >
-                      {exporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      {!exporting && <Download className="mr-2 h-4 w-4" />}
-                      Export
-                    </Button>
+
+                    {!exportAllTrades && (
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1">
+                          <label htmlFor="export-from-date" className="text-sm font-medium mb-1 block">
+                            From Date
+                          </label>
+                          <Input
+                            id="export-from-date"
+                            type="date"
+                            value={exportFromDate}
+                            onChange={(e) => setExportFromDate(e.target.value)}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label htmlFor="export-to-date" className="text-sm font-medium mb-1 block">
+                            To Date
+                          </label>
+                          <Input
+                            id="export-to-date"
+                            type="date"
+                            value={exportToDate}
+                            onChange={(e) => setExportToDate(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end">
+                      <Button
+                        variant="secondary"
+                        onClick={handleExport}
+                        disabled={exporting || (!exportAllTrades && !exportFromDate && !exportToDate)}
+                      >
+                        {exporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {!exporting && <Download className="mr-2 h-4 w-4" />}
+                        Export
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>

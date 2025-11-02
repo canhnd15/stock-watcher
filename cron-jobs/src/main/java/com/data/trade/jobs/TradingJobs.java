@@ -44,7 +44,7 @@ public class TradingJobs {
      * Refresh tracked stocks and generate recommendations every 5 minutes
      * Runs at: 00:00, 00:05, 00:10, ... 23:55
      */
-//    @Scheduled(cron = "${cron.tracked-stocks-refresh}", zone = "${cron.timezone}")
+    @Scheduled(cron = "${cron.tracked-stocks-refresh}", zone = "${cron.timezone}")
     public void refreshTodayAndRecommend() {
         if (!configService.isTrackedStocksCronEnabled()) {
             log.info("Tracked stocks refresh cron job is disabled. Skipping...");
@@ -66,12 +66,9 @@ public class TradingJobs {
         int successCount = 0;
         int failCount = 0;
 
-        tradeRepository.deleteOnDate(tradeDateStr);
-
         for (TrackedStock s : actives) {
             String code = s.getCode();
             try {
-                ingestionService.ingestForCode(code);
 
                 String rec = tradeRepository.recommendationFor(code, tradeDateStr);
 
