@@ -65,7 +65,7 @@ interface TrackedStock {
   stats?: TrackedStockStats;
 }
 
-type SortField = "buyLowPrice" | "buyHighPrice" | "buyMaxVolume" | "sellLowPrice" | "sellHighPrice" | "sellMaxVolume";
+type SortField = "code" | "buyLowPrice" | "buyHighPrice" | "buyMaxVolume" | "sellLowPrice" | "sellHighPrice" | "sellMaxVolume";
 
 const TrackedStocks = () => {
   const [stockInput, setStockInput] = useState("");
@@ -87,8 +87,8 @@ const TrackedStocks = () => {
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(10);
   
-  // Sorting state
-  const [sortField, setSortField] = useState<SortField | null>(null);
+  // Sorting state - default to code ascending
+  const [sortField, setSortField] = useState<SortField>("code");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   // Tracked stock notifications
@@ -374,6 +374,13 @@ const TrackedStocks = () => {
 
     if (sortField) {
       sorted.sort((a, b) => {
+        // Handle code sorting (string comparison)
+        if (sortField === "code") {
+          const comparison = a.code.localeCompare(b.code);
+          return sortDirection === "asc" ? comparison : -comparison;
+        }
+
+        // Handle numeric sorting for other fields
         let aValue: number | null = null;
         let bValue: number | null = null;
 
@@ -642,7 +649,25 @@ const TrackedStocks = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Stock</TableHead>
+                <TableHead>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => handleSort("code")}
+                  >
+                    Stock
+                    {sortField === "code" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="ml-2 h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="ml-2 h-4 w-4" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+                    )}
+                  </Button>
+                </TableHead>
                 <TableHead>Cost Basis</TableHead>
                 <TableHead className="text-center bg-green-50 w-28">
                   <Button

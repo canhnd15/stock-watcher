@@ -39,7 +39,7 @@ import {
 import { Badge } from "@/components/ui/badge.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw } from "lucide-react";
+import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWebSocket, SignalNotification } from "@/hooks/useWebSocket.ts";
 import { api } from "@/lib/api";
@@ -89,7 +89,7 @@ const Trades = () => {
   
   const [filteredTrades, setFilteredTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
-  const [sortField, setSortField] = useState<"time" | "price" | "volume" | null>(null);
+  const [sortField, setSortField] = useState<"code" | "time" | "price" | "volume">("code");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   
   // Volume statistics
@@ -143,6 +143,7 @@ const Trades = () => {
     if (sortFieldParam) {
       // Map frontend field names to backend field names
       const fieldMap: Record<string, string> = {
+        code: "code",
         time: "tradeTime",
         price: "price",
         volume: "volume"
@@ -200,7 +201,7 @@ const Trades = () => {
       .finally(() => setLoading(false));
   };
 
-  const handleSort = (field: "time" | "price" | "volume") => {
+  const handleSort = (field: "code" | "time" | "price" | "volume") => {
     let newDirection: "asc" | "desc" = "asc";
     
     if (sortField === field) {
@@ -354,20 +355,28 @@ const Trades = () => {
             
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.fromDate')}</label>
-              <Input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="pr-8 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden [&::-webkit-clear-button]:hidden"
+                />
+                <Calendar className="absolute right-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              </div>
             </div>
             
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.toDate')}</label>
-              <Input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="pr-8 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden [&::-webkit-clear-button]:hidden"
+                />
+                <Calendar className="absolute right-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              </div>
             </div>
           </div>
         </div>
@@ -384,6 +393,7 @@ const Trades = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{loading ? "..." : totalVolume.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1 font-bold">{loading ? "..." : `${(buyCount + sellCount).toLocaleString()} ${t('trades.transactions')}`}</p>
               <p className="text-xs text-muted-foreground mt-1">{t('trades.allMatchingTrades')}</p>
             </CardContent>
           </Card>
@@ -448,7 +458,25 @@ const Trades = () => {
           <Table className={loading ? "opacity-50 pointer-events-none" : ""}>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[120px]">{t('trades.code')}</TableHead>
+                <TableHead className="w-[120px]">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => handleSort("code")}
+                  >
+                    {t('trades.code')}
+                    {sortField === "code" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="ml-2 h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="ml-2 h-4 w-4" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+                    )}
+                  </Button>
+                </TableHead>
                 <TableHead className="w-[280px]">
                   <Button
                     variant="ghost"

@@ -5,8 +5,6 @@ import com.data.trade.model.Trade;
 import com.data.trade.service.TradeExcelService;
 import com.data.trade.service.TradeService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -17,8 +15,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -47,62 +43,10 @@ public class TradeController {
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) String direction
     ) {
-        // Create Pageable with sorting if sort parameter is provided
-        Pageable pageable;
-        if (sort != null && !sort.isBlank()) {
-            org.springframework.data.domain.Sort.Direction sortDirection = 
-                "desc".equalsIgnoreCase(direction) ? 
-                org.springframework.data.domain.Sort.Direction.DESC : 
-                org.springframework.data.domain.Sort.Direction.ASC;
-            pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by(sortDirection, sort));
-        } else {
-            pageable = PageRequest.of(page, size);
-        }
-        
-        // Build specifications for filtering
-        List<Specification<Trade>> specs = new ArrayList<>();
-        if (code != null && !code.isBlank()) {
-            specs.add((root, q, cb) -> cb.equal(cb.upper(root.get("code")), code.toUpperCase()));
-        }
-        if (type != null && !type.isBlank()) {
-            specs.add((root, q, cb) -> cb.equal(root.get("side"), type));
-        }
-        if (minVolume != null) {
-            specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), minVolume));
-        }
-        if (maxVolume != null) {
-            specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("volume"), maxVolume));
-        }
-        if (minPrice != null) {
-            specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("price"), minPrice));
-        }
-        if (maxPrice != null) {
-            specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("price"), maxPrice));
-        }
-        if (highVolume != null) {
-            specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), highVolume));
-        }
-        
-        // Date range filtering on tradeDate (string in DD/MM/YYYY format)
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-        if (fromDate != null && toDate != null) {
-            String fromDateStr = fromDate.format(formatter);
-            String toDateStr = toDate.format(formatter);
-            specs.add((root, q, cb) -> cb.and(
-                    cb.greaterThanOrEqualTo(root.get("tradeDate"), fromDateStr),
-                    cb.lessThanOrEqualTo(root.get("tradeDate"), toDateStr)
-            ));
-        } else if (fromDate != null) {
-            String fromDateStr = fromDate.format(formatter);
-            specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("tradeDate"), fromDateStr));
-        } else if (toDate != null) {
-            String toDateStr = toDate.format(formatter);
-            specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("tradeDate"), toDateStr));
-        }
-        
-        Specification<Trade> spec = Specification.allOf(specs);
-        
-        return tradeService.findTrades(spec, pageable);
+        return tradeService.findTradesWithFilters(
+                code, type, minVolume, maxVolume, minPrice, maxPrice, highVolume,
+                fromDate, toDate, page, size, sort, direction
+        );
     }
 
     @PostMapping("/ingest/{code}")
@@ -156,31 +100,9 @@ public class TradeController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
     ) {
-        List<Specification<Trade>> specs = new ArrayList<>();
-        if (code != null && !code.isBlank()) specs.add((root, q, cb) -> cb.equal(cb.upper(root.get("code")), code.toUpperCase()));
-        if (type != null && !type.isBlank()) specs.add((root, q, cb) -> cb.equal(root.get("side"), type));
-        if (minVolume != null) specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), minVolume));
-        if (maxVolume != null) specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("volume"), maxVolume));
-        if (minPrice != null) specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("price"), minPrice));
-        if (maxPrice != null) specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("price"), maxPrice));
-        if (highVolume != null) specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), highVolume));
-        // Date range filtering on tradeDate (string in DD/MM/YYYY format)
-        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
-        if (fromDate != null && toDate != null) {
-            String fromDateStr = fromDate.format(formatter);
-            String toDateStr = toDate.format(formatter);
-            specs.add((root, q, cb) -> cb.and(
-                    cb.greaterThanOrEqualTo(root.get("tradeDate"), fromDateStr),
-                    cb.lessThanOrEqualTo(root.get("tradeDate"), toDateStr)
-            ));
-        } else if (fromDate != null) {
-            String fromDateStr = fromDate.format(formatter);
-            specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("tradeDate"), fromDateStr));
-        } else if (toDate != null) {
-            String toDateStr = toDate.format(formatter);
-            specs.add((root, q, cb) -> cb.lessThanOrEqualTo(root.get("tradeDate"), toDateStr));
-        }
-        Specification<Trade> spec = Specification.allOf(specs);
+        Specification<Trade> spec = tradeService.buildTradeSpecification(
+                code, type, minVolume, maxVolume, minPrice, maxPrice, highVolume, fromDate, toDate
+        );
         List<Trade> all = tradeService.findAllTrades(spec);
         byte[] bytes = tradeExcelService.exportToXlsx(all);
         String filename = "trades-export.xlsx";
