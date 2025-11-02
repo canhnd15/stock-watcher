@@ -1,5 +1,6 @@
 package com.data.trade.controller;
 
+import com.data.trade.dto.DailyTradeStatsDTO;
 import com.data.trade.dto.TradePageResponse;
 import com.data.trade.model.Trade;
 import com.data.trade.service.TradeExcelService;
@@ -120,6 +121,18 @@ public class TradeController {
         }
         int saved = tradeExcelService.importFromXlsx(file);
         return ResponseEntity.ok("Imported records: " + saved);
+    }
+
+    @GetMapping("/daily-stats")
+    public ResponseEntity<List<DailyTradeStatsDTO>> getDailyStats(
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        List<DailyTradeStatsDTO> stats = tradeService.getDailyStats(code, fromDate, toDate);
+        return ResponseEntity.ok(stats);
     }
 }
 

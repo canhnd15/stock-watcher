@@ -70,4 +70,71 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
 
     @Query("SELECT MAX(t.volume) FROM Trade t WHERE t.code = :code AND t.side = :side AND t.tradeDate = :tradeDate")
     Optional<Long> findMaxVolumeByCodeAndSideAndDate(@Param("code") String code, @Param("side") String side, @Param("tradeDate") String tradeDate);
+
+    // Aggregate daily statistics grouped by tradeDate
+    // Gets latest price of each day (based on latest trade_time)
+    // PostgreSQL compatible query
+    @Query(value = """
+        WITH daily_agg AS (
+            SELECT 
+                t.trade_date,
+                MIN(CAST(t.price AS DECIMAL)) as minPrice,
+                MAX(CAST(t.price AS DECIMAL)) as maxPrice,
+                SUM(t.volume) as totalVolume
+            FROM trades t
+            WHERE (:code IS NULL OR UPPER(t.code) = UPPER(:code))
+              AND (:fromDateStr IS NULL OR 
+                   CAST(
+                     SUBSTRING(t.trade_date, 7, 4) || 
+                     SUBSTRING(t.trade_date, 4, 2) || 
+                     SUBSTRING(t.trade_date, 1, 2)
+                   AS INTEGER) >= CAST(:fromDateStr AS INTEGER))
+              AND (:toDateStr IS NULL OR 
+                   CAST(
+                     SUBSTRING(t.trade_date, 7, 4) || 
+                     SUBSTRING(t.trade_date, 4, 2) || 
+                     SUBSTRING(t.trade_date, 1, 2)
+                   AS INTEGER) <= CAST(:toDateStr AS INTEGER))
+            GROUP BY t.trade_date
+        ),
+        latest_prices AS (
+            SELECT DISTINCT ON (t.trade_date)
+                t.trade_date,
+                t.price as latestPrice
+            FROM trades t
+            WHERE (:code IS NULL OR UPPER(t.code) = UPPER(:code))
+              AND (:fromDateStr IS NULL OR 
+                   CAST(
+                     SUBSTRING(t.trade_date, 7, 4) || 
+                     SUBSTRING(t.trade_date, 4, 2) || 
+                     SUBSTRING(t.trade_date, 1, 2)
+                   AS INTEGER) >= CAST(:fromDateStr AS INTEGER))
+              AND (:toDateStr IS NULL OR 
+                   CAST(
+                     SUBSTRING(t.trade_date, 7, 4) || 
+                     SUBSTRING(t.trade_date, 4, 2) || 
+                     SUBSTRING(t.trade_date, 1, 2)
+                   AS INTEGER) <= CAST(:toDateStr AS INTEGER))
+            ORDER BY t.trade_date, t.trade_time DESC
+        )
+        SELECT 
+            da.trade_date as date,
+            lp.latestPrice,
+            da.minPrice,
+            da.maxPrice,
+            da.totalVolume
+        FROM daily_agg da
+        LEFT JOIN latest_prices lp ON da.trade_date = lp.trade_date
+        ORDER BY 
+            CAST(
+                SUBSTRING(da.trade_date, 7, 4) || 
+                SUBSTRING(da.trade_date, 4, 2) || 
+                SUBSTRING(da.trade_date, 1, 2)
+            AS INTEGER) ASC
+        """, nativeQuery = true)
+    List<Object[]> findDailyStats(
+            @Param("code") String code,
+            @Param("fromDateStr") String fromDateStr,
+            @Param("toDateStr") String toDateStr
+    );
 }

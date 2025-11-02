@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { useWebSocket, SignalNotification } from "@/hooks/useWebSocket.ts";
 import { api } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
+import { DailyPriceVolumeChart } from "@/components/DailyPriceVolumeChart.tsx";
 
 interface Trade {
   id: string;
@@ -53,6 +54,14 @@ interface Trade {
   side: "buy" | "sell";
   price: number;
   volume: number;
+}
+
+interface DailyChartData {
+  date: string; // "DD/MM/YYYY"
+  latestPrice: number;
+  minPrice?: number;
+  maxPrice?: number;
+  totalVolume: number; // in shares
 }
 
 // VN30 Stock Codes
@@ -73,6 +82,32 @@ const Trades = () => {
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  };
+
+  // Helper function to calculate N trading days back (excluding weekends)
+  const getNTradingDaysBack = (n: number): string => {
+    const today = new Date();
+    let daysBack = 0;
+    let tradingDaysFound = 0;
+    
+    while (tradingDaysFound < n) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - daysBack);
+      const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+      
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        tradingDaysFound++;
+        if (tradingDaysFound === n) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+      }
+      daysBack++;
+    }
+    
+    return getTodayDate(); // Fallback
   };
 
   const [code, setCode] = useState(""); // All by default (empty)
@@ -101,6 +136,10 @@ const Trades = () => {
   const [buyCount, setBuyCount] = useState(0);
   const [sellCount, setSellCount] = useState(0);
   
+  // Chart data
+  const [chartData, setChartData] = useState<DailyChartData[]>([]);
+  const [chartLoading, setChartLoading] = useState(false);
+  
   // WebSocket for signals
   const { isConnected, signals, clearSignals } = useWebSocket();
   const [refreshingSignals, setRefreshingSignals] = useState(false);
@@ -125,6 +164,74 @@ const Trades = () => {
       toast.error('Failed to refresh signals');
     } finally {
       setRefreshingSignals(false);
+    }
+  };
+
+  const fetchChartData = async () => {
+    // Only fetch if a specific stock code is selected
+    if (!code || code.trim() === "") {
+      setChartData([]);
+      return;
+    }
+
+    setChartLoading(true);
+    const params = new URLSearchParams();
+    params.set("code", code.trim());
+    
+    // Calculate date range: ensure at least 5 trading days are shown
+    let chartFromDate = fromDate;
+    let chartToDate = toDate || getTodayDate();
+    
+    // If fromDate and toDate are the same or only 1 day difference, show at least 5 trading days
+    if (fromDate && toDate) {
+      // Parse dates to compare
+      const from = new Date(fromDate);
+      const to = new Date(toDate);
+      const daysDiff = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // If 1 day or less selected, show at least 5 trading days
+      if (daysDiff <= 1) {
+        chartFromDate = getNTradingDaysBack(5);
+        chartToDate = getTodayDate();
+      }
+    } else if (fromDate) {
+      // Only fromDate selected - check if it's today or very recent
+      const from = new Date(fromDate);
+      const today = new Date(getTodayDate());
+      const daysDiff = Math.ceil((today.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysDiff <= 1) {
+        chartFromDate = getNTradingDaysBack(5);
+        chartToDate = getTodayDate();
+      } else {
+        chartToDate = getTodayDate();
+      }
+    } else {
+      // No date selected - default to 5 trading days
+      chartFromDate = getNTradingDaysBack(5);
+      chartToDate = getTodayDate();
+    }
+    
+    if (chartFromDate) params.set("fromDate", chartFromDate);
+    if (chartToDate) params.set("toDate", chartToDate);
+
+    try {
+      const response = await api.get(`/api/trades/daily-stats?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to load chart data");
+      const data = await response.json();
+      setChartData(data.map((item: any) => ({
+        date: item.date,
+        latestPrice: Number(item.latestPrice) || 0,
+        minPrice: item.minPrice ? Number(item.minPrice) : undefined,
+        maxPrice: item.maxPrice ? Number(item.maxPrice) : undefined,
+        totalVolume: Number(item.totalVolume) || 0,
+      })));
+    } catch (error) {
+      console.error("Error loading chart data:", error);
+      toast.error("Failed to load chart data");
+      setChartData([]);
+    } finally {
+      setChartLoading(false);
     }
   };
 
@@ -242,6 +349,12 @@ const Trades = () => {
     fetchTrades(0, size);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, type, minVolume, maxVolume, fromDate, toDate]); // Fetch when any filter changes
+
+  // Fetch chart data when code or date range changes
+  useEffect(() => {
+    fetchChartData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, fromDate, toDate]); // Fetch chart data when relevant filters change
 
   return (
     <div className="min-h-screen bg-background">
@@ -623,6 +736,17 @@ const Trades = () => {
             <Button variant="outline" size="sm" disabled={page + 1 >= totalPages || loading} onClick={() => { const p = page + 1; setPage(p); fetchTrades(p, size); }}>Next</Button>
           </div>
         </div>
+
+        {/* Price & Volume Chart - Only show when a specific stock code is selected */}
+        {code && code.trim() !== "" && (
+          <div className="mb-6 mt-8">
+            <DailyPriceVolumeChart 
+              data={chartData} 
+              code={code}
+              loading={chartLoading}
+            />
+          </div>
+        )}
 
         {/* Signals Section */}
         <div className="mt-12 pt-8 border-t">

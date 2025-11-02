@@ -1,5 +1,6 @@
 package com.data.trade.service;
 
+import com.data.trade.dto.DailyTradeStatsDTO;
 import com.data.trade.dto.TradePageResponse;
 import com.data.trade.model.Trade;
 import com.data.trade.repository.TradeRepository;
@@ -13,10 +14,12 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -267,6 +270,40 @@ public class TradeService {
 
     public List<Trade> findAllTrades(Specification<Trade> spec) {
         return tradeRepository.findAll(spec);
+    }
+
+    public List<DailyTradeStatsDTO> getDailyStats(String code, LocalDate fromDate, LocalDate toDate) {
+        // Convert LocalDate to YYYYMMDD string format for comparison
+        String fromDateStr = (fromDate != null) ? fromDate.format(YYYYMMDD_FORMATTER) : null;
+        String toDateStr = (toDate != null) ? toDate.format(YYYYMMDD_FORMATTER) : null;
+        
+        // Normalize code
+        String normalizedCode = (code != null && !code.isBlank()) ? code.trim().toUpperCase() : null;
+        
+        // Get aggregated data from repository
+        List<Object[]> results = tradeRepository.findDailyStats(normalizedCode, fromDateStr, toDateStr);
+        
+        // Transform to DTOs
+        return results.stream()
+                .map(row -> {
+                    String date = (String) row[0]; // trade_date (DD/MM/YYYY)
+                    BigDecimal latestPrice = row[1] != null ? 
+                        ((BigDecimal) row[1]).setScale(2, RoundingMode.HALF_UP) : null;
+                    BigDecimal minPrice = row[2] != null ? 
+                        ((BigDecimal) row[2]).setScale(2, RoundingMode.HALF_UP) : null;
+                    BigDecimal maxPrice = row[3] != null ? 
+                        ((BigDecimal) row[3]).setScale(2, RoundingMode.HALF_UP) : null;
+                    Long totalVolume = row[4] != null ? ((Number) row[4]).longValue() : 0L;
+                    
+                    return DailyTradeStatsDTO.builder()
+                            .date(date)
+                            .latestPrice(latestPrice)
+                            .minPrice(minPrice)
+                            .maxPrice(maxPrice)
+                            .totalVolume(totalVolume)
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 }
 
