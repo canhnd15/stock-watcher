@@ -361,8 +361,21 @@ const Trades = () => {
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
                   className="pr-8 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden [&::-webkit-clear-button]:hidden"
+                  id="fromDateInput"
                 />
-                <Calendar className="absolute right-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Calendar 
+                  className="absolute right-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors z-10" 
+                  onClick={() => {
+                    const input = document.getElementById('fromDateInput') as HTMLInputElement;
+                    if (input) {
+                      if (typeof input.showPicker === 'function') {
+                        input.showPicker();
+                      } else {
+                        input.click();
+                      }
+                    }
+                  }}
+                />
               </div>
             </div>
             
@@ -374,8 +387,21 @@ const Trades = () => {
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
                   className="pr-8 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden [&::-webkit-clear-button]:hidden"
+                  id="toDateInput"
                 />
-                <Calendar className="absolute right-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Calendar 
+                  className="absolute right-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors z-10" 
+                  onClick={() => {
+                    const input = document.getElementById('toDateInput') as HTMLInputElement;
+                    if (input) {
+                      if (typeof input.showPicker === 'function') {
+                        input.showPicker();
+                      } else {
+                        input.click();
+                      }
+                    }
+                  }}
+                />
               </div>
             </div>
           </div>
