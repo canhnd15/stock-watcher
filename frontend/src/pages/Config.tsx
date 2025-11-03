@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card.tsx";
 import Header from "@/components/Header.tsx";
 import { useAuth } from "@/contexts/AuthContext";
+import { DatePicker } from "@/components/ui/date-picker.tsx";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, Upload, Download, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -419,22 +420,20 @@ const Config = () => {
                           <label htmlFor="export-from-date" className="text-sm font-medium mb-1 block">
                             From Date
                           </label>
-                          <Input
-                            id="export-from-date"
-                            type="date"
+                          <DatePicker
                             value={exportFromDate}
-                            onChange={(e) => setExportFromDate(e.target.value)}
+                            onChange={setExportFromDate}
+                            placeholder="Select from date"
                           />
                         </div>
                         <div className="flex-1">
                           <label htmlFor="export-to-date" className="text-sm font-medium mb-1 block">
                             To Date
                           </label>
-                          <Input
-                            id="export-to-date"
-                            type="date"
+                          <DatePicker
                             value={exportToDate}
-                            onChange={(e) => setExportToDate(e.target.value)}
+                            onChange={setExportToDate}
+                            placeholder="Select to date"
                           />
                         </div>
                       </div>

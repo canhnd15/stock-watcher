@@ -39,12 +39,13 @@ import {
 import { Badge } from "@/components/ui/badge.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, Calendar } from "lucide-react";
+import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWebSocket, SignalNotification } from "@/hooks/useWebSocket.ts";
 import { api } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import { DailyPriceVolumeChart } from "@/components/DailyPriceVolumeChart.tsx";
+import { DatePicker } from "@/components/ui/date-picker.tsx";
 
 interface Trade {
   id: string;
@@ -468,54 +469,20 @@ const Trades = () => {
             
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.fromDate')}</label>
-              <div className="relative">
-                <Input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="pr-8 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden [&::-webkit-clear-button]:hidden"
-                  id="fromDateInput"
-                />
-                <Calendar 
-                  className="absolute right-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors z-10" 
-                  onClick={() => {
-                    const input = document.getElementById('fromDateInput') as HTMLInputElement;
-                    if (input) {
-                      if (typeof input.showPicker === 'function') {
-                        input.showPicker();
-                      } else {
-                        input.click();
-                      }
-                    }
-                  }}
-                />
-              </div>
+              <DatePicker
+                value={fromDate}
+                onChange={setFromDate}
+                placeholder="Select from date"
+              />
             </div>
             
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.toDate')}</label>
-              <div className="relative">
-                <Input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="pr-8 [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-inner-spin-button]:hidden [&::-webkit-clear-button]:hidden"
-                  id="toDateInput"
-                />
-                <Calendar 
-                  className="absolute right-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors z-10" 
-                  onClick={() => {
-                    const input = document.getElementById('toDateInput') as HTMLInputElement;
-                    if (input) {
-                      if (typeof input.showPicker === 'function') {
-                        input.showPicker();
-                      } else {
-                        input.click();
-                      }
-                    }
-                  }}
-                />
-              </div>
+              <DatePicker
+                value={toDate}
+                onChange={setToDate}
+                placeholder="Select to date"
+              />
             </div>
           </div>
         </div>
