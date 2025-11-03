@@ -43,6 +43,9 @@ public class SecurityConfig {
                 // Public endpoints
                 .requestMatchers("/api/auth/**", "/ws/**", "/actuator/health").permitAll()
                 
+                // Internal service endpoints (for cron-jobs service)
+                .requestMatchers("/api/internal/**").permitAll()
+                
                 // Trades - accessible to all authenticated users
                 .requestMatchers("/api/trades/**").authenticated()
                 

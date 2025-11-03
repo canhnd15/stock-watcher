@@ -14,7 +14,7 @@ import java.util.TimeZone;
 public class WebClientConfig {
 
     @Bean
-    public WebClient webClient(@Value("${app.finpath.base-url}") String baseUrl) {
+    public WebClient finpathWebClient(@Value("${app.finpath.base-url}") String baseUrl) {
         return WebClient.builder()
                 .baseUrl(baseUrl)
                 .clientConnector(new ReactorClientHttpConnector())
@@ -22,6 +22,15 @@ public class WebClientConfig {
                         .codecs(c -> c.defaultCodecs().maxInMemorySize(16 * 1024 * 1024))
                         .build())
                 .build();
+    }
+
+    @Bean
+    public WebClient.Builder webClientBuilder() {
+        return WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector())
+                .exchangeStrategies(ExchangeStrategies.builder()
+                        .codecs(c -> c.defaultCodecs().maxInMemorySize(16 * 1024 * 1024))
+                        .build());
     }
 
     @Bean

@@ -11,8 +11,12 @@ public class FinpathClient {
     private final WebClient webClient;
     private final int defaultPageSize;
 
-    public FinpathClient(WebClient webClient, @Value("${app.finpath.page-size:10000}") int defaultPageSize) {
-        this.webClient = webClient;
+    public FinpathClient(@Value("${app.finpath.base-url}") String baseUrl, 
+                        @Value("${app.finpath.page-size:10000}") int defaultPageSize,
+                        org.springframework.web.reactive.function.client.WebClient.Builder webClientBuilder) {
+        this.webClient = webClientBuilder
+                .baseUrl(baseUrl)
+                .build();
         this.defaultPageSize = defaultPageSize;
     }
 

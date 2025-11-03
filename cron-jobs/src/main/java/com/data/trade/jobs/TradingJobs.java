@@ -3,6 +3,7 @@ package com.data.trade.jobs;
 import com.data.trade.model.TrackedStock;
 import com.data.trade.repository.TrackedStockRepository;
 import com.data.trade.repository.TradeRepository;
+import com.data.trade.service.BackendApiClient;
 import com.data.trade.service.ConfigService;
 import com.data.trade.service.SignalCalculationService;
 import com.data.trade.service.TradeIngestionService;
@@ -33,6 +34,7 @@ public class TradingJobs {
     private final SignalCalculationService signalCalculationService;
     private final TrackedStockNotificationService trackedStockNotificationService;
     private final TrackedStockStatsService trackedStockStatsService;
+    private final BackendApiClient backendApiClient;
 
     @Value("${app.timezone:Asia/Ho_Chi_Minh}")
     private String appTz;
@@ -141,12 +143,13 @@ public class TradingJobs {
         log.info("========== VN30 ingestion completed. Success: {}, Failed: {} ==========", 
                 successCount, failCount);
         
-        log.info("Triggering signal calculation after VN30 ingestion...");
+        log.info("Triggering signal calculation after VN30 ingestion via backend API...");
         try {
-            signalCalculationService.calculateAndNotifySignals();
-            log.info("Signal calculation triggered successfully after VN30 ingestion");
+            // Call backend API instead of local service to ensure signals reach frontend WebSocket clients
+            backendApiClient.triggerSignalCalculation();
+            log.info("Signal calculation triggered successfully via backend API after VN30 ingestion");
         } catch (Exception ex) {
-            log.error("Failed to run signal calculation after VN30 ingestion: {}", ex.getMessage(), ex);
+            log.error("Failed to trigger signal calculation via backend API after VN30 ingestion: {}", ex.getMessage(), ex);
         }
         
         log.info("Triggering tracked stock statistics calculation after VN30 ingestion...");
@@ -170,7 +173,13 @@ public class TradingJobs {
             return;
         }
         
-        log.info("Starting tracked stock notifications check...");
-        trackedStockNotificationService.checkTrackedStocksAndNotify();
+        log.info("Starting tracked stock notifications check via backend API...");
+        try {
+            // Call backend API instead of local service to ensure notifications reach frontend WebSocket clients
+            backendApiClient.triggerTrackedStockNotificationsCheck();
+            log.info("Tracked stock notifications check completed via backend API");
+        } catch (Exception ex) {
+            log.error("Failed to trigger tracked stock notifications via backend API: {}", ex.getMessage(), ex);
+        }
     }
 }
