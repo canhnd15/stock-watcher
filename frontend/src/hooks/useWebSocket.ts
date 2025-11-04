@@ -40,6 +40,22 @@ export const useWebSocket = () => {
         // Subscribe to user-specific signals if user is logged in
         if (user?.id) {
           const userTopic = `/topic/signals/user/${user.id}`;
+          const userClearTopic = `/topic/signals/user/${user.id}/clear`;
+          
+          // Subscribe to user-specific clear topic
+          client.subscribe(userClearTopic, (message: Message) => {
+            try {
+              const data = JSON.parse(message.body);
+              if (data.action === 'CLEAR_ALL') {
+                console.log('🧹 Clear signal received (user-specific), clearing all signals');
+                setSignals([]);
+              }
+            } catch (error) {
+              console.error('Failed to parse user clear signal:', error);
+            }
+          });
+          
+          // Subscribe to user-specific signals
           client.subscribe(userTopic, (message: Message) => {
             try {
               const signal: SignalNotification = JSON.parse(message.body);
@@ -48,6 +64,8 @@ export const useWebSocket = () => {
                 const newSignals = [signal, ...prev];
                 return newSignals.slice(0, maxSignals);
               });
+              
+              console.log('✅ Signal received:', signal.code, signal.signalType, 'Score:', signal.score);
 
               // Request browser notification permission if not granted
               if ('Notification' in window && Notification.permission === 'default') {
@@ -69,6 +87,19 @@ export const useWebSocket = () => {
             }
           });
         }
+        
+        // Subscribe to clear signals topic
+        client.subscribe('/topic/signals/clear', (message: Message) => {
+          try {
+            const data = JSON.parse(message.body);
+            if (data.action === 'CLEAR_ALL') {
+              console.log('🧹 Clear signal received, clearing all signals');
+              setSignals([]);
+            }
+          } catch (error) {
+            console.error('Failed to parse clear signal:', error);
+          }
+        });
         
         // Also subscribe to general broadcast topic (for VN30 when no tracked stocks)
         client.subscribe('/topic/signals', (message: Message) => {

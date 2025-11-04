@@ -14,8 +14,10 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,6 +34,9 @@ public class SignalCalculationService {
 
     public void calculateAndNotifySignals() {
         log.info("========== Starting signal calculation for tracked stocks ==========");
+
+        // Send clear signal to all clients before sending new signals
+        sendClearSignalToAllClients();
 
         // Get all active tracked stocks grouped by user
         List<TrackedStock> allTrackedStocks = trackedStockRepository.findAllByActiveTrue();
@@ -78,6 +83,37 @@ public class SignalCalculationService {
                 signalsSent, failCount);
     }
     
+    /**
+     * Send a clear signal message to all connected clients
+     * This tells frontend to clear all existing signals before receiving new ones
+     */
+    private void sendClearSignalToAllClients() {
+        log.info("Sending clear signal to all clients");
+        try {
+            // Send a special message to indicate clearing signals
+            Map<String, String> clearMessage = new HashMap<>();
+            clearMessage.put("action", "CLEAR_ALL");
+            clearMessage.put("timestamp", OffsetDateTime.now().toString());
+            
+            // Broadcast to general topic (for clients subscribed to /topic/signals)
+            messagingTemplate.convertAndSend("/topic/signals/clear", clearMessage);
+            
+            // Also send to user-specific topics for all users with active tracked stocks
+            List<TrackedStock> activeTrackedStocks = trackedStockRepository.findAllByActiveTrue();
+            Set<Long> userIdsWithTrackedStocks = activeTrackedStocks.stream()
+                    .map(ts -> ts.getUser().getId())
+                    .collect(Collectors.toSet());
+            
+            for (Long userId : userIdsWithTrackedStocks) {
+                messagingTemplate.convertAndSend("/topic/signals/user/" + userId + "/clear", clearMessage);
+            }
+            
+            log.info("Clear signal sent to all clients (general topic + {} user-specific topics)", userIdsWithTrackedStocks.size());
+        } catch (Exception e) {
+            log.error("Failed to send clear signal: {}", e.getMessage(), e);
+        }
+    }
+
     private void calculateForVN30Broadcast() {
         log.info("Broadcasting signals for {} VN30 stocks", vn30.size());
         
