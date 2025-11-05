@@ -140,6 +140,9 @@ const Trades = () => {
   // Chart data
   const [chartData, setChartData] = useState<DailyChartData[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
+  // Chart-specific date filters (independent from trade table filters)
+  const [chartFromDate, setChartFromDate] = useState(getNTradingDaysBack(5));
+  const [chartToDate, setChartToDate] = useState(getTodayDate());
   
   // WebSocket for signals
   const { isConnected, signals, clearSignals } = useWebSocket();
@@ -179,42 +182,12 @@ const Trades = () => {
     const params = new URLSearchParams();
     params.set("code", code.trim());
     
-    // Calculate date range: ensure at least 5 trading days are shown
-    let chartFromDate = fromDate;
-    let chartToDate = toDate || getTodayDate();
+    // Use chart-specific date filters (independent from trade table filters)
+    const chartFrom = chartFromDate || getNTradingDaysBack(5);
+    const chartTo = chartToDate || getTodayDate();
     
-    // If fromDate and toDate are the same or only 1 day difference, show at least 5 trading days
-    if (fromDate && toDate) {
-      // Parse dates to compare
-      const from = new Date(fromDate);
-      const to = new Date(toDate);
-      const daysDiff = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
-      
-      // If 1 day or less selected, show at least 5 trading days
-      if (daysDiff <= 1) {
-        chartFromDate = getNTradingDaysBack(5);
-        chartToDate = getTodayDate();
-      }
-    } else if (fromDate) {
-      // Only fromDate selected - check if it's today or very recent
-      const from = new Date(fromDate);
-      const today = new Date(getTodayDate());
-      const daysDiff = Math.ceil((today.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (daysDiff <= 1) {
-        chartFromDate = getNTradingDaysBack(5);
-        chartToDate = getTodayDate();
-      } else {
-        chartToDate = getTodayDate();
-      }
-    } else {
-      // No date selected - default to 5 trading days
-      chartFromDate = getNTradingDaysBack(5);
-      chartToDate = getTodayDate();
-    }
-    
-    if (chartFromDate) params.set("fromDate", chartFromDate);
-    if (chartToDate) params.set("toDate", chartToDate);
+    if (chartFrom) params.set("fromDate", chartFrom);
+    if (chartTo) params.set("toDate", chartTo);
 
     try {
       const response = await api.get(`/api/trades/daily-stats?${params.toString()}`);
@@ -351,11 +324,11 @@ const Trades = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, type, minVolume, maxVolume, fromDate, toDate]); // Fetch when any filter changes
 
-  // Fetch chart data when code or date range changes
+  // Fetch chart data when code or chart-specific date range changes
   useEffect(() => {
     fetchChartData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, fromDate, toDate]); // Fetch chart data when relevant filters change
+  }, [code, chartFromDate, chartToDate]); // Fetch chart data when chart-specific filters change
 
   return (
     <div className="min-h-screen bg-background">
@@ -707,6 +680,34 @@ const Trades = () => {
         {/* Price & Volume Chart - Only show when a specific stock code is selected */}
         {code && code.trim() !== "" && (
           <div className="mb-6 mt-8">
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle className="text-lg">Chart Date Range</CardTitle>
+                <CardDescription>
+                  Select a date range for the price & volume chart (independent from trade table filters)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">From Date</label>
+                    <DatePicker
+                      value={chartFromDate}
+                      onChange={setChartFromDate}
+                      placeholder="Select from date"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">To Date</label>
+                    <DatePicker
+                      value={chartToDate}
+                      onChange={setChartToDate}
+                      placeholder="Select to date"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
             <DailyPriceVolumeChart 
               data={chartData} 
               code={code}
