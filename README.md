@@ -224,7 +224,7 @@ cd cron-jobs && mvn test
 
 ## 📚 Documentation
 
-- [User Management Setup](./USER_MANAGEMENT_SETUP.md) - User authentication and roles
+- [User Management Setup](document/USER_MANAGEMENT_SETUP.md) - User authentication and roles
 - Backend: See `backend/README.md`
 - Cron-Jobs: See `cron-jobs/README.md`
 - Frontend: See `frontend/README.md`

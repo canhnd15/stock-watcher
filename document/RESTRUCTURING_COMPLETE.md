@@ -189,7 +189,7 @@ npm run dev
 
 ## 📚 Documentation
 
-- Main README: [`README.md`](./README.md)
+- Main README: [`README.md`](../README.md)
 - Backend: [`backend/README.md`](./backend/README.md)
 - Cron-Jobs: [`cron-jobs/README.md`](./cron-jobs/README.md)
 - User Management: [`USER_MANAGEMENT_SETUP.md`](./USER_MANAGEMENT_SETUP.md)
