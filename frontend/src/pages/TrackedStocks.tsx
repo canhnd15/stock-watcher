@@ -45,7 +45,8 @@ import { Loader2, Check, Trash2, Bell, BellOff, ArrowUpDown, ArrowUp, ArrowDown,
 import { Input } from "@/components/ui/input.tsx";
 import { useTrackedStockNotifications } from "@/hooks/useTrackedStockNotifications";
 import { useTrackedStockStats } from "@/hooks/useTrackedStockStats";
-import { api } from "@/lib/api";
+import { api, getStockRoombars, RoombarResponse } from "@/lib/api";
+import { StockRoombarStats } from "@/components/StockRoombarStats";
 
 interface TrackedStockStats {
   lowestPriceBuy?: number;
@@ -82,6 +83,12 @@ const TrackedStocks = () => {
   const [editCode, setEditCode] = useState("");
   const [editActive, setEditActive] = useState(true);
   const [editCostBasis, setEditCostBasis] = useState("");
+  
+  // Room bar statistics state
+  const [selectedStockCode, setSelectedStockCode] = useState<string | null>(null);
+  const [roombarData, setRoombarData] = useState<RoombarResponse | null>(null);
+  const [loadingRoombars, setLoadingRoombars] = useState(false);
+  const [roombarDialogOpen, setRoombarDialogOpen] = useState(false);
   
   // Pagination state
   const [page, setPage] = useState(0);
@@ -326,6 +333,25 @@ const TrackedStocks = () => {
       setTrackedStocks(prev => prev.filter(s => s.id !== id));
     } catch (error) {
       toast.error(`Failed to delete ${code}`);
+    }
+  };
+
+  // Handle stock click to show roombar statistics
+  const handleStockClick = async (code: string) => {
+    setSelectedStockCode(code);
+    setRoombarDialogOpen(true);
+    setLoadingRoombars(true);
+    setRoombarData(null);
+    
+    try {
+      const data = await getStockRoombars(code);
+      setRoombarData(data);
+    } catch (error) {
+      console.error("Error loading roombar data:", error);
+      toast.error(`Failed to load statistics for ${code}`);
+      setRoombarData(null);
+    } finally {
+      setLoadingRoombars(false);
     }
   };
 
@@ -860,7 +886,14 @@ const TrackedStocks = () => {
 
                 return (
                   <TableRow key={stock.code}>
-                    <TableCell className="font-semibold text-lg">{stock.code}</TableCell>
+                    <TableCell className="font-semibold text-lg">
+                      <button
+                        onClick={() => handleStockClick(stock.code)}
+                        className="hover:underline cursor-pointer text-primary font-semibold"
+                      >
+                        {stock.code}
+                      </button>
+                    </TableCell>
                     <TableCell>
                       {stock.costBasis ? (
                         <span className="text-sm font-medium">{formatPrice(stock.costBasis)}</span>
@@ -1024,6 +1057,34 @@ const TrackedStocks = () => {
             </div>
           </div>
         )}
+
+        {/* Room Bar Statistics Dialog */}
+        <Dialog open={roombarDialogOpen} onOpenChange={setRoombarDialogOpen}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedStockCode} - 10-Day Room Bar Statistics
+              </DialogTitle>
+              <DialogDescription>
+                Buy/Sell room statistics from the last 10 trading days
+              </DialogDescription>
+            </DialogHeader>
+            {loadingRoombars ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : roombarData?.data?.bars ? (
+              <StockRoombarStats 
+                bars={roombarData.data.bars} 
+                code={selectedStockCode || ""} 
+              />
+            ) : (
+              <div className="text-center text-muted-foreground py-12">
+                No statistics available
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

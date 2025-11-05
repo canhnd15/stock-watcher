@@ -1,6 +1,7 @@
 package com.data.trade.service;
 
 import com.data.trade.dto.FinpathResponse;
+import com.data.trade.dto.RoombarResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -26,6 +27,17 @@ public class FinpathClient {
                         .build())
                 .retrieve()
                 .bodyToMono(FinpathResponse.class)
+                .block();
+    }
+
+    public RoombarResponse fetchRoombars(String code, String type) {
+        String path = "/api/stocks/roombars/" + code;
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder.path(path)
+                        .queryParam("type", type != null ? type : "10day")
+                        .build())
+                .retrieve()
+                .bodyToMono(RoombarResponse.class)
                 .block();
     }
 }

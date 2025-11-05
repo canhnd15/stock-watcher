@@ -64,3 +64,29 @@ export const api = {
   },
 };
 
+// Room Bar Statistics Types
+export interface Roombar {
+  code: string;
+  buyVal: number;
+  sellVal: number;
+  netVal: number;
+  buyVol: number;
+  sellVol: number;
+  netVol: number;
+  timeframe: string;
+  time: string;
+}
+
+export interface RoombarResponse {
+  data: {
+    bars: Roombar[];
+  };
+}
+
+// Get room bars statistics for a stock
+export const getStockRoombars = async (code: string, type: string = "10day"): Promise<RoombarResponse> => {
+  const response = await api.get(`/api/stocks/roombars/${code}?type=${type}`);
+  if (!response.ok) throw new Error("Failed to fetch roombars");
+  return response.json();
+};
+
