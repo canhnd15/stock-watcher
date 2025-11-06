@@ -61,5 +61,22 @@ public class ConfigService {
         config.setConfigValue(String.valueOf(enabled));
         appConfigRepository.save(config);
     }
+    
+    public boolean isBackupCronEnabled() {
+        return appConfigRepository.findByConfigKey("backup.cron.enabled")
+                .map(config -> "true".equalsIgnoreCase(config.getConfigValue()))
+                .orElse(true); // Default to enabled
+    }
+    
+    public void setBackupCronEnabled(boolean enabled) {
+        AppConfig config = appConfigRepository.findByConfigKey("backup.cron.enabled")
+                .orElse(AppConfig.builder()
+                        .configKey("backup.cron.enabled")
+                        .description("Enable/disable daily trades backup cron job")
+                        .build());
+        
+        config.setConfigValue(String.valueOf(enabled));
+        appConfigRepository.save(config);
+    }
 }
 

@@ -1,11 +1,14 @@
 package com.data.trade.jobs;
 
+import com.data.trade.model.Trade;
 import com.data.trade.model.TrackedStock;
 import com.data.trade.repository.TrackedStockRepository;
 import com.data.trade.repository.TradeRepository;
 import com.data.trade.service.BackendApiClient;
 import com.data.trade.service.ConfigService;
+import com.data.trade.service.GoogleDriveService;
 import com.data.trade.service.SignalCalculationService;
+import com.data.trade.service.TradeExportService;
 import com.data.trade.service.TradeIngestionService;
 import com.data.trade.service.TrackedStockNotificationService;
 import com.data.trade.service.TrackedStockStatsService;
@@ -35,6 +38,8 @@ public class TradingJobs {
     private final TrackedStockNotificationService trackedStockNotificationService;
     private final TrackedStockStatsService trackedStockStatsService;
     private final BackendApiClient backendApiClient;
+    private final GoogleDriveService googleDriveService;
+    private final TradeExportService tradeExportService;
 
     @Value("${app.timezone:Asia/Ho_Chi_Minh}")
     private String appTz;
@@ -180,6 +185,66 @@ public class TradingJobs {
             log.info("Tracked stock notifications check completed via backend API");
         } catch (Exception ex) {
             log.error("Failed to trigger tracked stock notifications via backend API: {}", ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Backup daily trades data to Google Drive
+     * Runs at 15:05 every weekday (Monday-Friday)
+     */
+    @Scheduled(cron = "${cron.backup-trades:0 5 15 * * 1-5}", zone = "${cron.timezone}")
+    public void backupDailyTrades() {
+        if (!configService.isBackupCronEnabled()) {
+            log.info("Backup cron job is disabled. Skipping...");
+            return;
+        }
+        
+        ZoneId zone = ZoneId.of(appTz);
+        LocalDate currentDate = LocalDate.now(zone);
+        LocalDateTime now = LocalDateTime.now(zone);
+        DayOfWeek dayOfWeek = currentDate.getDayOfWeek();
+        
+        // Double check it's a weekday (shouldn't run on weekends due to cron, but safety check)
+        if (dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY) {
+            log.info("Backup skipped: Today is {}, not a weekday", dayOfWeek);
+            return;
+        }
+        
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        String tradeDateStr = currentDate.format(dateFormatter);
+        
+        log.info("========== Starting daily trades backup at {} for trade date {} ==========", 
+                now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")), tradeDateStr);
+        
+        try {
+            // Query all trades for current day
+            List<Trade> trades = tradeRepository.findByTradeDate(tradeDateStr);
+            
+            if (trades.isEmpty()) {
+                log.warn("No trades found for date {}. Skipping backup.", tradeDateStr);
+                return;
+            }
+            
+            log.info("Found {} trades for date {}", trades.size(), tradeDateStr);
+            
+            // Export to Excel
+            byte[] excelData = tradeExportService.exportTradesToXlsx(trades);
+            
+            // Generate filename with date
+            DateTimeFormatter filenameFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            String fileName = String.format("trades-backup-%s.xlsx", currentDate.format(filenameFormatter));
+            
+            // Upload to Google Drive
+            String fileId = googleDriveService.uploadFile(
+                fileName, 
+                excelData, 
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            );
+            
+            log.info("========== Daily trades backup completed successfully. File ID: {} ==========", fileId);
+            
+        } catch (Exception ex) {
+            log.error("Failed to backup daily trades: {}", ex.getMessage(), ex);
         }
     }
 }

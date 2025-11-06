@@ -25,6 +25,10 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
     @Query("SELECT t FROM Trade t WHERE t.code = :code AND t.tradeDate = :tradeDate ORDER BY t.tradeTime DESC")
     List<Trade> findByCodeAndTradeDate(@Param("code") String code, @Param("tradeDate") String tradeDate);
 
+    // Find all trades for a specific date
+    @Query("SELECT t FROM Trade t WHERE t.tradeDate = :tradeDate ORDER BY t.code, t.tradeTime DESC")
+    List<Trade> findByTradeDate(@Param("tradeDate") String tradeDate);
+
     @Transactional
     @Modifying
     @Query(value = "delete from trades where TO_DATE(trade_date, 'DD/MM/YYYY') = TO_DATE(:tradeDate, 'DD/MM/YYYY')", nativeQuery = true)
