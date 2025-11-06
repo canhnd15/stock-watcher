@@ -23,40 +23,25 @@ export const useTrackedStockNotifications = () => {
 
   // Request notification permission on mount
   useEffect(() => {
-    console.log('[TrackedNotifications] Checking notification permission...');
     if ('Notification' in window) {
-      console.log('[TrackedNotifications] Current permission:', Notification.permission);
       if (Notification.permission === 'granted') {
-        console.log('[TrackedNotifications] ✅ Permission already granted');
         setPermissionGranted(true);
       } else if (Notification.permission !== 'denied') {
-        console.log('[TrackedNotifications] Requesting permission...');
         Notification.requestPermission().then(permission => {
-          console.log('[TrackedNotifications] Permission result:', permission);
           setPermissionGranted(permission === 'granted');
         });
-      } else {
-        console.log('[TrackedNotifications] ❌ Permission denied');
       }
-    } else {
-      console.log('[TrackedNotifications] ❌ Notification API not supported');
     }
   }, []);
 
   const showBrowserNotification = useCallback((notification: TrackedStockNotification) => {
-    console.log('[TrackedNotifications] showBrowserNotification called for:', notification.code);
-    console.log('[TrackedNotifications] Permission granted:', permissionGranted);
-    
     if (!permissionGranted) {
-      console.log('[TrackedNotifications] ❌ Permission not granted, skipping notification');
       return;
     }
 
     const icon = notification.signalType === 'BUY' ? '📈' : '📉';
     const title = `${icon} ${notification.signalType} SIGNAL: ${notification.code}`;
     const body = `Score: ${notification.score}/10 | Price: ${notification.lastPrice.toLocaleString()}\n${notification.reason.substring(0, 100)}`;
-
-    console.log('[TrackedNotifications] Creating notification:', { title, body });
 
     try {
       // Create OS-level desktop notification
@@ -70,11 +55,8 @@ export const useTrackedStockNotifications = () => {
         timestamp: Date.now(),
       });
 
-      console.log('[TrackedNotifications] ✅ Notification created successfully');
-
       // Handle click - could open a specific page or just close
       browserNotification.onclick = () => {
-        console.log('[TrackedNotifications] Notification clicked');
         window.focus();
         browserNotification.close();
       };
@@ -96,19 +78,16 @@ export const useTrackedStockNotifications = () => {
 
     const client = new Client({
       webSocketFactory: socketFactory as any,
-      debug: (str) => console.log('Tracked Notifications STOMP:', str),
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
       onConnect: () => {
-        console.log('✅ Tracked Stock Notifications Connected');
         setIsConnected(true);
         
         // Subscribe to tracked stock notifications topic
         client.subscribe('/topic/tracked-notifications', (message: Message) => {
           try {
             const notification: TrackedStockNotification = JSON.parse(message.body);
-            console.log('🔔 Tracked Stock Notification:', notification);
             
             // Add to notification list
             setNotifications((prev) => [notification, ...prev].slice(0, 20));
@@ -120,19 +99,15 @@ export const useTrackedStockNotifications = () => {
             console.error('Failed to parse tracked notification:', error);
           }
         });
-        
-        console.log('📡 Subscribed to /topic/tracked-notifications');
       },
       onStompError: (frame) => {
         console.error('❌ Tracked Notifications STOMP error:', frame);
         setIsConnected(false);
       },
       onWebSocketClose: () => {
-        console.log('🔌 Tracked Notifications WebSocket closed');
         setIsConnected(false);
       },
       onDisconnect: () => {
-        console.log('⚠️ Tracked Notifications Disconnected');
         setIsConnected(false);
       },
     });

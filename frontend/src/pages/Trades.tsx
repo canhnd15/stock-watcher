@@ -43,6 +43,9 @@ import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, Trendi
 import { cn } from "@/lib/utils";
 import { useWebSocket, SignalNotification } from "@/hooks/useWebSocket.ts";
 import { api } from "@/lib/api";
+import { useI18n } from "@/contexts/I18nContext";
+import { DailyPriceVolumeChart } from "@/components/DailyPriceVolumeChart.tsx";
+import { DatePicker } from "@/components/ui/date-picker.tsx";
 
 interface Trade {
   id: string;
@@ -54,6 +57,14 @@ interface Trade {
   volume: number;
 }
 
+interface DailyChartData {
+  date: string; // "DD/MM/YYYY"
+  latestPrice: number;
+  minPrice?: number;
+  maxPrice?: number;
+  totalVolume: number; // in shares
+}
+
 // VN30 Stock Codes
 const VN30_STOCKS = [
   "ACB", "BCM", "CTG", "DGC", "FPT", "BFG", "HDB", "HPG", "MWG",
@@ -63,6 +74,8 @@ const VN30_STOCKS = [
 ];
 
 const Trades = () => {
+  const { t } = useI18n();
+  
   // Get today's date in yyyy-MM-dd format
   const getTodayDate = () => {
     const today = new Date();
@@ -72,7 +85,33 @@ const Trades = () => {
     return `${year}-${month}-${day}`;
   };
 
-  const [code, setCode] = useState("");
+  // Helper function to calculate N trading days back (excluding weekends)
+  const getNTradingDaysBack = (n: number): string => {
+    const today = new Date();
+    let daysBack = 0;
+    let tradingDaysFound = 0;
+    
+    while (tradingDaysFound < n) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - daysBack);
+      const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+      
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        tradingDaysFound++;
+        if (tradingDaysFound === n) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+      }
+      daysBack++;
+    }
+    
+    return getTodayDate(); // Fallback
+  };
+
+  const [code, setCode] = useState(""); // All by default (empty)
   const [codeOpen, setCodeOpen] = useState(false);
   const [type, setType] = useState("All");
   const [minVolume, setMinVolume] = useState("");
@@ -86,7 +125,7 @@ const Trades = () => {
   
   const [filteredTrades, setFilteredTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
-  const [sortField, setSortField] = useState<"time" | "price" | "volume" | null>(null);
+  const [sortField, setSortField] = useState<"code" | "time" | "price" | "volume">("code");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   
   // Volume statistics
@@ -97,6 +136,13 @@ const Trades = () => {
   // Transaction counts
   const [buyCount, setBuyCount] = useState(0);
   const [sellCount, setSellCount] = useState(0);
+  
+  // Chart data
+  const [chartData, setChartData] = useState<DailyChartData[]>([]);
+  const [chartLoading, setChartLoading] = useState(false);
+  // Chart-specific date filters (independent from trade table filters)
+  const [chartFromDate, setChartFromDate] = useState(getNTradingDaysBack(5));
+  const [chartToDate, setChartToDate] = useState(getTodayDate());
   
   // WebSocket for signals
   const { isConnected, signals, clearSignals } = useWebSocket();
@@ -125,6 +171,44 @@ const Trades = () => {
     }
   };
 
+  const fetchChartData = async () => {
+    // Only fetch if a specific stock code is selected
+    if (!code || code.trim() === "") {
+      setChartData([]);
+      return;
+    }
+
+    setChartLoading(true);
+    const params = new URLSearchParams();
+    params.set("code", code.trim());
+    
+    // Use chart-specific date filters (independent from trade table filters)
+    const chartFrom = chartFromDate || getNTradingDaysBack(5);
+    const chartTo = chartToDate || getTodayDate();
+    
+    if (chartFrom) params.set("fromDate", chartFrom);
+    if (chartTo) params.set("toDate", chartTo);
+
+    try {
+      const response = await api.get(`/api/trades/daily-stats?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to load chart data");
+      const data = await response.json();
+      setChartData(data.map((item: any) => ({
+        date: item.date,
+        latestPrice: Number(item.latestPrice) || 0,
+        minPrice: item.minPrice ? Number(item.minPrice) : undefined,
+        maxPrice: item.maxPrice ? Number(item.maxPrice) : undefined,
+        totalVolume: Number(item.totalVolume) || 0,
+      })));
+    } catch (error) {
+      console.error("Error loading chart data:", error);
+      toast.error("Failed to load chart data");
+      setChartData([]);
+    } finally {
+      setChartLoading(false);
+    }
+  };
+
   const fetchTrades = (nextPage = page, nextSize = size, sortFieldParam = sortField, sortDirectionParam = sortDirection) => {
     const params = new URLSearchParams();
     if (code) params.set("code", code.trim());
@@ -140,6 +224,7 @@ const Trades = () => {
     if (sortFieldParam) {
       // Map frontend field names to backend field names
       const fieldMap: Record<string, string> = {
+        code: "code",
         time: "tradeTime",
         price: "price",
         volume: "volume"
@@ -193,16 +278,11 @@ const Trades = () => {
         setBuyCount(Number(response?.buyCount ?? buyTrades.length));
         setSellCount(Number(response?.sellCount ?? sellTrades.length));
       })
-      .catch(() => toast.error("Failed to load trades"))
+      .catch(() => toast.error(t('error.loadFailed')))
       .finally(() => setLoading(false));
   };
 
-  const handleSearch = () => {
-    setPage(0);
-    fetchTrades(0, size);
-  };
-
-  const handleSort = (field: "time" | "price" | "volume") => {
+  const handleSort = (field: "code" | "time" | "price" | "volume") => {
     let newDirection: "asc" | "desc" = "asc";
     
     if (sortField === field) {
@@ -237,11 +317,18 @@ const Trades = () => {
   };
 
 
-  // Load data on component mount
+  // Auto-fetch when filter fields change
   useEffect(() => {
+    setPage(0);
     fetchTrades(0, size);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+  }, [code, type, minVolume, maxVolume, fromDate, toDate]); // Fetch when any filter changes
+
+  // Fetch chart data when code or chart-specific date range changes
+  useEffect(() => {
+    fetchChartData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, chartFromDate, chartToDate]); // Fetch chart data when chart-specific filters change
 
   return (
     <div className="min-h-screen bg-background">
@@ -251,7 +338,7 @@ const Trades = () => {
         <div className="mb-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
-              <label className="text-sm font-medium mb-1 block">Code</label>
+              <label className="text-sm font-medium mb-1 block">{t('trades.code')}</label>
               <Popover open={codeOpen} onOpenChange={setCodeOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -260,23 +347,21 @@ const Trades = () => {
                     aria-expanded={codeOpen}
                     className="w-full justify-between"
                   >
-                    {code || "Select stock..."}
+                    {code || t('common.all')}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0">
                   <Command>
-                    <CommandInput placeholder="Search stock..." />
+                    <CommandInput placeholder={t('trades.searchStock')} />
                     <CommandList>
-                      <CommandEmpty>No stock found.</CommandEmpty>
+                      <CommandEmpty>{t('trades.noStockFound')}</CommandEmpty>
                       <CommandGroup>
                         <CommandItem
                           value=""
                           onSelect={() => {
                             setCode("");
                             setCodeOpen(false);
-                            setPage(0);
-                            setTimeout(() => fetchTrades(0, size), 0);
                           }}
                         >
                           <Check
@@ -285,7 +370,7 @@ const Trades = () => {
                               code === "" ? "opacity-100" : "opacity-0"
                             )}
                           />
-                          All
+                          {t('common.all')}
                         </CommandItem>
                         {VN30_STOCKS.map((stock) => (
                           <CommandItem
@@ -295,8 +380,6 @@ const Trades = () => {
                               const newCode = currentValue === code ? "" : currentValue.toUpperCase();
                               setCode(newCode);
                               setCodeOpen(false);
-                              setPage(0);
-                              setTimeout(() => fetchTrades(0, size), 0);
                             }}
                           >
                             <Check
@@ -316,40 +399,36 @@ const Trades = () => {
             </div>
             
             <div>
-              <label className="text-sm font-medium mb-1 block">Type</label>
+              <label className="text-sm font-medium mb-1 block">{t('trades.type')}</label>
               <Select value={type} onValueChange={(value) => {
                 setType(value);
-                setPage(0);
-                setTimeout(() => fetchTrades(0, size), 0);
               }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="All">All</SelectItem>
-                  <SelectItem value="Buy">Buy</SelectItem>
-                  <SelectItem value="Sell">Sell</SelectItem>
+                  <SelectItem value="All">{t('common.all')}</SelectItem>
+                  <SelectItem value="Buy">{t('trades.buy')}</SelectItem>
+                  <SelectItem value="Sell">{t('trades.sell')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
             <div className="md:col-span-2">
-              <label className="text-sm font-medium mb-1 block">Volume Range</label>
+              <label className="text-sm font-medium mb-1 block">{t('trades.volumeRange')}</label>
               <Select
                 value={`${minVolume || ''}|${maxVolume || ''}`}
                 onValueChange={(v) => {
                   const [minV, maxV] = v.split("|");
                   setMinVolume(minV);
                   setMaxVolume(maxV);
-                  setPage(0);
-                  fetchTrades(0, size);
                 }}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="|">All</SelectItem>
+                  <SelectItem value="|">{t('common.all')}</SelectItem>
                   <SelectItem value="|1000">{"<=1000"}</SelectItem>
                   <SelectItem value="1000|5000">{"1000 - 5000"}</SelectItem>
                   <SelectItem value="5000|10000">{"5000 - 10000"}</SelectItem>
@@ -362,57 +441,53 @@ const Trades = () => {
             </div>
             
             <div>
-              <label className="text-sm font-medium mb-1 block">From Date</label>
-              <Input
-                type="date"
+              <label className="text-sm font-medium mb-1 block">{t('trades.fromDate')}</label>
+              <DatePicker
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                onChange={setFromDate}
+                placeholder="Select from date"
               />
             </div>
             
             <div>
-              <label className="text-sm font-medium mb-1 block">To Date</label>
-              <Input
-                type="date"
+              <label className="text-sm font-medium mb-1 block">{t('trades.toDate')}</label>
+              <DatePicker
                 value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
+                onChange={setToDate}
+                placeholder="Select to date"
               />
             </div>
-          </div>
-          
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button onClick={handleSearch} disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Search
-            </Button>
           </div>
         </div>
 
         {/* Volume Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card>
+          <Card className={loading ? "opacity-50 pointer-events-none" : ""}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Activity className="h-4 w-4 text-blue-500" />
-                Total Volume
+                {t('trades.totalVolume')}
+                {loading && <Loader2 className="h-4 w-4 animate-spin ml-auto" />}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalVolume.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-1">All matching trades</p>
+              <div className="text-2xl font-bold">{loading ? "..." : totalVolume.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1 font-bold">{loading ? "..." : `${(buyCount + sellCount).toLocaleString()} ${t('trades.transactions')}`}</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('trades.allMatchingTrades')}</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={loading ? "opacity-50 pointer-events-none" : ""}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-green-500" />
-                Buy Volume
+                {t('trades.buyVolume')}
+                {loading && <Loader2 className="h-4 w-4 animate-spin ml-auto" />}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{buyVolume.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-1 font-bold">{buyCount.toLocaleString()} transactions</p>
+              <div className="text-2xl font-bold text-green-600">{loading ? "..." : buyVolume.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1 font-bold">{loading ? "..." : `${buyCount.toLocaleString()} ${t('trades.transactions')}`}</p>
               <div className="flex items-center gap-2 mt-2">
                 <div className="h-2 bg-gray-200 rounded-full flex-1 overflow-hidden">
                   <div 
@@ -427,16 +502,17 @@ const Trades = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={loading ? "opacity-50 pointer-events-none" : ""}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <TrendingDown className="h-4 w-4 text-red-500" />
-                Sell Volume
+                {t('trades.sellVolume')}
+                {loading && <Loader2 className="h-4 w-4 animate-spin ml-auto" />}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{sellVolume.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-1 font-bold">{sellCount.toLocaleString()} transactions</p>
+              <div className="text-2xl font-bold text-red-600">{loading ? "..." : sellVolume.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1 font-bold">{loading ? "..." : `${sellCount.toLocaleString()} ${t('trades.transactions')}`}</p>
               <div className="flex items-center gap-2 mt-2">
                 <div className="h-2 bg-gray-200 rounded-full flex-1 overflow-hidden">
                   <div 
@@ -452,11 +528,34 @@ const Trades = () => {
           </Card>
         </div>
 
-        <div className="rounded-lg border bg-card">
-          <Table>
+        <div className="rounded-lg border bg-card relative">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10 rounded-lg">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          )}
+          <Table className={loading ? "opacity-50 pointer-events-none" : ""}>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[120px]">Code</TableHead>
+                <TableHead className="w-[120px]">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() => handleSort("code")}
+                  >
+                    {t('trades.code')}
+                    {sortField === "code" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="ml-2 h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="ml-2 h-4 w-4" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
+                    )}
+                  </Button>
+                </TableHead>
                 <TableHead className="w-[280px]">
                   <Button
                     variant="ghost"
@@ -464,7 +563,7 @@ const Trades = () => {
                     className="h-8 px-2"
                     onClick={() => handleSort("time")}
                   >
-                    Time
+                    {t('trades.time')}
                     {sortField === "time" ? (
                       sortDirection === "asc" ? (
                         <ArrowUp className="ml-2 h-4 w-4" />
@@ -476,7 +575,7 @@ const Trades = () => {
                     )}
                   </Button>
                 </TableHead>
-                <TableHead className="w-[50px] text-center">Side</TableHead>
+                <TableHead className="w-[50px] text-center">{t('trades.side')}</TableHead>
                 <TableHead className="text-right">
                   <Button
                     variant="ghost"
@@ -484,7 +583,7 @@ const Trades = () => {
                     className="h-8 px-2"
                     onClick={() => handleSort("price")}
                   >
-                    Price
+                    {t('trades.price')}
                     {sortField === "price" ? (
                       sortDirection === "asc" ? (
                         <ArrowUp className="ml-2 h-4 w-4" />
@@ -503,7 +602,7 @@ const Trades = () => {
                     className="h-8 px-2"
                     onClick={() => handleSort("volume")}
                   >
-                    Volume
+                    {t('trades.volume')}
                     {sortField === "volume" ? (
                       sortDirection === "asc" ? (
                         <ArrowUp className="ml-2 h-4 w-4" />
@@ -548,7 +647,7 @@ const Trades = () => {
         <div className="flex items-center justify-between mt-4">
           <div className="text-sm text-muted-foreground">
             {totalElements === 0 ? (
-              "No results"
+              t('trades.noResults')
             ) : (
               <div className="flex items-center gap-4">
                 <span>Page size: <span className="font-semibold">{size}</span></span>
@@ -578,6 +677,45 @@ const Trades = () => {
           </div>
         </div>
 
+        {/* Price & Volume Chart - Only show when a specific stock code is selected */}
+        {code && code.trim() !== "" && (
+          <div className="mb-6 mt-8">
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle className="text-lg">Chart Date Range</CardTitle>
+                <CardDescription>
+                  Select a date range for the price & volume chart (independent from trade table filters)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">From Date</label>
+                    <DatePicker
+                      value={chartFromDate}
+                      onChange={setChartFromDate}
+                      placeholder="Select from date"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">To Date</label>
+                    <DatePicker
+                      value={chartToDate}
+                      onChange={setChartToDate}
+                      placeholder="Select to date"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <DailyPriceVolumeChart 
+              data={chartData} 
+              code={code}
+              loading={chartLoading}
+            />
+          </div>
+        )}
+
         {/* Signals Section */}
         <div className="mt-12 pt-8 border-t">
           <div className="mb-6">
@@ -585,8 +723,8 @@ const Trades = () => {
               <div className="flex items-center gap-3">
                 <Activity className="h-6 w-6 text-primary" />
                 <div>
-                  <h2 className="text-2xl font-bold">Real-time Signals</h2>
-                  <p className="text-sm text-muted-foreground">Live buy/sell signals based on trade analysis</p>
+                  <h2 className="text-2xl font-bold">{t('signals.realTimeSignals')}</h2>
+                  <p className="text-sm text-muted-foreground">{t('signals.liveSignalsDescription')}</p>
                 </div>
               </div>
               
@@ -599,7 +737,7 @@ const Trades = () => {
                   className="border-2"
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${refreshingSignals ? 'animate-spin' : ''}`} />
-                  Refresh
+                  {t('signals.refresh')}
                 </Button>
                 
                 {/* Connection Status */}
@@ -607,7 +745,7 @@ const Trades = () => {
                   <CardContent className="p-3 flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
                     <span className={`text-sm font-semibold ${isConnected ? 'text-green-700' : 'text-red-700'}`}>
-                      {isConnected ? 'Active' : 'Disconnected'}
+                      {isConnected ? t('signals.active') : t('signals.disconnected')}
                     </span>
                   </CardContent>
                 </Card>
@@ -623,7 +761,7 @@ const Trades = () => {
                 className="mb-4"
               >
                 <X className="h-4 w-4 mr-2" />
-                Clear All Signals ({signals.length})
+                {t('signals.clear', { count: signals.length })}
               </Button>
             )}
           </div>
@@ -635,15 +773,15 @@ const Trades = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[100px]">Code</TableHead>
-                      <TableHead className="w-[100px]">Signal</TableHead>
-                      <TableHead className="w-[80px]">Score</TableHead>
-                      <TableHead className="w-[150px]">Time</TableHead>
-                      <TableHead className="text-right">Buy Volume</TableHead>
-                      <TableHead className="text-right">Sell Volume</TableHead>
-                      <TableHead className="text-right">Price</TableHead>
-                      <TableHead className="text-right">Change</TableHead>
-                      <TableHead>Reason</TableHead>
+                      <TableHead className="w-[100px]">{t('trades.code')}</TableHead>
+                      <TableHead className="w-[100px]">{t('signals.title')}</TableHead>
+                      <TableHead className="w-[80px]">{t('signals.score')}</TableHead>
+                      <TableHead className="w-[150px]">{t('signals.time')}</TableHead>
+                      <TableHead className="text-right">{t('signals.buyVolume')}</TableHead>
+                      <TableHead className="text-right">{t('signals.sellVolume')}</TableHead>
+                      <TableHead className="text-right">{t('signals.price')}</TableHead>
+                      <TableHead className="text-right">{t('signals.change')}</TableHead>
+                      <TableHead>{t('signals.reason')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -711,16 +849,16 @@ const Trades = () => {
               <CardContent className="p-12 text-center">
                 <div className="text-6xl mb-4 opacity-50">📊</div>
                 <h3 className="text-lg font-semibold mb-2">
-                  {isConnected ? 'Listening for signals...' : 'Connecting...'}
+                  {isConnected ? t('signals.listening') : t('signals.connecting')}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  Signals appear when strong buy/sell pressure is detected
+                  {t('signals.signalsDetected')}
                 </p>
                 {isConnected && (
                   <div className="mt-6 text-xs text-muted-foreground space-y-1">
-                    <p>✓ Multi-factor analysis (volume, blocks, momentum)</p>
-                    <p>✓ Analyzing last 30 minutes of trades</p>
-                    <p>✓ Minimum score threshold: 4 points</p>
+                    <p>{t('signals.multiFactorAnalysis')}</p>
+                    <p>{t('signals.analyzingLast30Minutes')}</p>
+                    <p>{t('signals.minimumScoreThreshold')}</p>
                   </div>
                 )}
               </CardContent>

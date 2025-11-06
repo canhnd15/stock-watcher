@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useI18n } from '@/contexts/I18nContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -12,6 +13,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -20,10 +22,10 @@ const Login = () => {
     
     try {
       await login(username, password);
-      toast.success('Login successful!');
+      toast.success(t('auth.loginSuccess'));
       navigate('/');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Login failed. Please check your credentials.');
+      toast.error(error instanceof Error ? error.message : t('auth.loginFailed'));
     } finally {
       setLoading(false);
     }
@@ -38,30 +40,30 @@ const Login = () => {
             <CardTitle className="text-3xl text-center">Trade Tracker</CardTitle>
           </div>
           <CardDescription className="text-center">
-            Sign in to access your dashboard
+            {t('auth.signInToAccess')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Username</label>
+              <label className="text-sm font-medium">{t('auth.username')}</label>
               <Input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username"
+                placeholder={t('auth.enterUsername')}
                 required
                 className="mt-1"
                 disabled={loading}
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Password</label>
+              <label className="text-sm font-medium">{t('auth.password')}</label>
               <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder={t('auth.enterPassword')}
                 required
                 className="mt-1"
                 disabled={loading}
@@ -69,13 +71,13 @@ const Login = () => {
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? t('auth.loggingIn') : t('auth.login')}
             </Button>
           </form>
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            Don't have an account?{' '}
+            {t('auth.dontHaveAccount')}{' '}
             <Link to="/register" className="text-primary font-medium hover:underline">
-              Register here
+              {t('auth.registerHere')}
             </Link>
           </p>
         </CardContent>

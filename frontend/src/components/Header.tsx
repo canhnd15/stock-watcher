@@ -1,14 +1,16 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils.ts";
 import { TrendingUp, LogOut, User } from "lucide-react";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, hasRole } = useAuth();
+  const { t } = useI18n();
 
   const handleLogout = () => {
     logout();
@@ -16,34 +18,23 @@ const Header = () => {
   };
 
   const navItems = [
-    { path: "/", label: "Trades", roles: ['NORMAL', 'VIP', 'ADMIN'] },
-    { path: "/tracked", label: "Tracked Stocks", roles: ['VIP', 'ADMIN'] },
-    { path: "/suggestions", label: "Suggestions", roles: ['VIP', 'ADMIN'] },
-    { path: "/admin", label: "User Management", roles: ['ADMIN'] },
-    { path: "/config", label: "System Config", roles: ['ADMIN'] },
+    { path: "/", labelKey: "nav.trades", roles: ['NORMAL', 'VIP', 'ADMIN'] },
+    { path: "/tracked", labelKey: "nav.trackedStocks", roles: ['VIP', 'ADMIN'] },
+    { path: "/suggestions", labelKey: "nav.suggestions", roles: ['VIP', 'ADMIN'] },
+    { path: "/admin", labelKey: "nav.userManagement", roles: ['ADMIN'] },
+    { path: "/config", labelKey: "nav.systemConfig", roles: ['ADMIN'] },
   ];
 
   const visibleNavItems = navItems.filter(item => hasRole(item.roles));
-
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'ADMIN':
-        return 'bg-red-500 hover:bg-red-600';
-      case 'VIP':
-        return 'bg-yellow-500 hover:bg-yellow-600';
-      default:
-        return 'bg-gray-500 hover:bg-gray-600';
-    }
-  };
 
   return (
     <header className="border-b bg-card">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
             <TrendingUp className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-bold text-foreground">Trade Tracker</h1>
-          </div>
+          </Link>
           
           <nav className="flex gap-1">
             {visibleNavItems.map((item) => (
@@ -57,7 +48,7 @@ const Header = () => {
                     : "text-muted-foreground hover:text-foreground hover:bg-accent"
                 )}
               >
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             ))}
           </nav>
@@ -66,13 +57,10 @@ const Header = () => {
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">{user?.username}</span>
-              <Badge className={cn("text-xs", getRoleBadgeColor(user?.role || 'NORMAL'))}>
-                {user?.role}
-              </Badge>
             </div>
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
+            <LanguageSwitcher />
+            <Button variant="outline" size="sm" onClick={handleLogout} title={t('auth.logout')}>
+              <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
