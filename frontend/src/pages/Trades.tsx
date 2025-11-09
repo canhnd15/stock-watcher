@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import {
@@ -82,6 +82,24 @@ const VN30_STOCKS = [
   "DXG", "KDH"
 ];
 
+// LocalStorage key for saving trade filters
+const TRADES_FILTERS_STORAGE_KEY = 'trades_filters';
+
+interface TradeFilters {
+  code: string;
+  type: string;
+  minVolume: string;
+  maxVolume: string;
+  fromDate: string;
+  toDate: string;
+  page: number;
+  size: number;
+  sortField: "code" | "time" | "price" | "volume";
+  sortDirection: "asc" | "desc";
+  chartFromDate: string;
+  chartToDate: string;
+}
+
 const Trades = () => {
   const { t } = useI18n();
   
@@ -120,22 +138,51 @@ const Trades = () => {
     return getTodayDate(); // Fallback
   };
 
-  const [code, setCode] = useState(""); // All by default (empty)
+  // Load filters from localStorage
+  const loadFiltersFromStorage = (): Partial<TradeFilters> => {
+    try {
+      const stored = localStorage.getItem(TRADES_FILTERS_STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Error loading filters from localStorage:', error);
+    }
+    return {};
+  };
+
+  // Save filters to localStorage
+  const saveFiltersToStorage = (filters: Partial<TradeFilters>) => {
+    try {
+      localStorage.setItem(TRADES_FILTERS_STORAGE_KEY, JSON.stringify(filters));
+    } catch (error) {
+      console.error('Error saving filters to localStorage:', error);
+    }
+  };
+
+  // Load saved filters or use defaults
+  const savedFilters = loadFiltersFromStorage();
+  const defaultFromDate = savedFilters.fromDate || getTodayDate();
+  const defaultToDate = savedFilters.toDate || getTodayDate();
+  const defaultChartFromDate = savedFilters.chartFromDate || getNTradingDaysBack(5);
+  const defaultChartToDate = savedFilters.chartToDate || getTodayDate();
+
+  const [code, setCode] = useState(savedFilters.code || ""); // All by default (empty)
   const [codeOpen, setCodeOpen] = useState(false);
-  const [type, setType] = useState("All");
-  const [minVolume, setMinVolume] = useState("");
-  const [maxVolume, setMaxVolume] = useState("");
-  const [fromDate, setFromDate] = useState(getTodayDate()); // yyyy-MM-dd - default to today
-  const [toDate, setToDate] = useState(getTodayDate());     // yyyy-MM-dd - default to today
-  const [page, setPage] = useState(0);
-  const [size, setSize] = useState(10);
+  const [type, setType] = useState(savedFilters.type || "All");
+  const [minVolume, setMinVolume] = useState(savedFilters.minVolume || "");
+  const [maxVolume, setMaxVolume] = useState(savedFilters.maxVolume || "");
+  const [fromDate, setFromDate] = useState(defaultFromDate); // yyyy-MM-dd
+  const [toDate, setToDate] = useState(defaultToDate);     // yyyy-MM-dd
+  const [page, setPage] = useState(savedFilters.page ?? 0);
+  const [size, setSize] = useState(savedFilters.size || 10);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   
   const [filteredTrades, setFilteredTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
-  const [sortField, setSortField] = useState<"code" | "time" | "price" | "volume">("code");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [sortField, setSortField] = useState<"code" | "time" | "price" | "volume">(savedFilters.sortField || "code");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(savedFilters.sortDirection || "asc");
   
   // Volume statistics
   const [totalVolume, setTotalVolume] = useState(0);
@@ -150,8 +197,8 @@ const Trades = () => {
   const [chartData, setChartData] = useState<DailyChartData[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
   // Chart-specific date filters (independent from trade table filters)
-  const [chartFromDate, setChartFromDate] = useState(getNTradingDaysBack(5));
-  const [chartToDate, setChartToDate] = useState(getTodayDate());
+  const [chartFromDate, setChartFromDate] = useState(defaultChartFromDate);
+  const [chartToDate, setChartToDate] = useState(defaultChartToDate);
   
   // OHLC Chart data
   const [ohlcData, setOhlcData] = useState<DailyOHLCData[]>([]);
@@ -160,6 +207,9 @@ const Trades = () => {
   // WebSocket for signals
   const { isConnected, signals, clearSignals } = useWebSocket();
   const [refreshingSignals, setRefreshingSignals] = useState(false);
+  
+  // Ref to track if initial data has been loaded
+  const hasInitialLoad = useRef(false);
 
   const handleRefreshSignals = async () => {
     try {
@@ -368,17 +418,59 @@ const Trades = () => {
   };
 
 
-  // Auto-fetch when filter fields change
+  // Save filters to localStorage whenever they change (but not on initial mount)
   useEffect(() => {
+    if (!hasInitialLoad.current) return; // Skip saving on initial mount
+    
+    saveFiltersToStorage({
+      code,
+      type,
+      minVolume,
+      maxVolume,
+      fromDate,
+      toDate,
+      page,
+      size,
+      sortField,
+      sortDirection,
+      chartFromDate,
+      chartToDate,
+    });
+  }, [code, type, minVolume, maxVolume, fromDate, toDate, page, size, sortField, sortDirection, chartFromDate, chartToDate]);
+
+  // Load initial data when component mounts (with saved filters)
+  useEffect(() => {
+    // Mark that we've loaded initial data
+    hasInitialLoad.current = true;
+    
+    // Fetch trades with saved filters
+    fetchTrades(page, size, sortField, sortDirection);
+    // Fetch chart data if code is selected
+    if (code && code.trim() !== "") {
+      fetchChartData();
+      fetchOHLCData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
+
+  // Auto-fetch when filter fields change (but not on initial mount)
+  useEffect(() => {
+    if (!hasInitialLoad.current) return; // Skip on initial mount
+
     setPage(0);
     fetchTrades(0, size);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, type, minVolume, maxVolume, fromDate, toDate]); // Fetch when any filter changes
 
-  // Fetch chart data when code or chart-specific date range changes
+  // Fetch chart data when code or chart-specific date range changes (but not on initial mount)
   useEffect(() => {
-    fetchChartData();
-    fetchOHLCData();
+    if (!hasInitialLoad.current) return; // Skip on initial mount
+    
+    // Only fetch if code is selected
+    if (code && code.trim() !== "") {
+      fetchChartData();
+      fetchOHLCData();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, chartFromDate, chartToDate]); // Fetch chart data when chart-specific filters change
 
