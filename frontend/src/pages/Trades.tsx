@@ -45,6 +45,7 @@ import { useWebSocket, SignalNotification } from "@/hooks/useWebSocket.ts";
 import { api } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import { DailyPriceVolumeChart } from "@/components/DailyPriceVolumeChart.tsx";
+import { DailyOHLCChart } from "@/components/DailyOHLCChart.tsx";
 import { DatePicker } from "@/components/ui/date-picker.tsx";
 
 interface Trade {
@@ -63,6 +64,14 @@ interface DailyChartData {
   minPrice?: number;
   maxPrice?: number;
   totalVolume: number; // in shares
+}
+
+interface DailyOHLCData {
+  date: string; // "DD/MM/YYYY"
+  openPrice: number;
+  highPrice: number;
+  lowPrice: number;
+  closePrice: number;
 }
 
 // VN30 Stock Codes
@@ -144,6 +153,10 @@ const Trades = () => {
   const [chartFromDate, setChartFromDate] = useState(getNTradingDaysBack(5));
   const [chartToDate, setChartToDate] = useState(getTodayDate());
   
+  // OHLC Chart data
+  const [ohlcData, setOhlcData] = useState<DailyOHLCData[]>([]);
+  const [ohlcLoading, setOhlcLoading] = useState(false);
+  
   // WebSocket for signals
   const { isConnected, signals, clearSignals } = useWebSocket();
   const [refreshingSignals, setRefreshingSignals] = useState(false);
@@ -206,6 +219,44 @@ const Trades = () => {
       setChartData([]);
     } finally {
       setChartLoading(false);
+    }
+  };
+
+  const fetchOHLCData = async () => {
+    // Only fetch if a specific stock code is selected
+    if (!code || code.trim() === "") {
+      setOhlcData([]);
+      return;
+    }
+
+    setOhlcLoading(true);
+    const params = new URLSearchParams();
+    params.set("code", code.trim());
+    
+    // Use chart-specific date filters (independent from trade table filters)
+    const chartFrom = chartFromDate || getNTradingDaysBack(5);
+    const chartTo = chartToDate || getTodayDate();
+    
+    if (chartFrom) params.set("fromDate", chartFrom);
+    if (chartTo) params.set("toDate", chartTo);
+
+    try {
+      const response = await api.get(`/api/trades/daily-ohlc?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to load OHLC data");
+      const data = await response.json();
+      setOhlcData(data.map((item: any) => ({
+        date: item.date,
+        openPrice: Number(item.openPrice) || 0,
+        highPrice: Number(item.highPrice) || 0,
+        lowPrice: Number(item.lowPrice) || 0,
+        closePrice: Number(item.closePrice) || 0,
+      })));
+    } catch (error) {
+      console.error("Error loading OHLC data:", error);
+      toast.error("Failed to load OHLC data");
+      setOhlcData([]);
+    } finally {
+      setOhlcLoading(false);
     }
   };
 
@@ -327,6 +378,7 @@ const Trades = () => {
   // Fetch chart data when code or chart-specific date range changes
   useEffect(() => {
     fetchChartData();
+    fetchOHLCData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, chartFromDate, chartToDate]); // Fetch chart data when chart-specific filters change
 
@@ -713,6 +765,15 @@ const Trades = () => {
               code={code}
               loading={chartLoading}
             />
+            
+            {/* Daily OHLC Chart - Below Price & Volume Chart */}
+            <div className="mt-6">
+              <DailyOHLCChart 
+                data={ohlcData} 
+                code={code}
+                loading={ohlcLoading}
+              />
+            </div>
           </div>
         )}
 

@@ -1,5 +1,6 @@
 package com.data.trade.controller;
 
+import com.data.trade.dto.DailyOHLCDTO;
 import com.data.trade.dto.DailyTradeStatsDTO;
 import com.data.trade.dto.TradePageResponse;
 import com.data.trade.model.Trade;
@@ -133,6 +134,18 @@ public class TradeController {
     ) {
         List<DailyTradeStatsDTO> stats = tradeService.getDailyStats(code, fromDate, toDate);
         return ResponseEntity.ok(stats);
+    }
+
+    @GetMapping("/daily-ohlc")
+    public ResponseEntity<List<DailyOHLCDTO>> getDailyOHLC(
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        List<DailyOHLCDTO> ohlc = tradeService.getDailyOHLC(code, fromDate, toDate);
+        return ResponseEntity.ok(ohlc);
     }
 }
 

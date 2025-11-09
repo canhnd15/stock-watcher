@@ -1,5 +1,6 @@
 package com.data.trade.service;
 
+import com.data.trade.dto.DailyOHLCDTO;
 import com.data.trade.dto.DailyTradeStatsDTO;
 import com.data.trade.dto.TradePageResponse;
 import com.data.trade.model.Trade;
@@ -302,6 +303,48 @@ public class TradeService {
                             .minPrice(minPrice)
                             .maxPrice(maxPrice)
                             .totalVolume(totalVolume)
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
+    public List<DailyOHLCDTO> getDailyOHLC(String code, LocalDate fromDate, LocalDate toDate) {
+        // Convert LocalDate to YYYYMMDD string format for comparison
+        String fromDateStr = (fromDate != null) ? fromDate.format(YYYYMMDD_FORMATTER) : null;
+        String toDateStr = (toDate != null) ? toDate.format(YYYYMMDD_FORMATTER) : null;
+        
+        // Normalize code
+        String normalizedCode = (code != null && !code.isBlank()) ? code.trim().toUpperCase() : null;
+        
+        if (normalizedCode == null) {
+            return new ArrayList<>();
+        }
+        
+        // Get OHLC data from repository
+        List<Object[]> results = tradeRepository.findDailyOHLC(normalizedCode, fromDateStr, toDateStr);
+        
+        // Transform to DTOs
+        // Query returns: code, trade_date, open_price, high_price, low_price, close_price
+        return results.stream()
+                .map(row -> {
+                    String stockCode = (String) row[0]; // code
+                    String date = (String) row[1]; // trade_date (DD/MM/YYYY)
+                    BigDecimal openPrice = row[2] != null ? 
+                        ((BigDecimal) row[2]).setScale(2, RoundingMode.HALF_UP) : null;
+                    BigDecimal highPrice = row[3] != null ? 
+                        ((BigDecimal) row[3]).setScale(2, RoundingMode.HALF_UP) : null;
+                    BigDecimal lowPrice = row[4] != null ? 
+                        ((BigDecimal) row[4]).setScale(2, RoundingMode.HALF_UP) : null;
+                    BigDecimal closePrice = row[5] != null ? 
+                        ((BigDecimal) row[5]).setScale(2, RoundingMode.HALF_UP) : null;
+                    
+                    return DailyOHLCDTO.builder()
+                            .code(stockCode)
+                            .date(date)
+                            .openPrice(openPrice)
+                            .highPrice(highPrice)
+                            .lowPrice(lowPrice)
+                            .closePrice(closePrice)
                             .build();
                 })
                 .collect(Collectors.toList());
