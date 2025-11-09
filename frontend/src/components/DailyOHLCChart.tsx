@@ -108,7 +108,7 @@ export function DailyOHLCChart({ data, code, loading }: DailyOHLCChartProps) {
       <Card>
         <CardHeader>
           <CardTitle>
-            {code ? `${code} - ` : ""}Daily OHLC Chart
+            {code ? `${code} - ` : ""}Price Over Time (OHLC)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -125,7 +125,7 @@ export function DailyOHLCChart({ data, code, loading }: DailyOHLCChartProps) {
       <Card>
         <CardHeader>
           <CardTitle>
-            {code ? `${code} - ` : ""}Daily OHLC Chart
+            {code ? `${code} - ` : ""}Price Over Time (OHLC)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -141,7 +141,7 @@ export function DailyOHLCChart({ data, code, loading }: DailyOHLCChartProps) {
     <Card>
       <CardHeader>
         <CardTitle>
-          {code ? `${code} - ` : ""}Daily OHLC Chart
+          {code ? `${code} - ` : ""}Price Over Time (OHLC)
         </CardTitle>
       </CardHeader>
       <CardContent>
