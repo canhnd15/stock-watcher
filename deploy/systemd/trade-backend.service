@@ -1,0 +1,20 @@
+[Unit]
+Description=Stock Watcher Backend Service
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/path/to/stock-watcher/runtime/backend
+ExecStart=/usr/bin/java -jar -Xms512m -Xmx1024m trade-backend.jar
+Environment="SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/trade"
+Environment="SPRING_DATASOURCE_USERNAME=postgre"
+Environment="SPRING_DATASOURCE_PASSWORD=admin"
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/path/to/stock-watcher/runtime/logs/backend.log
+StandardError=append:/path/to/stock-watcher/runtime/logs/backend.error.log
+
+[Install]
+WantedBy=multi-user.target
+

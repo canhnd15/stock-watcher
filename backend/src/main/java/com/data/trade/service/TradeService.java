@@ -4,6 +4,7 @@ import com.data.trade.dto.DailyTradeStatsDTO;
 import com.data.trade.dto.TradePageResponse;
 import com.data.trade.model.Trade;
 import com.data.trade.repository.TradeRepository;
+import jakarta.persistence.criteria.Expression;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -38,7 +39,7 @@ public class TradeService {
      * Converts DD/MM/YYYY format date string to YYYYMMDD format for lexicographic comparison.
      * This is a helper method to build a sortable date expression from the tradeDate field.
      */
-    private jakarta.persistence.criteria.Expression<String> buildSortableDateExpression(
+    private Expression<String> buildSortableDateExpression(
             jakarta.persistence.criteria.Root<Trade> root,
             jakarta.persistence.criteria.CriteriaBuilder cb) {
         // Extract parts: "DD/MM/YYYY" -> YYYYMMDD

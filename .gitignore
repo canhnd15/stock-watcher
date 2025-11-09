@@ -31,3 +31,12 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Deployment ###
+runtime/
+.env
+*.pid
+
+### Logs ###
+*.log
+logs/
