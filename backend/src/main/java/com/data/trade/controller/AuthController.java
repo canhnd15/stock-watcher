@@ -1,5 +1,6 @@
 package com.data.trade.controller;
 
+import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.dto.auth.LoginRequest;
 import com.data.trade.dto.auth.LoginResponse;
 import com.data.trade.dto.auth.RegisterRequest;
@@ -11,14 +12,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping(ApiEndpoints.API_AUTH)
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:8089", "http://localhost:4200"})
 public class AuthController {
 
     private final AuthService authService;
 
-    @PostMapping("/register")
+    @PostMapping(ApiEndpoints.AUTH_REGISTER_PATH)
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
         try {
             UserResponse response = authService.register(request);
@@ -28,7 +28,7 @@ public class AuthController {
         }
     }
 
-    @PostMapping("/login")
+    @PostMapping(ApiEndpoints.AUTH_LOGIN_PATH)
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
         try {
             LoginResponse response = authService.login(request);
@@ -38,7 +38,7 @@ public class AuthController {
         }
     }
 
-    @GetMapping("/me")
+    @GetMapping(ApiEndpoints.AUTH_ME_PATH)
     public ResponseEntity<?> getCurrentUser() {
         try {
             UserResponse response = authService.getCurrentUser();

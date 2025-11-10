@@ -1,5 +1,6 @@
 package com.data.trade.controller;
 
+import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.dto.auth.UserResponse;
 import com.data.trade.model.User;
 import com.data.trade.model.UserRole;
@@ -14,22 +15,21 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping(ApiEndpoints.API_ADMIN)
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:8089", "http://localhost:4200"})
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
     private final UserRepository userRepository;
 
-    @GetMapping("/users")
+    @GetMapping(ApiEndpoints.ADMIN_USERS_PATH)
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
                 .map(this::mapToUserResponse)
                 .collect(Collectors.toList());
     }
 
-    @PutMapping("/users/{userId}/role")
+    @PutMapping(ApiEndpoints.ADMIN_USERS_ROLE_PATH)
     public ResponseEntity<?> updateUserRole(
             @PathVariable Long userId,
             @RequestBody UpdateRoleRequest request) {
@@ -43,7 +43,7 @@ public class AdminController {
         return ResponseEntity.ok(mapToUserResponse(updated));
     }
 
-    @PutMapping("/users/{userId}/status")
+    @PutMapping(ApiEndpoints.ADMIN_USERS_STATUS_PATH)
     public ResponseEntity<?> toggleUserStatus(@PathVariable Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -54,7 +54,7 @@ public class AdminController {
         return ResponseEntity.ok(mapToUserResponse(updated));
     }
 
-    @DeleteMapping("/users/{userId}")
+    @DeleteMapping(ApiEndpoints.ADMIN_USERS_BY_ID_PATH)
     public ResponseEntity<?> deleteUser(@PathVariable Long userId) {
         if (!userRepository.existsById(userId)) {
             return ResponseEntity.notFound().build();

@@ -1,5 +1,6 @@
 package com.data.trade.controller;
 
+import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.service.SignalCalculationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/signals")
+@RequestMapping(ApiEndpoints.API_SIGNALS)
 @RequiredArgsConstructor
 @Slf4j
 public class SignalController {
@@ -22,7 +23,7 @@ public class SignalController {
      * Manually trigger signal calculation for all VN30 stocks
      * Signals will be broadcasted via WebSocket to all connected clients
      */
-    @PostMapping("/refresh")
+    @PostMapping(ApiEndpoints.SIGNALS_REFRESH_PATH)
     public ResponseEntity<Map<String, String>> refreshSignals() {
         log.info("Manual signal refresh triggered via API");
         
@@ -50,7 +51,7 @@ public class SignalController {
      * Manually trigger tracked stock notifications check
      * Only sends notifications for tracked stocks with BIG signals (score >= 6)
      */
-    @PostMapping("/check-tracked")
+    @PostMapping(ApiEndpoints.SIGNALS_CHECK_TRACKED_PATH)
     public ResponseEntity<Map<String, String>> checkTrackedStocks() {
         log.info("Manual tracked stock notifications check triggered via API");
         

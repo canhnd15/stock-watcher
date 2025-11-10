@@ -1,5 +1,6 @@
 package com.data.trade.controller;
 
+import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.dto.RecommendationResult;
 import com.data.trade.service.CombinedRecommendationService;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +18,7 @@ import java.util.stream.Collectors;
  * Uses combined 4-formula approach based on 10 days of data
  */
 @RestController
-@RequestMapping("/api/suggestions")
+@RequestMapping(ApiEndpoints.API_SUGGESTIONS)
 @RequiredArgsConstructor
 @Slf4j
 public class SuggestionsController {
@@ -30,7 +31,7 @@ public class SuggestionsController {
     /**
      * Get recommendation for a specific stock
      */
-    @GetMapping("/{code}")
+    @GetMapping(ApiEndpoints.SUGGESTIONS_BY_CODE_PATH)
     public ResponseEntity<RecommendationResult> getSuggestion(@PathVariable String code) {
         try {
             RecommendationResult result = recommendationService.calculateRecommendation(code);
@@ -75,7 +76,7 @@ public class SuggestionsController {
     /**
      * Get top N suggestions (buy or sell signals only)
      */
-    @GetMapping("/top")
+    @GetMapping(ApiEndpoints.SUGGESTIONS_TOP_PATH)
     public ResponseEntity<List<RecommendationResult>> getTopSuggestions(
             @RequestParam(required = false, defaultValue = "10") int limit) {
         try {

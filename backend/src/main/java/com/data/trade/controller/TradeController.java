@@ -1,5 +1,6 @@
 package com.data.trade.controller;
 
+import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.dto.DailyOHLCDTO;
 import com.data.trade.dto.DailyTradeStatsDTO;
 import com.data.trade.dto.TradePageResponse;
@@ -20,7 +21,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/trades")
+@RequestMapping(ApiEndpoints.API_TRADES)
 @RequiredArgsConstructor
 public class TradeController {
 
@@ -51,7 +52,7 @@ public class TradeController {
         );
     }
 
-    @PostMapping("/ingest/{code}")
+    @PostMapping(ApiEndpoints.TRADES_INGEST_CODE_PATH)
     public ResponseEntity<?> ingestNow(@PathVariable String code) {
         if (code == null || code.isBlank()) {
             return ResponseEntity.badRequest().body("code is required");
@@ -60,13 +61,13 @@ public class TradeController {
         return ResponseEntity.ok("Ingestion completed for code: " + code.trim().toUpperCase());
     }
 
-    @PostMapping("/ingest/all")
+    @PostMapping(ApiEndpoints.TRADES_INGEST_ALL_PATH)
     public ResponseEntity<?> ingestAllNow() {
         tradeService.ingestAllVn30();
         return ResponseEntity.ok("Ingestion completed for all vn30");
     }
 
-    @GetMapping("/recommendation")
+    @GetMapping(ApiEndpoints.TRADES_RECOMMENDATION_PATH)
     public ResponseEntity<String> getRecommendation(
             @RequestParam String code,
             @RequestParam(required = false)
@@ -79,7 +80,7 @@ public class TradeController {
         return ResponseEntity.ok(recommendation);
     }
 
-    @PostMapping("/reingest/{code}")
+    @PostMapping(ApiEndpoints.TRADES_REINGEST_CODE_PATH)
     public ResponseEntity<?> reingest(@PathVariable String code) {
         if (code == null || code.isBlank()) {
             return ResponseEntity.badRequest().body("code is required");
@@ -88,7 +89,7 @@ public class TradeController {
         return ResponseEntity.ok("Re-ingested for code: " + code.trim().toUpperCase());
     }
 
-    @GetMapping("/export")
+    @GetMapping(ApiEndpoints.TRADES_EXPORT_PATH)
     public ResponseEntity<byte[]> exportToExcel(
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String type,
@@ -115,7 +116,7 @@ public class TradeController {
         return ResponseEntity.ok().headers(headers).body(bytes);
     }
 
-    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = ApiEndpoints.TRADES_IMPORT_PATH, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<String> importFromExcel(@RequestPart("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
             return ResponseEntity.badRequest().body("file is required");
@@ -124,7 +125,7 @@ public class TradeController {
         return ResponseEntity.ok("Imported records: " + saved);
     }
 
-    @GetMapping("/daily-stats")
+    @GetMapping(ApiEndpoints.TRADES_DAILY_STATS_PATH)
     public ResponseEntity<List<DailyTradeStatsDTO>> getDailyStats(
             @RequestParam(required = false) String code,
             @RequestParam(required = false)
@@ -136,7 +137,7 @@ public class TradeController {
         return ResponseEntity.ok(stats);
     }
 
-    @GetMapping("/daily-ohlc")
+    @GetMapping(ApiEndpoints.TRADES_DAILY_OHLC_PATH)
     public ResponseEntity<List<DailyOHLCDTO>> getDailyOHLC(
             @RequestParam(required = false) String code,
             @RequestParam(required = false)

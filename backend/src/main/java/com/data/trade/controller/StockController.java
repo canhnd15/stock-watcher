@@ -1,5 +1,6 @@
 package com.data.trade.controller;
 
+import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.dto.IntradayPriceDTO;
 import com.data.trade.dto.RoombarResponse;
 import com.data.trade.service.StockRoombarService;
@@ -14,15 +15,14 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/stocks")
+@RequestMapping(ApiEndpoints.API_STOCKS)
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:8089", "http://localhost:4200"})
 public class StockController {
     
     private final StockRoombarService stockRoombarService;
     private final TradeService tradeService;
     
-    @GetMapping("/roombars/{code}")
+    @GetMapping(ApiEndpoints.STOCKS_ROOMBARS_CODE_PATH)
     @PreAuthorize("hasAnyRole('NORMAL', 'VIP', 'ADMIN')")
     public ResponseEntity<RoombarResponse> getRoombars(
             @PathVariable String code,
@@ -31,7 +31,7 @@ public class StockController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/intraday-price/{code}")
+    @GetMapping(ApiEndpoints.STOCKS_INTRADAY_PRICE_CODE_PATH)
     @PreAuthorize("hasAnyRole('NORMAL', 'VIP', 'ADMIN')")
     public ResponseEntity<List<IntradayPriceDTO>> getIntradayPrice(
             @PathVariable String code,

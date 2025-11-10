@@ -1,5 +1,6 @@
 package com.data.trade.controller;
 
+import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.dto.TrackedStockStatsDTO;
 import com.data.trade.model.TrackedStock;
 import com.data.trade.model.User;
@@ -18,9 +19,8 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/tracked-stocks")
+@RequestMapping(ApiEndpoints.API_TRACKED_STOCKS)
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:8089", "http://localhost:4200"})
 @PreAuthorize("hasAnyRole('VIP', 'ADMIN')")
 public class TrackedStockController {
 
@@ -32,7 +32,7 @@ public class TrackedStockController {
         return trackedStockRepository.findAllByUserId(currentUser.getId());
     }
 
-    @GetMapping("/stats")
+    @GetMapping(ApiEndpoints.TRACKED_STOCKS_STATS_PATH)
     public Map<String, TrackedStockStatsDTO> getTrackedStockStats(@AuthenticationPrincipal User currentUser) {
         return trackedStockStatsService.getStatsForUser(currentUser.getId());
     }
@@ -59,7 +59,7 @@ public class TrackedStockController {
         return ResponseEntity.ok(saved);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping(ApiEndpoints.TRACKED_STOCKS_BY_ID_PATH)
     public ResponseEntity<?> deleteTrackedStock(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser) {
@@ -76,7 +76,7 @@ public class TrackedStockController {
         return ResponseEntity.ok().build();
     }
 
-    @PutMapping("/{id}/toggle")
+    @PutMapping(ApiEndpoints.TRACKED_STOCKS_TOGGLE_PATH)
     public ResponseEntity<?> toggleTrackedStock(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser) {
@@ -94,7 +94,7 @@ public class TrackedStockController {
         return ResponseEntity.ok(updated);
     }
 
-    @PutMapping("/{id}")
+    @PutMapping(ApiEndpoints.TRACKED_STOCKS_BY_ID_PATH)
     public ResponseEntity<?> updateTrackedStock(
             @PathVariable Long id,
             @RequestBody UpdateTrackedStockRequest request,

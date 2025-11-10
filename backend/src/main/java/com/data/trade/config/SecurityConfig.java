@@ -1,5 +1,6 @@
 package com.data.trade.config;
 
+import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -41,28 +42,28 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints
-                .requestMatchers("/api/auth/**", "/ws/**", "/actuator/health").permitAll()
+                .requestMatchers(ApiEndpoints.API_AUTH_PATTERN, ApiEndpoints.WS_PATTERN, ApiEndpoints.ACTUATOR_HEALTH).permitAll()
                 
                 // Internal service endpoints (for cron-jobs service)
-                .requestMatchers("/api/internal/**").permitAll()
+                .requestMatchers(ApiEndpoints.API_INTERNAL_PATTERN).permitAll()
                 
                 // Trades - accessible to all authenticated users
-                .requestMatchers("/api/trades/**").authenticated()
+                .requestMatchers(ApiEndpoints.API_TRADES_PATTERN).authenticated()
                 
                 // Tracked stocks - VIP and ADMIN only
-                .requestMatchers("/api/tracked-stocks/**").hasAnyRole("VIP", "ADMIN")
+                .requestMatchers(ApiEndpoints.API_TRACKED_STOCKS_PATTERN).hasAnyRole("VIP", "ADMIN")
                 
                 // Suggestions - VIP and ADMIN only (if you have this endpoint)
-                .requestMatchers("/api/suggestions/**").hasAnyRole("VIP", "ADMIN")
+                .requestMatchers(ApiEndpoints.API_SUGGESTIONS_PATTERN).hasAnyRole("VIP", "ADMIN")
                 
                 // Signals - VIP and ADMIN only
-                .requestMatchers("/api/signals/**").hasAnyRole("VIP", "ADMIN")
+                .requestMatchers(ApiEndpoints.API_SIGNALS_PATTERN).hasAnyRole("VIP", "ADMIN")
                 
                 // Admin endpoints - ADMIN only
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers(ApiEndpoints.API_ADMIN_PATTERN).hasRole("ADMIN")
                 
                 // Config endpoints - ADMIN only
-                .requestMatchers("/api/config/**").hasRole("ADMIN")
+                .requestMatchers(ApiEndpoints.API_CONFIG_PATTERN).hasRole("ADMIN")
                 
                 // All other requests require authentication
                 .anyRequest().authenticated()
@@ -93,10 +94,19 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:8089", "http://localhost:4200"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // Allowed origins - match with CorsConfig
+        configuration.setAllowedOrigins(Arrays.asList(
+            "http://localhost:4200",
+            "http://localhost:5173",
+            "http://localhost:8089"
+        ));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
+        // Expose headers if needed
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        // Max age for preflight requests cache (1 hour)
+        configuration.setMaxAge(3600L);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
