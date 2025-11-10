@@ -39,7 +39,7 @@ import {
 import { Badge } from "@/components/ui/badge.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw } from "lucide-react";
+import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWebSocket, SignalNotification } from "@/hooks/useWebSocket.ts";
 import { api } from "@/lib/api";
@@ -53,7 +53,7 @@ interface Trade {
   tradeTime: string; // Format: "HH:mm:ss"
   tradeDate: string; // Format: "DD/MM/YYYY"
   code: string;
-  side: "buy" | "sell";
+  side: "buy" | "sell" | "unknown";
   price: number;
   volume: number;
 }
@@ -188,10 +188,12 @@ const Trades = () => {
   const [totalVolume, setTotalVolume] = useState(0);
   const [buyVolume, setBuyVolume] = useState(0);
   const [sellVolume, setSellVolume] = useState(0);
+  const [unknownVolume, setUnknownVolume] = useState(0);
   
   // Transaction counts
   const [buyCount, setBuyCount] = useState(0);
   const [sellCount, setSellCount] = useState(0);
+  const [unknownCount, setUnknownCount] = useState(0);
   
   // Chart data
   const [chartData, setChartData] = useState<DailyChartData[]>([]);
@@ -347,12 +349,13 @@ const Trades = () => {
         const tradesPage = response?.trades ?? response ?? {};
 
         const items = (tradesPage?.content || []).map((t: any) => {
+          const side = (t.side ?? "").toLowerCase();
           return {
             id: String(t.id ?? `${t.code}-${t.tradeDate}-${t.tradeTime}`),
             tradeTime: t.tradeTime ?? "", // Format: "HH:mm:ss"
             tradeDate: t.tradeDate ?? "", // Format: "DD/MM/YYYY"
             code: t.code ?? "",
-            side: (t.side ?? "").toLowerCase() === "buy" ? "buy" : "sell",
+            side: side === "buy" ? "buy" : side === "sell" ? "sell" : "unknown",
             price: Number(t.price ?? 0),
             volume: Number(t.volume ?? 0),
           };
@@ -368,16 +371,20 @@ const Trades = () => {
         // Calculate volume statistics from trades
         const buyTrades = items.filter(t => t.side === 'buy');
         const sellTrades = items.filter(t => t.side === 'sell');
+        const unknownTrades = items.filter(t => t.side === 'unknown');
         
         const buyVol = buyTrades.reduce((sum, t) => sum + t.volume, 0);
         const sellVol = sellTrades.reduce((sum, t) => sum + t.volume, 0);
+        const unknownVol = unknownTrades.reduce((sum, t) => sum + t.volume, 0);
         
         // If backend provided stats, prefer them; else compute from page items
-        setTotalVolume(Number(response?.totalVolume ?? (buyVol + sellVol)));
+        setTotalVolume(Number(response?.totalVolume ?? (buyVol + sellVol + unknownVol)));
         setBuyVolume(Number(response?.buyVolume ?? buyVol));
         setSellVolume(Number(response?.sellVolume ?? sellVol));
+        setUnknownVolume(Number(response?.unknownVolume ?? unknownVol));
         setBuyCount(Number(response?.buyCount ?? buyTrades.length));
         setSellCount(Number(response?.sellCount ?? sellTrades.length));
+        setUnknownCount(Number(response?.unknownCount ?? unknownTrades.length));
       })
       .catch(() => toast.error(t('error.loadFailed')))
       .finally(() => setLoading(false));
@@ -554,6 +561,7 @@ const Trades = () => {
                   <SelectItem value="All">{t('common.all')}</SelectItem>
                   <SelectItem value="Buy">{t('trades.buy')}</SelectItem>
                   <SelectItem value="Sell">{t('trades.sell')}</SelectItem>
+                  <SelectItem value="Unknown">Unknown</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -605,7 +613,7 @@ const Trades = () => {
         </div>
 
         {/* Volume Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Card className={loading ? "opacity-50 pointer-events-none" : ""}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -616,7 +624,7 @@ const Trades = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{loading ? "..." : totalVolume.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-1 font-bold">{loading ? "..." : `${(buyCount + sellCount).toLocaleString()} ${t('trades.transactions')}`}</p>
+              <p className="text-xs text-muted-foreground mt-1 font-bold">{loading ? "..." : `${(buyCount + sellCount + unknownCount).toLocaleString()} ${t('trades.transactions')}`}</p>
               <p className="text-xs text-muted-foreground mt-1">{t('trades.allMatchingTrades')}</p>
             </CardContent>
           </Card>
@@ -666,6 +674,31 @@ const Trades = () => {
                 </div>
                 <span className="text-xs text-muted-foreground font-medium">
                   {totalVolume > 0 ? ((sellVolume / totalVolume * 100).toFixed(1)) : 0}%
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={loading ? "opacity-50 pointer-events-none" : ""}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <HelpCircle className="h-4 w-4 text-gray-500" />
+                Unknown Volume
+                {loading && <Loader2 className="h-4 w-4 animate-spin ml-auto" />}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-600">{loading ? "..." : unknownVolume.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1 font-bold">{loading ? "..." : `${unknownCount.toLocaleString()} ${t('trades.transactions')}`}</p>
+              <div className="flex items-center gap-2 mt-2">
+                <div className="h-2 bg-gray-200 rounded-full flex-1 overflow-hidden">
+                  <div 
+                    className="h-full bg-gray-500 rounded-full transition-all" 
+                    style={{ width: `${totalVolume > 0 ? (unknownVolume / totalVolume * 100) : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">
+                  {totalVolume > 0 ? ((unknownVolume / totalVolume * 100).toFixed(1)) : 0}%
                 </span>
               </div>
             </CardContent>
@@ -770,10 +803,12 @@ const Trades = () => {
                       className={`inline-flex items-center justify-center w-8 h-6 rounded text-xs font-bold ${
                         trade.side === "buy" 
                           ? "bg-green-600 text-white" 
-                          : "bg-red-600 text-white"
+                          : trade.side === "sell"
+                          ? "bg-red-600 text-white"
+                          : "bg-gray-500 text-white"
                       }`}
                     >
-                      {trade.side === "buy" ? "B" : "S"}
+                      {trade.side === "buy" ? "B" : trade.side === "sell" ? "S" : "U"}
                     </span>
                   </TableCell>
                   <TableCell className="text-right font-mono">

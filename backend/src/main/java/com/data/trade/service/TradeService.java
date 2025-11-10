@@ -77,6 +77,11 @@ public class TradeService {
                 .filter(t -> "sell".equalsIgnoreCase(t.getSide()))
                 .mapToLong(Trade::getVolume)
                 .sum();
+        
+        long unknownVolume = allMatchingTrades.stream()
+                .filter(t -> !"buy".equalsIgnoreCase(t.getSide()) && !"sell".equalsIgnoreCase(t.getSide()))
+                .mapToLong(Trade::getVolume)
+                .sum();
 
         long buyCount = allMatchingTrades.stream()
                 .filter(t -> "buy".equalsIgnoreCase(t.getSide()))
@@ -86,14 +91,20 @@ public class TradeService {
                 .filter(t -> "sell".equalsIgnoreCase(t.getSide()))
                 .count();
         
+        long unknownCount = allMatchingTrades.stream()
+                .filter(t -> !"buy".equalsIgnoreCase(t.getSide()) && !"sell".equalsIgnoreCase(t.getSide()))
+                .count();
+        
         return TradePageResponse.builder()
                 .trades(tradesPage)
                 .totalVolume(totalVolume)
                 .buyVolume(buyVolume)
                 .sellVolume(sellVolume)
+                .unknownVolume(unknownVolume)
                 .totalRecords(allMatchingTrades.size())
                 .buyCount(buyCount)
                 .sellCount(sellCount)
+                .unknownCount(unknownCount)
                 .build();
     }
 
@@ -130,7 +141,8 @@ public class TradeService {
             specs.add((root, q, cb) -> cb.equal(cb.upper(root.get("code")), code.toUpperCase()));
         }
         if (type != null && !type.isBlank()) {
-            specs.add((root, q, cb) -> cb.equal(root.get("side"), type));
+            // Use case-insensitive comparison for side filter
+            specs.add((root, q, cb) -> cb.equal(cb.lower(root.get("side")), type.toLowerCase()));
         }
         if (minVolume != null) {
             specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), minVolume));
@@ -196,7 +208,8 @@ public class TradeService {
             specs.add((root, q, cb) -> cb.equal(cb.upper(root.get("code")), code.toUpperCase()));
         }
         if (type != null && !type.isBlank()) {
-            specs.add((root, q, cb) -> cb.equal(root.get("side"), type));
+            // Use case-insensitive comparison for side filter
+            specs.add((root, q, cb) -> cb.equal(cb.lower(root.get("side")), type.toLowerCase()));
         }
         if (minVolume != null) {
             specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), minVolume));
