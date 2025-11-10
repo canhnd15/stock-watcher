@@ -41,7 +41,6 @@ import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
 import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useWebSocket, SignalNotification } from "@/hooks/useWebSocket.ts";
 import { api } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import { DailyPriceVolumeChart } from "@/components/DailyPriceVolumeChart.tsx";
@@ -206,35 +205,8 @@ const Trades = () => {
   const [ohlcData, setOhlcData] = useState<DailyOHLCData[]>([]);
   const [ohlcLoading, setOhlcLoading] = useState(false);
   
-  // WebSocket for signals
-  const { isConnected, signals, clearSignals } = useWebSocket();
-  const [refreshingSignals, setRefreshingSignals] = useState(false);
-  
   // Ref to track if initial data has been loaded
   const hasInitialLoad = useRef(false);
-
-  const handleRefreshSignals = async () => {
-    try {
-      setRefreshingSignals(true);
-      
-      // Clear old signals first
-      clearSignals();
-      
-      const response = await api.post('/api/signals/refresh');
-      
-      if (!response.ok) {
-        throw new Error('Failed to refresh signals');
-      }
-      
-      const data = await response.json();
-      toast.success(data.message || 'Signals refreshed successfully');
-    } catch (error) {
-      console.error('Error refreshing signals:', error);
-      toast.error('Failed to refresh signals');
-    } finally {
-      setRefreshingSignals(false);
-    }
-  };
 
   const fetchChartData = async () => {
     // Only fetch if a specific stock code is selected
@@ -891,6 +863,7 @@ const Trades = () => {
               data={chartData} 
               code={code}
               loading={chartLoading}
+              onRefresh={fetchChartData}
             />
             
             {/* Daily OHLC Chart - Below Price & Volume Chart */}
@@ -899,160 +872,12 @@ const Trades = () => {
                 data={ohlcData} 
                 code={code}
                 loading={ohlcLoading}
+                onRefresh={fetchOHLCData}
               />
             </div>
           </div>
         )}
 
-        {/* Signals Section */}
-        <div className="mt-12 pt-8 border-t">
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <Activity className="h-6 w-6 text-primary" />
-                <div>
-                  <h2 className="text-2xl font-bold">{t('signals.realTimeSignals')}</h2>
-                  <p className="text-sm text-muted-foreground">{t('signals.liveSignalsDescription')}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                {/* Refresh Button */}
-                <Button
-                  variant="outline"
-                  onClick={handleRefreshSignals}
-                  disabled={refreshingSignals || !isConnected}
-                  className="border-2"
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${refreshingSignals ? 'animate-spin' : ''}`} />
-                  {t('signals.refresh')}
-                </Button>
-                
-                {/* Connection Status */}
-                <Card className={`${isConnected ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'} transition-colors`}>
-                  <CardContent className="p-3 flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                    <span className={`text-sm font-semibold ${isConnected ? 'text-green-700' : 'text-red-700'}`}>
-                      {isConnected ? t('signals.active') : t('signals.disconnected')}
-                    </span>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-
-            {/* Clear Button */}
-            {signals.length > 0 && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={clearSignals}
-                className="mb-4"
-              >
-                <X className="h-4 w-4 mr-2" />
-                {t('signals.clear', { count: signals.length })}
-              </Button>
-            )}
-          </div>
-
-          {/* Signals Table */}
-          {signals.length > 0 ? (
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[100px]">{t('trades.code')}</TableHead>
-                      <TableHead className="w-[100px]">{t('signals.title')}</TableHead>
-                      <TableHead className="w-[80px]">{t('signals.score')}</TableHead>
-                      <TableHead className="w-[150px]">{t('signals.time')}</TableHead>
-                      <TableHead className="text-right">{t('signals.buyVolume')}</TableHead>
-                      <TableHead className="text-right">{t('signals.sellVolume')}</TableHead>
-                      <TableHead className="text-right">{t('signals.price')}</TableHead>
-                      <TableHead className="text-right">{t('signals.change')}</TableHead>
-                      <TableHead>{t('signals.reason')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {signals.map((signal, index) => (
-                      <TableRow 
-                        key={`${signal.code}-${signal.timestamp}-${index}`}
-                        className={`${signal.signalType === 'BUY' ? 'bg-green-50/50' : 'bg-red-50/50'} animate-in fade-in duration-300`}
-                      >
-                        <TableCell className="font-bold">{signal.code}</TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={signal.signalType === 'BUY' ? 'default' : 'destructive'}
-                            className={`${signal.signalType === 'BUY' ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                          >
-                            {signal.signalType === 'BUY' ? (
-                              <TrendingUp className="h-3 w-3 mr-1" />
-                            ) : (
-                              <TrendingDown className="h-3 w-3 mr-1" />
-                            )}
-                            {signal.signalType}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            ⭐ {signal.score}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {new Date(signal.timestamp).toLocaleString('en-US', {
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-sm text-green-700">
-                          {signal.buyVolume.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-sm text-red-700">
-                          {signal.sellVolume.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right font-mono font-semibold">
-                          {signal.lastPrice.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge 
-                            variant={signal.priceChange > 0 ? 'default' : 'destructive'}
-                            className={`${signal.priceChange > 0 ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
-                          >
-                            {signal.priceChange > 0 ? '+' : ''}{signal.priceChange.toFixed(2)}%
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground max-w-md truncate">
-                          {signal.reason}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          ) : (
-            /* No Signals Message */
-            <Card className="max-w-md mx-auto">
-              <CardContent className="p-12 text-center">
-                <div className="text-6xl mb-4 opacity-50">📊</div>
-                <h3 className="text-lg font-semibold mb-2">
-                  {isConnected ? t('signals.listening') : t('signals.connecting')}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {t('signals.signalsDetected')}
-                </p>
-                {isConnected && (
-                  <div className="mt-6 text-xs text-muted-foreground space-y-1">
-                    <p>{t('signals.multiFactorAnalysis')}</p>
-                    <p>{t('signals.analyzingLast30Minutes')}</p>
-                    <p>{t('signals.minimumScoreThreshold')}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
       </main>
     </div>
   );

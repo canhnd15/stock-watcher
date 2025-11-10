@@ -41,10 +41,11 @@ import {
 } from "@/components/ui/table.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, Trash2, Bell, BellOff, ArrowUpDown, ArrowUp, ArrowDown, Pencil, X } from "lucide-react";
+import { Loader2, Check, Trash2, Bell, BellOff, ArrowUpDown, ArrowUp, ArrowDown, Pencil, X, Activity, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
 import { Input } from "@/components/ui/input.tsx";
 import { useTrackedStockNotifications } from "@/hooks/useTrackedStockNotifications";
 import { useTrackedStockStats } from "@/hooks/useTrackedStockStats";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import { api, getStockRoombars, RoombarResponse } from "@/lib/api";
 import { StockRoombarStats } from "@/components/StockRoombarStats";
 import { RealtimePriceTracking } from "@/components/RealtimePriceTracking";
@@ -113,6 +114,10 @@ const TrackedStocks = () => {
   // Tracked stock stats
   const { statsMap, isConnected: statsConnected } = useTrackedStockStats();
 
+  // Real-time Signals
+  const { isConnected: signalsConnected, signals, clearSignals } = useWebSocket();
+  const [refreshingSignals, setRefreshingSignals] = useState(false);
+
   // Function to load tracked stocks and stats
   const loadTrackedStocks = async () => {
     try {
@@ -138,6 +143,32 @@ const TrackedStocks = () => {
       toast.error("Failed to load tracked stocks");
     } finally {
       setLoadingStocks(false);
+    }
+  };
+
+  // Handle refresh signals
+  const handleRefreshSignals = async () => {
+    try {
+      setRefreshingSignals(true);
+      
+      // Clear old signals first
+      clearSignals();
+      
+      const response = await fetch('/api/signals/refresh', {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to refresh signals');
+      }
+      
+      const data = await response.json();
+      toast.success(data.message || 'Signals refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing signals:', error);
+      toast.error('Failed to refresh signals');
+    } finally {
+      setRefreshingSignals(false);
     }
   };
 
@@ -1070,6 +1101,156 @@ const TrackedStocks = () => {
             </div>
           </div>
         )}
+
+        {/* Real-time Signals Section */}
+        <div className="mt-12 pt-8 border-t">
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Activity className="h-6 w-6 text-primary" />
+                <div>
+                  <h2 className="text-2xl font-bold">Real-time Signals</h2>
+                  <p className="text-sm text-muted-foreground">Live buy/sell signals based on trade analysis</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                {/* Refresh Button */}
+                <Button
+                  variant="outline"
+                  onClick={handleRefreshSignals}
+                  disabled={refreshingSignals || !signalsConnected}
+                  className="border-2"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${refreshingSignals ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                
+                {/* Connection Status */}
+                <Card className={`${signalsConnected ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'} transition-colors`}>
+                  <CardContent className="p-3 flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${signalsConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                    <span className={`text-sm font-semibold ${signalsConnected ? 'text-green-700' : 'text-red-700'}`}>
+                      {signalsConnected ? 'Active' : 'Disconnected'}
+                    </span>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            {/* Clear Button */}
+            {signals.length > 0 && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={clearSignals}
+                className="mb-4"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Clear All Signals ({signals.length})
+              </Button>
+            )}
+          </div>
+
+          {/* Signals Table */}
+          {signals.length > 0 ? (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[100px]">Code</TableHead>
+                      <TableHead className="w-[100px]">Signal</TableHead>
+                      <TableHead className="w-[80px]">Score</TableHead>
+                      <TableHead className="w-[150px]">Time</TableHead>
+                      <TableHead className="text-right">Buy Volume</TableHead>
+                      <TableHead className="text-right">Sell Volume</TableHead>
+                      <TableHead className="text-right">Price</TableHead>
+                      <TableHead className="text-right">Change</TableHead>
+                      <TableHead>Reason</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {signals.map((signal, index) => (
+                      <TableRow 
+                        key={`${signal.code}-${signal.timestamp}-${index}`}
+                        className={`${signal.signalType === 'BUY' ? 'bg-green-50/50' : 'bg-red-50/50'} animate-in fade-in duration-300`}
+                      >
+                        <TableCell className="font-bold">{signal.code}</TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={signal.signalType === 'BUY' ? 'default' : 'destructive'}
+                            className={`${signal.signalType === 'BUY' ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                          >
+                            {signal.signalType === 'BUY' ? (
+                              <TrendingUp className="h-3 w-3 mr-1" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3 mr-1" />
+                            )}
+                            {signal.signalType}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            ⭐ {signal.score}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {new Date(signal.timestamp).toLocaleString('en-US', {
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm text-green-700">
+                          {signal.buyVolume.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-sm text-red-700">
+                          {signal.sellVolume.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-semibold">
+                          {signal.lastPrice.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge 
+                            variant={signal.priceChange > 0 ? 'default' : 'destructive'}
+                            className={`${signal.priceChange > 0 ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
+                          >
+                            {signal.priceChange > 0 ? '+' : ''}{signal.priceChange.toFixed(2)}%
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-md truncate">
+                          {signal.reason}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : (
+            /* No Signals Message */
+            <Card className="max-w-md mx-auto">
+              <CardContent className="p-12 text-center">
+                <div className="text-6xl mb-4 opacity-50">📊</div>
+                <h3 className="text-lg font-semibold mb-2">
+                  {signalsConnected ? 'Listening for signals...' : 'Connecting...'}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Signals appear when strong buy/sell pressure is detected
+                </p>
+                {signalsConnected && (
+                  <div className="mt-6 text-xs text-muted-foreground space-y-1">
+                    <p>✓ Multi-factor analysis (volume, blocks, momentum)</p>
+                    <p>✓ Analyzing last 30 minutes of trades</p>
+                    <p>✓ Minimum score threshold: 4 points</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
 
         {/* Room Bar Statistics Dialog */}
         <Dialog open={roombarDialogOpen} onOpenChange={setRoombarDialogOpen}>

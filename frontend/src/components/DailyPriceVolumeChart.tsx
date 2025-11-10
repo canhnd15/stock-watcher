@@ -10,7 +10,8 @@ import {
 } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, RefreshCw } from "lucide-react";
 
 interface DailyData {
   date: string; // "DD/MM/YYYY"
@@ -24,6 +25,7 @@ interface DailyPriceVolumeChartProps {
   data: DailyData[];
   code?: string;
   loading?: boolean;
+  onRefresh?: () => void;
 }
 
 const chartConfig = {
@@ -33,7 +35,7 @@ const chartConfig = {
   },
 };
 
-export function DailyPriceVolumeChart({ data, code, loading }: DailyPriceVolumeChartProps) {
+export function DailyPriceVolumeChart({ data, code, loading, onRefresh }: DailyPriceVolumeChartProps) {
   // Transform volume to millions and format data
   const chartData = useMemo(() => {
     return data.map((item) => ({
@@ -45,10 +47,21 @@ export function DailyPriceVolumeChart({ data, code, loading }: DailyPriceVolumeC
   if (loading) {
     return (
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle>
             {code ? `${code} - ` : ""}Volume Over Time
           </CardTitle>
+          {onRefresh && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefresh}
+              disabled={loading}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-[400px]">
@@ -62,10 +75,21 @@ export function DailyPriceVolumeChart({ data, code, loading }: DailyPriceVolumeC
   if (!chartData || chartData.length === 0) {
     return (
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle>
             {code ? `${code} - ` : ""}Volume Over Time
           </CardTitle>
+          {onRefresh && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefresh}
+              disabled={loading}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-[400px] text-muted-foreground">
@@ -78,10 +102,21 @@ export function DailyPriceVolumeChart({ data, code, loading }: DailyPriceVolumeC
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle>
           {code ? `${code} - ` : ""}Volume Over Time
         </CardTitle>
+        {onRefresh && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={loading}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[400px] w-full">
