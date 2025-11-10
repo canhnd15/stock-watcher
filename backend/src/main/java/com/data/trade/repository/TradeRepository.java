@@ -327,4 +327,38 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
             @Param("fromDateStr") String fromDateStr,
             @Param("toDateStr") String toDateStr
     );
+
+    /**
+     * Get intraday price data for a stock on a specific date
+     * Groups trades into 10-minute intervals and calculates average, min, max prices and total volume
+     * Returns: time_interval (HH:mm), avg_price, min_price, max_price, total_volume
+     * Trading session: 09:15:00 - 15:00:00
+     * Groups by rounding down minutes to nearest 10 (e.g., 09:23 -> 09:20, 09:47 -> 09:40)
+     */
+    @Query(value = """
+        SELECT 
+            SUBSTRING(t.trade_time, 1, 2) || ':' || 
+            CASE 
+                WHEN (CAST(SUBSTRING(t.trade_time, 4, 2) AS INTEGER) / 10) * 10 < 10 THEN
+                    '0' || CAST((CAST(SUBSTRING(t.trade_time, 4, 2) AS INTEGER) / 10) * 10 AS TEXT)
+                ELSE
+                    CAST((CAST(SUBSTRING(t.trade_time, 4, 2) AS INTEGER) / 10) * 10 AS TEXT)
+            END AS time_interval,
+            AVG(CAST(t.price AS DECIMAL)) AS avg_price,
+            MIN(CAST(t.price AS DECIMAL)) AS min_price,
+            MAX(CAST(t.price AS DECIMAL)) AS max_price,
+            SUM(t.volume) AS total_volume
+        FROM trades t
+        WHERE UPPER(t.code) = UPPER(:code)
+          AND t.trade_date = :tradeDate
+          AND t.trade_time >= '09:15:00'
+          AND t.trade_time <= '15:00:00'
+        GROUP BY SUBSTRING(t.trade_time, 1, 2), 
+                 (CAST(SUBSTRING(t.trade_time, 4, 2) AS INTEGER) / 10) * 10
+        ORDER BY 1
+        """, nativeQuery = true)
+    List<Object[]> findIntradayPriceData(
+            @Param("code") String code,
+            @Param("tradeDate") String tradeDate
+    );
 }

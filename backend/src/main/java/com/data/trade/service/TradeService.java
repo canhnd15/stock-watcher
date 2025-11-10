@@ -2,6 +2,7 @@ package com.data.trade.service;
 
 import com.data.trade.dto.DailyOHLCDTO;
 import com.data.trade.dto.DailyTradeStatsDTO;
+import com.data.trade.dto.IntradayPriceDTO;
 import com.data.trade.dto.TradePageResponse;
 import com.data.trade.model.Trade;
 import com.data.trade.repository.TradeRepository;
@@ -358,6 +359,45 @@ public class TradeService {
                             .highPrice(highPrice)
                             .lowPrice(lowPrice)
                             .closePrice(closePrice)
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
+    public List<IntradayPriceDTO> getIntradayPriceData(String code, LocalDate tradeDate) {
+        // Normalize code
+        String normalizedCode = (code != null && !code.isBlank()) ? code.trim().toUpperCase() : null;
+        
+        if (normalizedCode == null) {
+            return new ArrayList<>();
+        }
+        
+        // Use today's date if not provided
+        LocalDate targetDate = (tradeDate != null) ? tradeDate : LocalDate.now();
+        String tradeDateStr = targetDate.format(DD_MM_YYYY_FORMATTER);
+        
+        // Get intraday price data from repository
+        List<Object[]> results = tradeRepository.findIntradayPriceData(normalizedCode, tradeDateStr);
+        
+        // Transform to DTOs
+        // Query returns: time_interval (HH:mm), avg_price, min_price, max_price, total_volume
+        return results.stream()
+                .map(row -> {
+                    String timeInterval = (String) row[0]; // time_interval (HH:mm)
+                    BigDecimal avgPrice = row[1] != null ? 
+                        ((BigDecimal) row[1]).setScale(2, RoundingMode.HALF_UP) : null;
+                    BigDecimal minPrice = row[2] != null ? 
+                        ((BigDecimal) row[2]).setScale(2, RoundingMode.HALF_UP) : null;
+                    BigDecimal maxPrice = row[3] != null ? 
+                        ((BigDecimal) row[3]).setScale(2, RoundingMode.HALF_UP) : null;
+                    Long totalVolume = row[4] != null ? ((Number) row[4]).longValue() : 0L;
+                    
+                    return IntradayPriceDTO.builder()
+                            .time(timeInterval)
+                            .averagePrice(avgPrice)
+                            .highestPrice(maxPrice)
+                            .lowestPrice(minPrice)
+                            .totalVolume(totalVolume)
                             .build();
                 })
                 .collect(Collectors.toList());

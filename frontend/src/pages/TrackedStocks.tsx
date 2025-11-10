@@ -47,6 +47,7 @@ import { useTrackedStockNotifications } from "@/hooks/useTrackedStockNotificatio
 import { useTrackedStockStats } from "@/hooks/useTrackedStockStats";
 import { api, getStockRoombars, RoombarResponse } from "@/lib/api";
 import { StockRoombarStats } from "@/components/StockRoombarStats";
+import { RealtimePriceTracking } from "@/components/RealtimePriceTracking";
 
 interface TrackedStockStats {
   lowestPriceBuy?: number;
@@ -89,6 +90,9 @@ const TrackedStocks = () => {
   const [roombarData, setRoombarData] = useState<RoombarResponse | null>(null);
   const [loadingRoombars, setLoadingRoombars] = useState(false);
   const [roombarDialogOpen, setRoombarDialogOpen] = useState(false);
+  
+  // Realtime price tracking state
+  const [realtimePriceTrackingOpen, setRealtimePriceTrackingOpen] = useState(false);
   
   // Pagination state
   const [page, setPage] = useState(0);
@@ -466,38 +470,47 @@ const TrackedStocks = () => {
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold">Tracked Stocks</h2>
           
-          <Card className={`${notificationsConnected && permissionGranted ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'} transition-colors`}>
-            <CardContent className="p-3 flex items-center gap-3">
-              {permissionGranted ? (
-                <>
-                  <Bell className="h-4 w-4 text-green-600" />
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${notificationsConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-                    <span className="text-sm font-medium">
-                      🔔 Notifications: {notificationsConnected ? 'Active' : 'Connecting...'}
-                    </span>
-                  </div>
-                  {notifications.length > 0 && (
-                    <Badge variant="default" className="ml-1 bg-green-600">
-                      {notifications.length}
-                    </Badge>
-                  )}
-                </>
-              ) : (
-                <>
-                  <BellOff className="h-4 w-4 text-gray-400" />
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={requestPermission}
-                    className="text-sm"
-                  >
-                    Enable Notifications
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => setRealtimePriceTrackingOpen(true)}
+              variant="default"
+            >
+              Price Tracking Realtime
+            </Button>
+            
+            <Card className={`${notificationsConnected && permissionGranted ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'} transition-colors`}>
+              <CardContent className="p-3 flex items-center gap-3">
+                {permissionGranted ? (
+                  <>
+                    <Bell className="h-4 w-4 text-green-600" />
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${notificationsConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                      <span className="text-sm font-medium">
+                        🔔 Notifications: {notificationsConnected ? 'Active' : 'Connecting...'}
+                      </span>
+                    </div>
+                    {notifications.length > 0 && (
+                      <Badge variant="default" className="ml-1 bg-green-600">
+                        {notifications.length}
+                      </Badge>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <BellOff className="h-4 w-4 text-gray-400" />
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={requestPermission}
+                      className="text-sm"
+                    >
+                      Enable Notifications
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
         
         {/* VN30 Stock Selector */}
@@ -1085,6 +1098,13 @@ const TrackedStocks = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Realtime Price Tracking Dialog */}
+        <RealtimePriceTracking
+          open={realtimePriceTrackingOpen}
+          onOpenChange={setRealtimePriceTrackingOpen}
+          vn30Codes={vn30Codes}
+        />
       </main>
     </div>
   );
