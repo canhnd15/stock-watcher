@@ -1,6 +1,7 @@
 package com.data.trade.config;
 
 import com.data.trade.constants.ApiEndpoints;
+import com.data.trade.constants.RoleConstants;
 import com.data.trade.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -51,19 +52,19 @@ public class SecurityConfig {
                 .requestMatchers(ApiEndpoints.API_TRADES_PATTERN).authenticated()
                 
                 // Tracked stocks - VIP and ADMIN only
-                .requestMatchers(ApiEndpoints.API_TRACKED_STOCKS_PATTERN).hasAnyRole("VIP", "ADMIN")
+                .requestMatchers(ApiEndpoints.API_TRACKED_STOCKS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
                 
                 // Suggestions - VIP and ADMIN only (if you have this endpoint)
-                .requestMatchers(ApiEndpoints.API_SUGGESTIONS_PATTERN).hasAnyRole("VIP", "ADMIN")
+                .requestMatchers(ApiEndpoints.API_SUGGESTIONS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
                 
                 // Signals - VIP and ADMIN only
-                .requestMatchers(ApiEndpoints.API_SIGNALS_PATTERN).hasAnyRole("VIP", "ADMIN")
+                .requestMatchers(ApiEndpoints.API_SIGNALS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
                 
                 // Admin endpoints - ADMIN only
-                .requestMatchers(ApiEndpoints.API_ADMIN_PATTERN).hasRole("ADMIN")
+                .requestMatchers(ApiEndpoints.API_ADMIN_PATTERN).hasRole(RoleConstants.ROLE_ADMIN)
                 
                 // Config endpoints - ADMIN only
-                .requestMatchers(ApiEndpoints.API_CONFIG_PATTERN).hasRole("ADMIN")
+                .requestMatchers(ApiEndpoints.API_CONFIG_PATTERN).hasRole(RoleConstants.ROLE_ADMIN)
                 
                 // All other requests require authentication
                 .anyRequest().authenticated()

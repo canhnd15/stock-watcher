@@ -1,6 +1,7 @@
 package com.data.trade.controller;
 
 import com.data.trade.constants.ApiEndpoints;
+import com.data.trade.constants.RoleConstants;
 import com.data.trade.dto.TrackedStockStatsDTO;
 import com.data.trade.model.TrackedStock;
 import com.data.trade.model.User;
@@ -21,7 +22,7 @@ import java.util.Map;
 @RestController
 @RequestMapping(ApiEndpoints.API_TRACKED_STOCKS)
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('VIP', 'ADMIN')")
+@PreAuthorize(RoleConstants.HAS_ANY_ROLE_VIP_ADMIN)
 public class TrackedStockController {
 
     private final TrackedStockRepository trackedStockRepository;

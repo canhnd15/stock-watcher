@@ -1,6 +1,7 @@
 package com.data.trade.controller;
 
 import com.data.trade.constants.ApiEndpoints;
+import com.data.trade.constants.RoleConstants;
 import com.data.trade.dto.auth.UserResponse;
 import com.data.trade.model.User;
 import com.data.trade.model.UserRole;
@@ -17,7 +18,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping(ApiEndpoints.API_ADMIN)
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize(RoleConstants.HAS_ROLE_ADMIN)
 public class AdminController {
 
     private final UserRepository userRepository;

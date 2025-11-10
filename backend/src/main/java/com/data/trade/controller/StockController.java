@@ -1,6 +1,7 @@
 package com.data.trade.controller;
 
 import com.data.trade.constants.ApiEndpoints;
+import com.data.trade.constants.RoleConstants;
 import com.data.trade.dto.IntradayPriceDTO;
 import com.data.trade.dto.RoombarResponse;
 import com.data.trade.service.StockRoombarService;
@@ -23,7 +24,7 @@ public class StockController {
     private final TradeService tradeService;
     
     @GetMapping(ApiEndpoints.STOCKS_ROOMBARS_CODE_PATH)
-    @PreAuthorize("hasAnyRole('NORMAL', 'VIP', 'ADMIN')")
+    @PreAuthorize(RoleConstants.HAS_ANY_ROLE_ALL)
     public ResponseEntity<RoombarResponse> getRoombars(
             @PathVariable String code,
             @RequestParam(defaultValue = "10day") String type) {
@@ -32,7 +33,7 @@ public class StockController {
     }
 
     @GetMapping(ApiEndpoints.STOCKS_INTRADAY_PRICE_CODE_PATH)
-    @PreAuthorize("hasAnyRole('NORMAL', 'VIP', 'ADMIN')")
+    @PreAuthorize(RoleConstants.HAS_ANY_ROLE_ALL)
     public ResponseEntity<List<IntradayPriceDTO>> getIntradayPrice(
             @PathVariable String code,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
