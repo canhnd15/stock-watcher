@@ -21,7 +21,9 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -401,6 +403,74 @@ public class TradeService {
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get intraday price data for multiple stock codes in batch
+     * @param codes List of stock codes
+     * @param tradeDate Optional trade date (if null, uses current date)
+     * @return Map of stock code to list of intraday price data
+     */
+    public Map<String, List<IntradayPriceDTO>> getIntradayPriceDataBatch(
+            List<String> codes, 
+            LocalDate tradeDate) {
+        if (codes == null || codes.isEmpty()) {
+            return new HashMap<>();
+        }
+        
+        // Use today's date if not provided
+        LocalDate targetDate = (tradeDate != null) ? tradeDate : LocalDate.now();
+        String tradeDateStr = targetDate.format(DD_MM_YYYY_FORMATTER);
+        
+        // Normalize codes and filter out null/blank codes
+        List<String> normalizedCodes = codes.stream()
+                .filter(code -> code != null && !code.isBlank())
+                .map(code -> code.trim().toUpperCase())
+                .distinct()
+                .collect(Collectors.toList());
+        
+        if (normalizedCodes.isEmpty()) {
+            return new HashMap<>();
+        }
+        
+        // Get intraday price data for all codes
+        Map<String, List<IntradayPriceDTO>> resultMap = new HashMap<>();
+        
+        for (String code : normalizedCodes) {
+            try {
+                List<Object[]> results = tradeRepository.findIntradayPriceData(code, tradeDateStr);
+                
+                // Transform to DTOs
+                List<IntradayPriceDTO> priceData = results.stream()
+                        .map(row -> {
+                            String timeInterval = (String) row[0]; // time_interval (HH:mm)
+                            BigDecimal avgPrice = row[1] != null ? 
+                                ((BigDecimal) row[1]).setScale(2, RoundingMode.HALF_UP) : null;
+                            BigDecimal minPrice = row[2] != null ? 
+                                ((BigDecimal) row[2]).setScale(2, RoundingMode.HALF_UP) : null;
+                            BigDecimal maxPrice = row[3] != null ? 
+                                ((BigDecimal) row[3]).setScale(2, RoundingMode.HALF_UP) : null;
+                            Long totalVolume = row[4] != null ? ((Number) row[4]).longValue() : 0L;
+                            
+                            return IntradayPriceDTO.builder()
+                                    .time(timeInterval)
+                                    .averagePrice(avgPrice)
+                                    .highestPrice(maxPrice)
+                                    .lowestPrice(minPrice)
+                                    .totalVolume(totalVolume)
+                                    .build();
+                        })
+                        .collect(Collectors.toList());
+                
+                resultMap.put(code, priceData);
+            } catch (Exception e) {
+                // Log error but continue with other codes
+                // Return empty list for this code
+                resultMap.put(code, new ArrayList<>());
+            }
+        }
+        
+        return resultMap;
     }
 }
 

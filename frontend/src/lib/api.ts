@@ -123,3 +123,33 @@ export const getIntradayPrice = async (code: string, date?: string): Promise<Int
   }));
 };
 
+// Get intraday price data for multiple stocks in batch
+export const getBatchIntradayPrice = async (
+  codes: string[], 
+  date?: string
+): Promise<Record<string, IntradayPrice[]>> => {
+  const requestBody: { codes: string[]; date?: string } = { codes };
+  if (date) {
+    requestBody.date = date;
+  }
+  
+  const response = await api.post("/api/stocks/intraday-price/batch", requestBody);
+  if (!response.ok) throw new Error("Failed to fetch batch intraday price data");
+  
+  const data: { data: Record<string, any[]> } = await response.json();
+  
+  // Convert BigDecimal to number for each stock's data
+  const result: Record<string, IntradayPrice[]> = {};
+  Object.entries(data.data).forEach(([code, items]) => {
+    result[code] = items.map((item: any) => ({
+      time: item.time,
+      averagePrice: item.averagePrice ? parseFloat(item.averagePrice) : 0,
+      highestPrice: item.highestPrice ? parseFloat(item.highestPrice) : 0,
+      lowestPrice: item.lowestPrice ? parseFloat(item.lowestPrice) : 0,
+      totalVolume: item.totalVolume || 0,
+    }));
+  });
+  
+  return result;
+};
+

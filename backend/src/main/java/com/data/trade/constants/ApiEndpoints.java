@@ -54,6 +54,7 @@ public class ApiEndpoints {
     // Stocks endpoint paths (relative to base /api/stocks)
     public static final String STOCKS_ROOMBARS_CODE_PATH = "/roombars/{code}";
     public static final String STOCKS_INTRADAY_PRICE_CODE_PATH = "/intraday-price/{code}";
+    public static final String STOCKS_INTRADAY_PRICE_BATCH_PATH = "/intraday-price/batch";
 
     // Suggestions endpoint paths (relative to base /api/suggestions)
     public static final String SUGGESTIONS_BY_CODE_PATH = "/{code}";

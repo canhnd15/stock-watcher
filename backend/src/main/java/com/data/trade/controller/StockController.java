@@ -2,10 +2,13 @@ package com.data.trade.controller;
 
 import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.constants.RoleConstants;
+import com.data.trade.dto.IntradayPriceBatchRequest;
+import com.data.trade.dto.IntradayPriceBatchResponse;
 import com.data.trade.dto.IntradayPriceDTO;
 import com.data.trade.dto.RoombarResponse;
 import com.data.trade.service.StockRoombarService;
 import com.data.trade.service.TradeService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +16,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping(ApiEndpoints.API_STOCKS)
@@ -39,6 +44,22 @@ public class StockController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         List<IntradayPriceDTO> data = tradeService.getIntradayPriceData(code.toUpperCase(), date);
         return ResponseEntity.ok(data);
+    }
+
+    @PostMapping(ApiEndpoints.STOCKS_INTRADAY_PRICE_BATCH_PATH)
+    @PreAuthorize(RoleConstants.HAS_ANY_ROLE_ALL)
+    public ResponseEntity<IntradayPriceBatchResponse> getIntradayPriceBatch(
+            @Valid @RequestBody IntradayPriceBatchRequest request) {
+        Map<String, List<IntradayPriceDTO>> data = tradeService.getIntradayPriceDataBatch(
+                request.getCodes(), 
+                request.getDate()
+        );
+        
+        IntradayPriceBatchResponse response = IntradayPriceBatchResponse.builder()
+                .data(data)
+                .build();
+        
+        return ResponseEntity.ok(response);
     }
 }
 
