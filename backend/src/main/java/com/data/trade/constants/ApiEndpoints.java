@@ -27,12 +27,6 @@ public class ApiEndpoints {
     public static final String AUTH_REGISTER_PATH = "/register";
     public static final String AUTH_LOGIN_PATH = "/login";
     public static final String AUTH_ME_PATH = "/me";
-
-    // Admin endpoints (full paths)
-    public static final String ADMIN_USERS = "/api/admin/users";
-    public static final String ADMIN_USERS_BY_ID = "/api/admin/users/{userId}";
-    public static final String ADMIN_USERS_ROLE = "/api/admin/users/{userId}/role";
-    public static final String ADMIN_USERS_STATUS = "/api/admin/users/{userId}/status";
     
     // Admin endpoint paths (relative to base /api/admin)
     public static final String ADMIN_USERS_PATH = "/users";
@@ -41,17 +35,6 @@ public class ApiEndpoints {
     public static final String ADMIN_USERS_STATUS_PATH = "/users/{userId}/status";
     
     // Note: ADMIN_USERS_BY_ID_PATH is used for both GET and DELETE operations
-
-    // Trades endpoints (full paths)
-    public static final String TRADES = "/api/trades";
-    public static final String TRADES_INGEST_CODE = "/api/trades/ingest/{code}";
-    public static final String TRADES_INGEST_ALL = "/api/trades/ingest/all";
-    public static final String TRADES_RECOMMENDATION = "/api/trades/recommendation";
-    public static final String TRADES_REINGEST_CODE = "/api/trades/reingest/{code}";
-    public static final String TRADES_EXPORT = "/api/trades/export";
-    public static final String TRADES_IMPORT = "/api/trades/import";
-    public static final String TRADES_DAILY_STATS = "/api/trades/daily-stats";
-    public static final String TRADES_DAILY_OHLC = "/api/trades/daily-ohlc";
     
     // Trades endpoint paths (relative to base /api/trades)
     public static final String TRADES_INGEST_CODE_PATH = "/ingest/{code}";
@@ -62,56 +45,28 @@ public class ApiEndpoints {
     public static final String TRADES_IMPORT_PATH = "/import";
     public static final String TRADES_DAILY_STATS_PATH = "/daily-stats";
     public static final String TRADES_DAILY_OHLC_PATH = "/daily-ohlc";
-
-    // Tracked Stocks endpoints (full paths)
-    public static final String TRACKED_STOCKS = "/api/tracked-stocks";
-    public static final String TRACKED_STOCKS_STATS = "/api/tracked-stocks/stats";
-    public static final String TRACKED_STOCKS_BY_ID = "/api/tracked-stocks/{id}";
-    public static final String TRACKED_STOCKS_TOGGLE = "/api/tracked-stocks/{id}/toggle";
     
     // Tracked Stocks endpoint paths (relative to base /api/tracked-stocks)
     public static final String TRACKED_STOCKS_STATS_PATH = "/stats";
     public static final String TRACKED_STOCKS_BY_ID_PATH = "/{id}";
     public static final String TRACKED_STOCKS_TOGGLE_PATH = "/{id}/toggle";
-
-    // Stocks endpoints (full paths)
-    public static final String STOCKS_ROOMBARS_CODE = "/api/stocks/roombars/{code}";
-    public static final String STOCKS_INTRADAY_PRICE_CODE = "/api/stocks/intraday-price/{code}";
     
     // Stocks endpoint paths (relative to base /api/stocks)
     public static final String STOCKS_ROOMBARS_CODE_PATH = "/roombars/{code}";
     public static final String STOCKS_INTRADAY_PRICE_CODE_PATH = "/intraday-price/{code}";
 
-    // Suggestions endpoints (full paths)
-    public static final String SUGGESTIONS = "/api/suggestions";
-    public static final String SUGGESTIONS_BY_CODE = "/api/suggestions/{code}";
-    public static final String SUGGESTIONS_TOP = "/api/suggestions/top";
-    
     // Suggestions endpoint paths (relative to base /api/suggestions)
     public static final String SUGGESTIONS_BY_CODE_PATH = "/{code}";
     public static final String SUGGESTIONS_TOP_PATH = "/top";
 
-    // Signals endpoints (full paths)
-    public static final String SIGNALS_REFRESH = "/api/signals/refresh";
-    public static final String SIGNALS_CHECK_TRACKED = "/api/signals/check-tracked";
-    
     // Signals endpoint paths (relative to base /api/signals)
     public static final String SIGNALS_REFRESH_PATH = "/refresh";
     public static final String SIGNALS_CHECK_TRACKED_PATH = "/check-tracked";
-
-    // Config endpoints (full paths)
-    public static final String CONFIG_VN30_CRON = "/api/config/vn30-cron";
-    public static final String CONFIG_TRACKED_STOCKS_CRON = "/api/config/tracked-stocks-cron";
-    public static final String CONFIG_SIGNAL_CALCULATION_CRON = "/api/config/signal-calculation-cron";
     
     // Config endpoint paths (relative to base /api/config)
     public static final String CONFIG_VN30_CRON_PATH = "/vn30-cron";
     public static final String CONFIG_TRACKED_STOCKS_CRON_PATH = "/tracked-stocks-cron";
     public static final String CONFIG_SIGNAL_CALCULATION_CRON_PATH = "/signal-calculation-cron";
-
-    // Internal endpoints (full paths)
-    public static final String INTERNAL_SIGNALS_REFRESH = "/api/internal/signals/refresh";
-    public static final String INTERNAL_SIGNALS_CHECK_TRACKED = "/api/internal/signals/check-tracked";
     
     // Internal endpoint paths (relative to base /api/internal)
     public static final String INTERNAL_SIGNALS_REFRESH_PATH = "/signals/refresh";
@@ -130,7 +85,6 @@ public class ApiEndpoints {
     public static final String ACTUATOR_HEALTH = "/actuator/health";
 
     private ApiEndpoints() {
-        // Utility class - prevent instantiation
     }
 }
 
