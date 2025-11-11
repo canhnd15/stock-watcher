@@ -3,12 +3,15 @@ package com.data.trade.controller;
 import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.constants.RoleConstants;
 import com.data.trade.dto.TrackedStockStatsDTO;
+import com.data.trade.dto.TrackedStockWithMarketPriceDTO;
 import com.data.trade.model.TrackedStock;
 import com.data.trade.model.User;
 import com.data.trade.repository.TrackedStockRepository;
+import com.data.trade.service.FinpathClient;
 import com.data.trade.service.TrackedStockStatsService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,21 +19,50 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping(ApiEndpoints.API_TRACKED_STOCKS)
 @RequiredArgsConstructor
 @PreAuthorize(RoleConstants.HAS_ANY_ROLE_VIP_ADMIN)
+@Slf4j
 public class TrackedStockController {
 
     private final TrackedStockRepository trackedStockRepository;
     private final TrackedStockStatsService trackedStockStatsService;
+    private final FinpathClient finpathClient;
 
     @GetMapping
-    public List<TrackedStock> getAllTrackedStocks(@AuthenticationPrincipal User currentUser) {
-        return trackedStockRepository.findAllByUserId(currentUser.getId());
+    public List<TrackedStockWithMarketPriceDTO> getAllTrackedStocks(@AuthenticationPrincipal User currentUser) {
+        List<TrackedStock> stocks = trackedStockRepository.findAllByUserId(currentUser.getId());
+        
+        return stocks.stream()
+                .map(stock -> {
+                    BigDecimal marketPrice = getMarketPrice(stock.getCode());
+                    return TrackedStockWithMarketPriceDTO.fromTrackedStock(stock, marketPrice);
+                })
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Get market price for a stock code from TradingView API
+     */
+    private BigDecimal getMarketPrice(String code) {
+        try {
+            var response = finpathClient.fetchTradingViewBars(code);
+            if (response != null) {
+                Double price = response.getMarketPrice();
+                if (price != null) {
+                    return BigDecimal.valueOf(price);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Failed to fetch market price for {}: {}", code, e.getMessage());
+        }
+        return null;
     }
 
     @GetMapping(ApiEndpoints.TRACKED_STOCKS_STATS_PATH)

@@ -2,6 +2,7 @@ package com.data.trade.service;
 
 import com.data.trade.dto.FinpathResponse;
 import com.data.trade.dto.RoombarResponse;
+import com.data.trade.dto.TradingViewBarsResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -38,6 +39,23 @@ public class FinpathClient {
                         .build())
                 .retrieve()
                 .bodyToMono(RoombarResponse.class)
+                .block();
+    }
+
+    /**
+     * Fetch TradingView bars data for a stock code
+     * @param code Stock code
+     * @return TradingViewBarsResponse containing market price data
+     */
+    public TradingViewBarsResponse fetchTradingViewBars(String code) {
+        String path = "/api/tradingview/v2/bars/" + code;
+        return webClient.get()
+                .uri(uriBuilder -> uriBuilder.path(path)
+                        .queryParam("timeframe", "1d")
+                        .queryParam("countBack", "1")
+                        .build())
+                .retrieve()
+                .bodyToMono(TradingViewBarsResponse.class)
                 .block();
     }
 }

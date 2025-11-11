@@ -65,6 +65,8 @@ interface TrackedStock {
   code: string;
   active: boolean;
   costBasis?: number;
+  marketPrice?: number;
+  priceChangePercent?: number;
   stats?: TrackedStockStats;
 }
 
@@ -748,6 +750,7 @@ const TrackedStocks = () => {
                   </Button>
                 </TableHead>
                 <TableHead>Cost Basis</TableHead>
+                <TableHead className="text-center">Market Price</TableHead>
                 <TableHead className="text-center bg-green-50 w-28">
                   <Button
                     variant="ghost"
@@ -877,6 +880,12 @@ const TrackedStocks = () => {
                     <TableCell>
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <Skeleton className="h-4 w-16" />
+                        <Skeleton className="h-3 w-14" />
+                      </div>
+                    </TableCell>
                     <TableCell className="text-center bg-green-50/30 w-28">
                       <div className="flex flex-col items-center gap-1">
                         <Skeleton className="h-4 w-16" />
@@ -953,6 +962,24 @@ const TrackedStocks = () => {
                       ) : (
                         <span className="text-sm text-muted-foreground">N/A</span>
                       )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        {stock.marketPrice ? (
+                          <>
+                            <span className="text-sm font-semibold">{formatPrice(stock.marketPrice)}</span>
+                            {stock.priceChangePercent !== undefined && stock.priceChangePercent !== null && (
+                              <span className={`text-xs font-medium ${
+                                stock.priceChangePercent >= 0 ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {stock.priceChangePercent >= 0 ? '+' : ''}{stock.priceChangePercent.toFixed(2)}%
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">N/A</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-center bg-green-50/30 w-28">
                       <div className="flex flex-col items-center gap-1">
