@@ -1,10 +1,12 @@
 package com.data.trade.controller;
 
 import com.data.trade.constants.ApiEndpoints;
+import com.data.trade.constants.RoleConstants;
 import com.data.trade.service.SignalCalculationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -14,6 +16,7 @@ import java.util.Map;
 @RequestMapping(ApiEndpoints.API_SIGNALS)
 @RequiredArgsConstructor
 @Slf4j
+@PreAuthorize(RoleConstants.HAS_ANY_ROLE_VIP_ADMIN)
 public class SignalController {
 
     private final SignalCalculationService signalCalculationService;
@@ -22,6 +25,7 @@ public class SignalController {
     /**
      * Manually trigger signal calculation for all VN30 stocks
      * Signals will be broadcasted via WebSocket to all connected clients
+     * Requires VIP or ADMIN role
      */
     @PostMapping(ApiEndpoints.SIGNALS_REFRESH_PATH)
     public ResponseEntity<Map<String, String>> refreshSignals() {
@@ -50,6 +54,7 @@ public class SignalController {
     /**
      * Manually trigger tracked stock notifications check
      * Only sends notifications for tracked stocks with BIG signals (score >= 6)
+     * Requires VIP or ADMIN role
      */
     @PostMapping(ApiEndpoints.SIGNALS_CHECK_TRACKED_PATH)
     public ResponseEntity<Map<String, String>> checkTrackedStocks() {

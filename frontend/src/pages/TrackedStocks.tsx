@@ -154,19 +154,28 @@ const TrackedStocks = () => {
       // Clear old signals first
       clearSignals();
       
-      const response = await fetch('/api/signals/refresh', {
-        method: 'POST',
-      });
+      // Use api.post to automatically include JWT token
+      const response = await api.post('/api/signals/refresh');
       
       if (!response.ok) {
-        throw new Error('Failed to refresh signals');
+        // Handle different error status codes
+        if (response.status === 401) {
+          throw new Error('Unauthorized. Please log in again.');
+        } else if (response.status === 403) {
+          throw new Error('Access denied. VIP or ADMIN role required.');
+        }
+        
+        // Try to get error message from response
+        const errorData = await response.json().catch(() => ({ message: 'Failed to refresh signals' }));
+        throw new Error(errorData.message || `Failed to refresh signals (${response.status})`);
       }
       
       const data = await response.json();
       toast.success(data.message || 'Signals refreshed successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error refreshing signals:', error);
-      toast.error('Failed to refresh signals');
+      const errorMessage = error?.message || 'Failed to refresh signals';
+      toast.error(errorMessage);
     } finally {
       setRefreshingSignals(false);
     }
