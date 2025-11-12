@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/table.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Pencil, X, Activity, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
+import { Loader2, Check, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Pencil, X, Activity, RefreshCw, TrendingUp, TrendingDown, MoreVertical } from "lucide-react";
 import { Input } from "@/components/ui/input.tsx";
 import { useTrackedStockStats } from "@/hooks/useTrackedStockStats";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -54,6 +54,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.tsx";
 
 interface TrackedStockStats {
   lowestPriceBuy?: number;
@@ -70,6 +77,7 @@ interface TrackedStock {
   code: string;
   active: boolean;
   costBasis?: number;
+  volume?: number;
   marketPrice?: number;
   priceChangePercent?: number;
   stats?: TrackedStockStats;
@@ -92,6 +100,10 @@ const TrackedStocks = () => {
   const [editCode, setEditCode] = useState("");
   const [editActive, setEditActive] = useState(true);
   const [editCostBasis, setEditCostBasis] = useState("");
+  
+  // Volume state for profit calculation - will be synced with backend
+  const [volumeValues, setVolumeValues] = useState<Record<string, string>>({});
+  const [savingVolume, setSavingVolume] = useState<Record<string, boolean>>({});
   
   // Room bar statistics state
   const [selectedStockCode, setSelectedStockCode] = useState<string | null>(null);
@@ -130,6 +142,15 @@ const TrackedStocks = () => {
       const stocksData: TrackedStock[] = await stocksResponse.json();
       setTrackedStocks(stocksData);
       
+      // Initialize volume values from backend data
+      const volumeMap: Record<string, string> = {};
+      stocksData.forEach(stock => {
+        if (stock.volume !== undefined && stock.volume !== null) {
+          volumeMap[stock.code] = stock.volume.toString();
+        }
+      });
+      setVolumeValues(volumeMap);
+      
       // Load stats for tracked stocks
       const statsResponse = await api.get("/api/tracked-stocks/stats");
       if (statsResponse.ok) {
@@ -146,6 +167,57 @@ const TrackedStocks = () => {
       toast.error("Failed to load tracked stocks");
     } finally {
       setLoadingStocks(false);
+    }
+  };
+
+  // Function to save volume to backend
+  const saveVolume = async (stockId: number, code: string, volume: string) => {
+    const volumeNum = volume.trim() === "" ? null : parseInt(volume, 10);
+    
+    // Validate volume
+    if (volumeNum !== null && (isNaN(volumeNum) || volumeNum < 0)) {
+      toast.error(`Invalid volume for ${code}`);
+      return;
+    }
+
+    setSavingVolume(prev => ({ ...prev, [code]: true }));
+    
+    try {
+      const response = await api.put(`/api/tracked-stocks/${stockId}`, {
+        volume: volumeNum,
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to save volume");
+      }
+      
+      // Update tracked stocks with new volume
+      setTrackedStocks(prev => 
+        prev.map(stock => 
+          stock.id === stockId 
+            ? { ...stock, volume: volumeNum || undefined }
+            : stock
+        )
+      );
+    } catch (error) {
+      console.error("Error saving volume:", error);
+      toast.error(`Failed to save volume for ${code}`);
+      // Revert volume value on error
+      const stock = trackedStocks.find(s => s.id === stockId);
+      if (stock && stock.volume !== undefined) {
+        setVolumeValues(prev => ({
+          ...prev,
+          [code]: stock.volume!.toString()
+        }));
+      } else {
+        setVolumeValues(prev => {
+          const newValues = { ...prev };
+          delete newValues[code];
+          return newValues;
+        });
+      }
+    } finally {
+      setSavingVolume(prev => ({ ...prev, [code]: false }));
     }
   };
 
@@ -476,7 +548,8 @@ const TrackedStocks = () => {
 
   const formatPrice = (value?: number) => {
     if (value === null || value === undefined) return null;
-    return Math.round(value);
+    // Format with period as thousands separator (e.g., -827731 -> -827.731)
+    return Math.round(value).toLocaleString('de-DE');
   };
 
   // Sort and paginate data
@@ -772,6 +845,7 @@ const TrackedStocks = () => {
                 </TableHead>
                 <TableHead>Cost Basis</TableHead>
                 <TableHead className="text-center">Market Price</TableHead>
+                <TableHead className="text-center w-32">Volume / Profit</TableHead>
                 <TableHead className="text-center bg-green-50 w-28">
                   <Button
                     variant="ghost"
@@ -886,7 +960,6 @@ const TrackedStocks = () => {
                     )}
                   </Button>
                 </TableHead>
-                <TableHead className="text-center">Active</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -905,6 +978,12 @@ const TrackedStocks = () => {
                       <div className="flex flex-col items-center gap-1">
                         <Skeleton className="h-4 w-16" />
                         <Skeleton className="h-3 w-14" />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <Skeleton className="h-8 w-24" />
+                        <Skeleton className="h-3 w-20" />
                       </div>
                     </TableCell>
                     <TableCell className="text-center bg-green-50/30 w-28">
@@ -937,12 +1016,8 @@ const TrackedStocks = () => {
                     <TableCell className="text-center bg-red-50/30 w-28">
                       <Skeleton className="h-4 w-16 mx-auto" />
                     </TableCell>
-                    <TableCell className="text-center">
-                      <Skeleton className="h-4 w-4 rounded mx-auto" />
-                    </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Skeleton className="h-8 w-8" />
+                      <div className="flex items-center justify-end">
                         <Skeleton className="h-8 w-8" />
                       </div>
                     </TableCell>
@@ -1009,6 +1084,50 @@ const TrackedStocks = () => {
                         )}
                       </div>
                     </TableCell>
+                    <TableCell className="text-center w-32">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            placeholder="Volume"
+                            value={volumeValues[stock.code] || ""}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setVolumeValues(prev => ({
+                                ...prev,
+                                [stock.code]: value
+                              }));
+                            }}
+                            onBlur={() => {
+                              const currentValue = volumeValues[stock.code] || "";
+                              const savedValue = stock.volume?.toString() || "";
+                              if (currentValue !== savedValue) {
+                                saveVolume(stock.id, stock.code, currentValue);
+                              }
+                            }}
+                            className="w-24 h-8 text-sm text-center"
+                            min="0"
+                            step="1"
+                            disabled={savingVolume[stock.code]}
+                          />
+                          {savingVolume[stock.code] && (
+                            <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
+                          )}
+                        </div>
+                        {volumeValues[stock.code] && stock.marketPrice && stock.costBasis && !isNaN(parseFloat(volumeValues[stock.code])) && parseFloat(volumeValues[stock.code]) > 0 && (
+                          <div className="text-xs">
+                            <span className="text-muted-foreground">Profit: </span>
+                            <span className={`font-semibold ${
+                              (stock.marketPrice - stock.costBasis) * parseFloat(volumeValues[stock.code]) >= 0 
+                                ? 'text-green-600' 
+                                : 'text-red-600'
+                            }`}>
+                              {formatPrice((stock.marketPrice - stock.costBasis) * parseFloat(volumeValues[stock.code]))}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-center bg-green-50/30 w-28">
                       <div className="flex flex-col items-center gap-1">
                         <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceBuy)}</span>
@@ -1055,48 +1174,53 @@ const TrackedStocks = () => {
                     <TableCell className="text-center bg-red-50/30 w-28">
                       <span className="text-sm font-medium text-red-600">{formatNumber(stats?.largestVolumeSell)}</span>
                     </TableCell>
-                    <TableCell className="text-center">
-                      <Checkbox
-                        checked={stock.active}
-                        onCheckedChange={() => toggleActive(stock.id)}
-                        id={`active-${stock.code}`}
-                      />
-                    </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(stock)}
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                          >
-                            <Trash2 className="w-4 h-4" />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreVertical className="h-4 w-4" />
+                            <span className="sr-only">Open menu</span>
                           </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Tracked Stock</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to remove <strong>{stock.code}</strong> from tracked stocks?
-                              This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(stock.id, stock.code)}>
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                      </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => toggleActive(stock.id)}>
+                            <Check className={`mr-2 h-4 w-4 ${stock.active ? 'opacity-100' : 'opacity-0'}`} />
+                            {stock.active ? 'Deactivate' : 'Activate'}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleEdit(stock)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem
+                                onSelect={(e) => e.preventDefault()}
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Tracked Stock</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to remove <strong>{stock.code}</strong> from tracked stocks?
+                                  This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(stock.id, stock.code)}>
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 );
@@ -1113,6 +1237,34 @@ const TrackedStocks = () => {
                 </TableRow>
               )}
             </TableBody>
+            {/* Total Profit Row */}
+            {!loadingStocks && trackedStocks.length > 0 && (() => {
+              const totalProfit = trackedStocks.reduce((sum, stock) => {
+                const volume = volumeValues[stock.code];
+                if (volume && stock.marketPrice && stock.costBasis && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
+                  return sum + (stock.marketPrice - stock.costBasis) * parseFloat(volume);
+                }
+                return sum;
+              }, 0);
+              
+              return (
+                <tfoot>
+                  <TableRow className="bg-muted/50 font-semibold border-t-2">
+                    <TableCell colSpan={4} className="text-right">
+                      Total Profit:
+                    </TableCell>
+                    <TableCell className="text-left">
+                      <span className={`text-lg font-bold ${
+                        totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {formatPrice(totalProfit)}
+                      </span>
+                    </TableCell>
+                    <TableCell colSpan={5}></TableCell>
+                  </TableRow>
+                </tfoot>
+              );
+            })()}
           </Table>
         </div>
 

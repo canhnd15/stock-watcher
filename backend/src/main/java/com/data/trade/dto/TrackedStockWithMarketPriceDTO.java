@@ -18,6 +18,7 @@ public class TrackedStockWithMarketPriceDTO {
     private String code;
     private Boolean active;
     private BigDecimal costBasis;
+    private Long volume; // Volume for profit calculation
     private OffsetDateTime createdAt;
     
     // Market price data
@@ -30,6 +31,7 @@ public class TrackedStockWithMarketPriceDTO {
                 .code(stock.getCode())
                 .active(stock.getActive())
                 .costBasis(stock.getCostBasis())
+                .volume(stock.getVolume())
                 .createdAt(stock.getCreatedAt())
                 .marketPrice(marketPrice)
                 .build();

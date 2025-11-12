@@ -128,6 +128,7 @@ public class TrackedStockController {
                 .code(request.getCode().toUpperCase())
                 .active(true)
                 .costBasis(request.getCostBasis())
+                .volume(request.getVolume())
                 .createdAt(OffsetDateTime.now())
                 .build();
 
@@ -199,6 +200,8 @@ public class TrackedStockController {
         }
         // Update costBasis - if sent as null in request, it will clear the value
         stock.setCostBasis(request.getCostBasis());
+        // Update volume - if sent as null in request, it will clear the value
+        stock.setVolume(request.getVolume());
 
         TrackedStock updated = trackedStockRepository.save(stock);
         return ResponseEntity.ok(updated);
@@ -208,6 +211,7 @@ public class TrackedStockController {
     static class AddTrackedStockRequest {
         private String code;
         private BigDecimal costBasis;
+        private Long volume;
     }
 
     @Data
@@ -215,6 +219,7 @@ public class TrackedStockController {
         private String code;
         private Boolean active;
         private BigDecimal costBasis;
+        private Long volume;
     }
 }
 
