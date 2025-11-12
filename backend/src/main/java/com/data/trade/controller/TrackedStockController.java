@@ -70,6 +70,49 @@ public class TrackedStockController {
         return trackedStockStatsService.getStatsForUser(currentUser.getId());
     }
 
+    @PostMapping("/refresh-market-price")
+    public ResponseEntity<?> refreshMarketPrice(@AuthenticationPrincipal User currentUser) {
+        try {
+            List<TrackedStock> stocks = trackedStockRepository.findAllByUserId(currentUser.getId());
+            
+            List<TrackedStockWithMarketPriceDTO> result = stocks.stream()
+                    .map(stock -> {
+                        BigDecimal marketPrice = getMarketPrice(stock.getCode());
+                        return TrackedStockWithMarketPriceDTO.fromTrackedStock(stock, marketPrice);
+                    })
+                    .collect(Collectors.toList());
+            
+            int successCount = (int) result.stream()
+                    .filter(dto -> dto.getMarketPrice() != null)
+                    .count();
+            
+            return ResponseEntity.ok(new RefreshMarketPriceResponse(
+                    "Market prices refreshed successfully",
+                    successCount,
+                    result.size() - successCount,
+                    result
+            ));
+        } catch (Exception e) {
+            log.error("Failed to refresh market prices", e);
+            return ResponseEntity.status(500).body("Failed to refresh market prices: " + e.getMessage());
+        }
+    }
+    
+    @Data
+    static class RefreshMarketPriceResponse {
+        private String message;
+        private int successCount;
+        private int failedCount;
+        private List<TrackedStockWithMarketPriceDTO> stocks;
+        
+        public RefreshMarketPriceResponse(String message, int successCount, int failedCount, List<TrackedStockWithMarketPriceDTO> stocks) {
+            this.message = message;
+            this.successCount = successCount;
+            this.failedCount = failedCount;
+            this.stocks = stocks;
+        }
+    }
+
     @PostMapping
     public ResponseEntity<?> addTrackedStock(
             @RequestBody AddTrackedStockRequest request,

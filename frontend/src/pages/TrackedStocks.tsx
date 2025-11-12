@@ -41,9 +41,8 @@ import {
 } from "@/components/ui/table.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, Trash2, Bell, BellOff, ArrowUpDown, ArrowUp, ArrowDown, Pencil, X, Activity, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
+import { Loader2, Check, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Pencil, X, Activity, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
 import { Input } from "@/components/ui/input.tsx";
-import { useTrackedStockNotifications } from "@/hooks/useTrackedStockNotifications";
 import { useTrackedStockStats } from "@/hooks/useTrackedStockStats";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { api, getStockRoombars, RoombarResponse } from "@/lib/api";
@@ -105,13 +104,6 @@ const TrackedStocks = () => {
   const [sortField, setSortField] = useState<SortField>("code");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  // Tracked stock notifications
-  const {
-    isConnected: notificationsConnected,
-    notifications,
-    permissionGranted,
-    requestPermission,
-  } = useTrackedStockNotifications();
 
   // Tracked stock stats
   const { statsMap, isConnected: statsConnected } = useTrackedStockStats();
@@ -119,6 +111,9 @@ const TrackedStocks = () => {
   // Real-time Signals
   const { isConnected: signalsConnected, signals, clearSignals } = useWebSocket();
   const [refreshingSignals, setRefreshingSignals] = useState(false);
+  
+  // Refresh market price state
+  const [refreshingMarketPrice, setRefreshingMarketPrice] = useState(false);
 
   // Function to load tracked stocks and stats
   const loadTrackedStocks = async () => {
@@ -145,6 +140,44 @@ const TrackedStocks = () => {
       toast.error("Failed to load tracked stocks");
     } finally {
       setLoadingStocks(false);
+    }
+  };
+
+  // Handle refresh market price
+  const handleRefreshMarketPrice = async () => {
+    try {
+      setRefreshingMarketPrice(true);
+      
+      const response = await api.post('/api/tracked-stocks/refresh-market-price');
+      
+      if (!response.ok) {
+        throw new Error('Failed to refresh market prices');
+      }
+      
+      const data = await response.json();
+      
+      // Update tracked stocks with new market prices
+      if (data.stocks && Array.isArray(data.stocks)) {
+        setTrackedStocks((prev) => 
+          prev.map((stock) => {
+            const updated = data.stocks.find((s: TrackedStock) => s.id === stock.id);
+            return updated ? {
+              ...stock,
+              marketPrice: updated.marketPrice,
+              priceChangePercent: updated.priceChangePercent
+            } : stock;
+          })
+        );
+      }
+      
+      toast.success(
+        `Market prices refreshed: ${data.successCount} successful, ${data.failedCount} failed`
+      );
+    } catch (error: any) {
+      console.error('Error refreshing market prices:', error);
+      toast.error(error?.message || 'Failed to refresh market prices');
+    } finally {
+      setRefreshingMarketPrice(false);
     }
   };
 
@@ -508,7 +541,7 @@ const TrackedStocks = () => {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        {/* Header with notification status */}
+        {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold">Tracked Stocks</h2>
           
@@ -519,39 +552,6 @@ const TrackedStocks = () => {
             >
               Price Tracking Realtime
             </Button>
-            
-            <Card className={`${notificationsConnected && permissionGranted ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'} transition-colors`}>
-              <CardContent className="p-3 flex items-center gap-3">
-                {permissionGranted ? (
-                  <>
-                    <Bell className="h-4 w-4 text-green-600" />
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${notificationsConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-                      <span className="text-sm font-medium">
-                        🔔 Notifications: {notificationsConnected ? 'Active' : 'Connecting...'}
-                      </span>
-                    </div>
-                    {notifications.length > 0 && (
-                      <Badge variant="default" className="ml-1 bg-green-600">
-                        {notifications.length}
-                      </Badge>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <BellOff className="h-4 w-4 text-gray-400" />
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={requestPermission}
-                      className="text-sm"
-                    >
-                      Enable Notifications
-                    </Button>
-                  </>
-                )}
-              </CardContent>
-            </Card>
           </div>
         </div>
         
@@ -725,6 +725,19 @@ const TrackedStocks = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Refresh Market Price Button */}
+        <div className="mb-4 flex justify-end">
+          <Button
+            variant="outline"
+            onClick={handleRefreshMarketPrice}
+            disabled={refreshingMarketPrice || loadingStocks}
+            className="border-2"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshingMarketPrice ? 'animate-spin' : ''}`} />
+            Refresh Market Price
+          </Button>
+        </div>
 
         <div className="rounded-lg border bg-card overflow-x-auto">
           <Table>
