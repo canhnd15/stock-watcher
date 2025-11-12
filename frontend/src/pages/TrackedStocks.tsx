@@ -48,6 +48,12 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { api, getStockRoombars, RoombarResponse } from "@/lib/api";
 import { StockRoombarStats } from "@/components/StockRoombarStats";
 import { RealtimePriceTracking } from "@/components/RealtimePriceTracking";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip.tsx";
 
 interface TrackedStockStats {
   lowestPriceBuy?: number;
@@ -537,23 +543,25 @@ const TrackedStocks = () => {
   }, [trackedStocks, sortField, sortDirection, page, size]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      
-      <main className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Tracked Stocks</h2>
-          
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={() => setRealtimePriceTrackingOpen(true)}
-              variant="default"
-            >
-              Price Tracking Realtime
-            </Button>
+    <TooltipProvider>
+      <div className="min-h-screen bg-background">
+        <Header />
+        
+        <main className="container mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-2xl font-bold">Tracked Stocks</h2>
+            
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setRealtimePriceTrackingOpen(true)}
+                variant="default"
+                className="relative overflow-hidden animate-border-shine"
+              >
+                <span className="relative z-10">Price Tracking Realtime</span>
+              </Button>
+            </div>
           </div>
-        </div>
         
         {/* VN30 Stock Selector */}
         <div className="mb-8 space-y-4">
@@ -962,12 +970,19 @@ const TrackedStocks = () => {
                 return (
                   <TableRow key={stock.code}>
                     <TableCell className="font-semibold text-lg">
-                      <button
-                        onClick={() => handleStockClick(stock.code)}
-                        className="hover:underline cursor-pointer text-primary font-semibold"
-                      >
-                        {stock.code}
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => handleStockClick(stock.code)}
+                            className="hover:underline cursor-pointer text-primary font-semibold"
+                          >
+                            {stock.code}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Click to view {stock.code} 10 days stats</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </TableCell>
                     <TableCell>
                       {stock.costBasis ? (
@@ -1329,14 +1344,15 @@ const TrackedStocks = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Realtime Price Tracking Dialog */}
-        <RealtimePriceTracking
-          open={realtimePriceTrackingOpen}
-          onOpenChange={setRealtimePriceTrackingOpen}
-          vn30Codes={vn30Codes}
-        />
-      </main>
-    </div>
+          {/* Realtime Price Tracking Dialog */}
+          <RealtimePriceTracking
+            open={realtimePriceTrackingOpen}
+            onOpenChange={setRealtimePriceTrackingOpen}
+            vn30Codes={vn30Codes}
+          />
+        </main>
+      </div>
+    </TooltipProvider>
   );
 };
 

@@ -109,3 +109,51 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  @keyframes border-run {
+    0% {
+      left: -100%;
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    90% {
+      opacity: 1;
+    }
+    100% {
+      left: 100%;
+      opacity: 0;
+    }
+  }
+
+  .animate-border-shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .animate-border-shine::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.6),
+      transparent
+    );
+    animation: border-run 2.5s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 1;
+    border-radius: inherit;
+  }
+
+  .animate-border-shine > * {
+    position: relative;
+    z-index: 2;
+  }
+}
