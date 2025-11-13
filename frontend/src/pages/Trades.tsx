@@ -162,9 +162,11 @@ const Trades = () => {
   // Load saved filters or use defaults
   const savedFilters = loadFiltersFromStorage();
   const defaultFromDate = savedFilters.fromDate || getTodayDate();
-  const defaultToDate = savedFilters.toDate || getTodayDate();
+  // Always use today's date for toDate (not saved in localStorage)
+  const defaultToDate = getTodayDate();
   const defaultChartFromDate = savedFilters.chartFromDate || getNTradingDaysBack(5);
-  const defaultChartToDate = savedFilters.chartToDate || getTodayDate();
+  // Always use today's date for chartToDate (not saved in localStorage)
+  const defaultChartToDate = getTodayDate();
 
   const [code, setCode] = useState(savedFilters.code || ""); // All by default (empty)
   const [codeOpen, setCodeOpen] = useState(false);
@@ -398,6 +400,7 @@ const Trades = () => {
 
 
   // Save filters to localStorage whenever they change (but not on initial mount)
+  // Note: toDate and chartToDate are not saved - they always default to today
   useEffect(() => {
     if (!hasInitialLoad.current) return; // Skip saving on initial mount
     
@@ -407,15 +410,23 @@ const Trades = () => {
       minVolume,
       maxVolume,
       fromDate,
-      toDate,
+      // toDate is not saved - always uses today's date
       page,
       size,
       sortField,
       sortDirection,
       chartFromDate,
-      chartToDate,
+      // chartToDate is not saved - always uses today's date
     });
-  }, [code, type, minVolume, maxVolume, fromDate, toDate, page, size, sortField, sortDirection, chartFromDate, chartToDate]);
+  }, [code, type, minVolume, maxVolume, fromDate, page, size, sortField, sortDirection, chartFromDate]);
+
+  // Reset toDate and chartToDate to today when component mounts
+  // This ensures they always default to current date on page load/reload
+  useEffect(() => {
+    const today = getTodayDate();
+    setToDate(today);
+    setChartToDate(today);
+  }, []);
 
   // Load initial data when component mounts (with saved filters)
   useEffect(() => {
