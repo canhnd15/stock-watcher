@@ -7,18 +7,27 @@ This directory contains all deployment-related files and scripts for the Stock W
 ```
 deploy/
 ├── scripts/          # Deployment scripts
-│   ├── deploy.sh          # Main deployment script
-│   ├── start-services.sh  # Quick start script
-│   └── stop-services.sh   # Quick stop script
-├── systemd/          # Systemd service files
+│   ├── deploy.sh          # Main deployment script (Linux/Mac)
+│   ├── deploy.ps1         # Main deployment script (Windows)
+│   ├── start-services.sh  # Quick start script (Linux/Mac)
+│   ├── start-services.ps1 # Quick start script (Windows)
+│   ├── stop-services.sh   # Quick stop script (Linux/Mac)
+│   └── stop-services.ps1  # Quick stop script (Windows)
+├── systemd/          # Systemd service files (Linux)
 │   ├── trade-backend.service
 │   └── trade-cron-jobs.service
+├── windows/          # Windows-specific files
+│   ├── install-services.ps1 # Windows Services installer
+│   └── README.md          # Windows deployment guide
 └── docs/             # Deployment documentation
-    ├── DEPLOYMENT.md      # Full deployment guide
+    ├── DEPLOYMENT.md      # Full deployment guide (Linux/Mac)
+    ├── WINDOWS_DEPLOYMENT.md # Full deployment guide (Windows)
     └── QUICK_START.md     # Quick start guide
 ```
 
 ## Quick Start
+
+### Linux/Mac
 
 1. **Make scripts executable**:
    ```bash
@@ -36,6 +45,27 @@ deploy/
    ./deploy/scripts/deploy.sh
    ```
 
+### Windows
+
+1. **Open PowerShell** (as Administrator for service installation)
+
+2. **Set execution policy** (if needed):
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+
+3. **Configure environment**:
+   ```powershell
+   Copy-Item env.example .env
+   notepad .env
+   # Edit .env with your configuration
+   ```
+
+4. **Run deployment**:
+   ```powershell
+   .\deploy\scripts\deploy.ps1
+   ```
+
 ## Deployment Artifacts
 
 When you run the deployment script, it will create a `runtime/` directory at the project root containing:
@@ -47,8 +77,13 @@ When you run the deployment script, it will create a `runtime/` directory at the
 
 ## Documentation
 
+### Linux/Mac
 - See `docs/QUICK_START.md` for quick reference
 - See `docs/DEPLOYMENT.md` for detailed deployment instructions
+
+### Windows
+- See `windows/README.md` for Windows-specific quick start
+- See `docs/WINDOWS_DEPLOYMENT.md` for detailed Windows deployment instructions
 
 ## Notes
 
