@@ -83,7 +83,7 @@ interface TrackedStock {
   stats?: TrackedStockStats;
 }
 
-type SortField = "code" | "buyLowPrice" | "buyHighPrice" | "buyMaxVolume" | "sellLowPrice" | "sellHighPrice" | "sellMaxVolume";
+type SortField = "code";
 
 const TrackedStocks = () => {
   const [stockInput, setStockInput] = useState("");
@@ -1329,121 +1329,10 @@ const TrackedStocks = () => {
                 </TableHead>
                 <TableHead>Cost Basis</TableHead>
                 <TableHead className="text-center">Market Price</TableHead>
-                <TableHead className="text-center w-32">Volume / Profit</TableHead>
-                <TableHead className="text-center bg-green-50 w-28">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={() => handleSort("buyLowPrice")}
-                  >
-                    Low Price
-                    {sortField === "buyLowPrice" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="ml-2 h-4 w-4" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                    )}
-                  </Button>
-                </TableHead>
-                <TableHead className="text-center bg-green-50 w-28">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={() => handleSort("buyHighPrice")}
-                  >
-                    High Price
-                    {sortField === "buyHighPrice" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="ml-2 h-4 w-4" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                    )}
-                  </Button>
-                </TableHead>
-                <TableHead className="text-center bg-green-50 border-r-2 border-gray-300 w-28">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={() => handleSort("buyMaxVolume")}
-                  >
-                    Max Volume
-                    {sortField === "buyMaxVolume" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="ml-2 h-4 w-4" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                    )}
-                  </Button>
-                </TableHead>
-                <TableHead className="text-center bg-red-50 w-28">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={() => handleSort("sellLowPrice")}
-                  >
-                    Low Price
-                    {sortField === "sellLowPrice" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="ml-2 h-4 w-4" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                    )}
-                  </Button>
-                </TableHead>
-                <TableHead className="text-center bg-red-50 w-28">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={() => handleSort("sellHighPrice")}
-                  >
-                    High Price
-                    {sortField === "sellHighPrice" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="ml-2 h-4 w-4" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                    )}
-                  </Button>
-                </TableHead>
-                <TableHead className="text-center bg-red-50 w-28">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={() => handleSort("sellMaxVolume")}
-                  >
-                    Max Volume
-                    {sortField === "sellMaxVolume" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="ml-2 h-4 w-4" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                    )}
-                  </Button>
-                </TableHead>
+                <TableHead className="text-center w-32">Volume</TableHead>
+                <TableHead className="text-center">Total Net Value</TableHead>
+                <TableHead className="text-center">Total Market Value</TableHead>
+                <TableHead className="text-center">Profit</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -1465,40 +1354,16 @@ const TrackedStocks = () => {
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <Skeleton className="h-8 w-24" />
-                        <Skeleton className="h-3 w-20" />
-                      </div>
+                      <Skeleton className="h-8 w-24 mx-auto" />
                     </TableCell>
-                    <TableCell className="text-center bg-green-50/30 w-28">
-                      <div className="flex flex-col items-center gap-1">
-                        <Skeleton className="h-4 w-16" />
-                        <Skeleton className="h-3 w-14" />
-                      </div>
+                    <TableCell className="text-center">
+                      <Skeleton className="h-4 w-20 mx-auto" />
                     </TableCell>
-                    <TableCell className="text-center bg-green-50/30 w-28">
-                      <div className="flex flex-col items-center gap-1">
-                        <Skeleton className="h-4 w-16" />
-                        <Skeleton className="h-3 w-14" />
-                      </div>
+                    <TableCell className="text-center">
+                      <Skeleton className="h-4 w-20 mx-auto" />
                     </TableCell>
-                    <TableCell className="text-center bg-green-50/30 border-r-2 border-gray-300 w-28">
-                      <Skeleton className="h-4 w-16 mx-auto" />
-                    </TableCell>
-                    <TableCell className="text-center bg-red-50/30 w-28">
-                      <div className="flex flex-col items-center gap-1">
-                        <Skeleton className="h-4 w-16" />
-                        <Skeleton className="h-3 w-14" />
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center bg-red-50/30 w-28">
-                      <div className="flex flex-col items-center gap-1">
-                        <Skeleton className="h-4 w-16" />
-                        <Skeleton className="h-3 w-14" />
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center bg-red-50/30 w-28">
-                      <Skeleton className="h-4 w-16 mx-auto" />
+                    <TableCell className="text-center">
+                      <Skeleton className="h-4 w-20 mx-auto" />
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end">
@@ -1568,95 +1433,95 @@ const TrackedStocks = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-center w-32">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            placeholder="Volume"
-                            value={volumeValues[stock.code] || ""}
-                            onChange={(e) => {
-                              const value = e.target.value;
+                    <TableCell className="text-center">
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          placeholder="Volume"
+                          value={volumeValues[stock.code] || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setVolumeValues(prev => ({
+                              ...prev,
+                              [stock.code]: value
+                            }));
+                          }}
+                          onBlur={() => {
+                            const currentValue = volumeValues[stock.code] || "";
+                            const savedValue = stock.volume?.toString() || "";
+                            if (currentValue !== savedValue) {
+                              saveVolume(stock.id, stock.code, currentValue);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'ArrowUp') {
+                              e.preventDefault();
+                              const currentValue = volumeValues[stock.code] || "0";
+                              const numValue = parseInt(currentValue) || 0;
+                              const newValue = Math.max(0, numValue + 100);
                               setVolumeValues(prev => ({
                                 ...prev,
-                                [stock.code]: value
+                                [stock.code]: newValue.toString()
                               }));
-                            }}
-                            onBlur={() => {
-                              const currentValue = volumeValues[stock.code] || "";
-                              const savedValue = stock.volume?.toString() || "";
-                              if (currentValue !== savedValue) {
-                                saveVolume(stock.id, stock.code, currentValue);
-                              }
-                            }}
-                            className="w-24 h-8 text-sm text-center"
-                            min="0"
-                            step="1"
-                            disabled={savingVolume[stock.code]}
-                          />
-                          {savingVolume[stock.code] && (
-                            <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
-                          )}
-                        </div>
-                        {volumeValues[stock.code] && stock.marketPrice && stock.costBasis && !isNaN(parseFloat(volumeValues[stock.code])) && parseFloat(volumeValues[stock.code]) > 0 && (
-                          <div className="text-xs">
-                            <span className="text-muted-foreground">Profit: </span>
-                            <span className={`font-semibold ${
-                              (stock.marketPrice - stock.costBasis) * parseFloat(volumeValues[stock.code]) >= 0 
-                                ? 'text-green-600' 
-                                : 'text-red-600'
-                            }`}>
-                              {formatPrice((stock.marketPrice - stock.costBasis) * parseFloat(volumeValues[stock.code]))}
-                            </span>
-                          </div>
+                            } else if (e.key === 'ArrowDown') {
+                              e.preventDefault();
+                              const currentValue = volumeValues[stock.code] || "0";
+                              const numValue = parseInt(currentValue) || 0;
+                              const newValue = Math.max(0, numValue - 100);
+                              setVolumeValues(prev => ({
+                                ...prev,
+                                [stock.code]: newValue.toString()
+                              }));
+                            }
+                          }}
+                          onWheel={(e) => {
+                            e.preventDefault();
+                            const currentValue = volumeValues[stock.code] || "0";
+                            const numValue = parseInt(currentValue) || 0;
+                            const newValue = e.deltaY < 0 
+                              ? Math.max(0, numValue + 100)
+                              : Math.max(0, numValue - 100);
+                            setVolumeValues(prev => ({
+                              ...prev,
+                              [stock.code]: newValue.toString()
+                            }));
+                          }}
+                          className="w-24 h-8 text-sm text-center"
+                          min="0"
+                          step="100"
+                          disabled={savingVolume[stock.code]}
+                        />
+                        {savingVolume[stock.code] && (
+                          <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-center bg-green-50/30 w-28">
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceBuy)}</span>
-                        {buyLowPriceDiff !== null && (
-                          <span className={`text-xs ${buyLowPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatPercentage(buyLowPriceDiff)}
-                          </span>
-                        )}
-                      </div>
+                    <TableCell className="text-center">
+                      {stock.costBasis && volumeValues[stock.code] && !isNaN(parseFloat(volumeValues[stock.code])) && parseFloat(volumeValues[stock.code]) > 0 ? (
+                        <span className="text-sm font-medium">{formatPrice(stock.costBasis * parseFloat(volumeValues[stock.code]))}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">N/A</span>
+                      )}
                     </TableCell>
-                    <TableCell className="text-center bg-green-50/30 w-28">
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="text-sm text-muted-foreground">{formatPrice(stats?.highestPriceBuy)}</span>
-                        {buyHighPriceDiff !== null && (
-                          <span className={`text-xs ${buyHighPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatPercentage(buyHighPriceDiff)}
-                          </span>
-                        )}
-                      </div>
+                    <TableCell className="text-center">
+                      {stock.marketPrice && volumeValues[stock.code] && !isNaN(parseFloat(volumeValues[stock.code])) && parseFloat(volumeValues[stock.code]) > 0 ? (
+                        <span className="text-sm font-medium">{formatPrice(stock.marketPrice * parseFloat(volumeValues[stock.code]))}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">N/A</span>
+                      )}
                     </TableCell>
-                    <TableCell className="text-center bg-green-50/30 border-r-2 border-gray-300 w-28">
-                      <span className="text-sm font-medium text-green-600">{formatNumber(stats?.largestVolumeBuy)}</span>
-                    </TableCell>
-                    <TableCell className="text-center bg-red-50/30 w-28">
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceSell)}</span>
-                        {sellLowPriceDiff !== null && (
-                          <span className={`text-xs ${sellLowPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatPercentage(sellLowPriceDiff)}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center bg-red-50/30 w-28">
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="text-sm text-muted-foreground">{formatPrice(stats?.highestPriceSell)}</span>
-                        {sellHighPriceDiff !== null && (
-                          <span className={`text-xs ${sellHighPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatPercentage(sellHighPriceDiff)}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center bg-red-50/30 w-28">
-                      <span className="text-sm font-medium text-red-600">{formatNumber(stats?.largestVolumeSell)}</span>
+                    <TableCell className="text-center">
+                      {volumeValues[stock.code] && stock.marketPrice && stock.costBasis && !isNaN(parseFloat(volumeValues[stock.code])) && parseFloat(volumeValues[stock.code]) > 0 ? (
+                        <span className={`text-sm font-semibold ${
+                          (stock.marketPrice - stock.costBasis) * parseFloat(volumeValues[stock.code]) >= 0 
+                            ? 'text-green-600' 
+                            : 'text-red-600'
+                        }`}>
+                          {formatPrice((stock.marketPrice - stock.costBasis) * parseFloat(volumeValues[stock.code]))}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">N/A</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -1712,7 +1577,7 @@ const TrackedStocks = () => {
               )}
               {!loadingStocks && sortedAndPaginatedStocks.data.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     {trackedStocks.length === 0 
                       ? "No tracked stocks yet. Add some codes above to get started."
                       : "No results on this page."
@@ -1731,20 +1596,52 @@ const TrackedStocks = () => {
                 return sum;
               }, 0);
               
+              const totalNetValue = trackedStocks.reduce((sum, stock) => {
+                const volume = volumeValues[stock.code];
+                if (volume && stock.costBasis && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
+                  return sum + stock.costBasis * parseFloat(volume);
+                }
+                return sum;
+              }, 0);
+              
+              const totalMarketValue = trackedStocks.reduce((sum, stock) => {
+                const volume = volumeValues[stock.code];
+                if (volume && stock.marketPrice && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
+                  return sum + stock.marketPrice * parseFloat(volume);
+                }
+                return sum;
+              }, 0);
+              
               return (
                 <tfoot>
                   <TableRow className="bg-muted/50 font-semibold border-t-2">
                     <TableCell colSpan={4} className="text-left">
-                      Total Profit:
+                      Total:
                     </TableCell>
-                    <TableCell className="text-left">
+                    <TableCell className="text-center">
+                      <span className="text-sm font-medium">{formatPrice(totalNetValue)}</span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <span className="text-sm font-medium">
+                        {formatPrice(totalMarketValue)}
+                        {totalNetValue > 0 && (
+                          <span className={`ml-2 text-xs font-medium ${
+                            totalMarketValue >= totalNetValue ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            ({totalMarketValue >= totalNetValue ? '+' : ''}
+                            {((totalMarketValue - totalNetValue) / totalNetValue * 100).toFixed(2)}%)
+                          </span>
+                        )}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center">
                       <span className={`text-lg font-bold ${
                         totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
                         {formatPrice(totalProfit)}
                       </span>
                     </TableCell>
-                    <TableCell colSpan={5}></TableCell>
+                    <TableCell></TableCell>
                   </TableRow>
                 </tfoot>
               );
@@ -1843,121 +1740,10 @@ const TrackedStocks = () => {
                   </TableHead>
                   <TableHead>Cost Basis</TableHead>
                   <TableHead className="text-center">Market Price</TableHead>
-                  <TableHead className="text-center w-32">Volume / Profit</TableHead>
-                  <TableHead className="text-center bg-green-50 w-28">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("buyLowPrice")}
-                    >
-                      Low Price
-                      {shortTermSortField === "buyLowPrice" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-center bg-green-50 w-28">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("buyHighPrice")}
-                    >
-                      High Price
-                      {shortTermSortField === "buyHighPrice" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-center bg-green-50 border-r-2 border-gray-300 w-28">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("buyMaxVolume")}
-                    >
-                      Max Volume
-                      {shortTermSortField === "buyMaxVolume" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-center bg-red-50 w-28">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("sellLowPrice")}
-                    >
-                      Low Price
-                      {shortTermSortField === "sellLowPrice" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-center bg-red-50 w-28">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("sellHighPrice")}
-                    >
-                      High Price
-                      {shortTermSortField === "sellHighPrice" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-center bg-red-50 w-28">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("sellMaxVolume")}
-                    >
-                      Max Volume
-                      {shortTermSortField === "sellMaxVolume" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
+                  <TableHead className="text-center w-32">Volume</TableHead>
+                  <TableHead className="text-center">Total Net Value</TableHead>
+                  <TableHead className="text-center">Total Market Value</TableHead>
+                  <TableHead className="text-center">Profit</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1979,40 +1765,16 @@ const TrackedStocks = () => {
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="flex flex-col items-center gap-2">
-                          <Skeleton className="h-8 w-24" />
-                          <Skeleton className="h-3 w-20" />
-                        </div>
+                        <Skeleton className="h-8 w-24 mx-auto" />
                       </TableCell>
-                      <TableCell className="text-center bg-green-50/30 w-28">
-                        <div className="flex flex-col items-center gap-1">
-                          <Skeleton className="h-4 w-16" />
-                          <Skeleton className="h-3 w-14" />
-                        </div>
+                      <TableCell className="text-center">
+                        <Skeleton className="h-4 w-20 mx-auto" />
                       </TableCell>
-                      <TableCell className="text-center bg-green-50/30 w-28">
-                        <div className="flex flex-col items-center gap-1">
-                          <Skeleton className="h-4 w-16" />
-                          <Skeleton className="h-3 w-14" />
-                        </div>
+                      <TableCell className="text-center">
+                        <Skeleton className="h-4 w-20 mx-auto" />
                       </TableCell>
-                      <TableCell className="text-center bg-green-50/30 border-r-2 border-gray-300 w-28">
-                        <Skeleton className="h-4 w-16 mx-auto" />
-                      </TableCell>
-                      <TableCell className="text-center bg-red-50/30 w-28">
-                        <div className="flex flex-col items-center gap-1">
-                          <Skeleton className="h-4 w-16" />
-                          <Skeleton className="h-3 w-14" />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center bg-red-50/30 w-28">
-                        <div className="flex flex-col items-center gap-1">
-                          <Skeleton className="h-4 w-16" />
-                          <Skeleton className="h-3 w-14" />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center bg-red-50/30 w-28">
-                        <Skeleton className="h-4 w-16 mx-auto" />
+                      <TableCell className="text-center">
+                        <Skeleton className="h-4 w-20 mx-auto" />
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end">
@@ -2023,21 +1785,6 @@ const TrackedStocks = () => {
                   ))
                 ) : (
                   sortedAndPaginatedShortTermStocks.data.map((stock) => {
-                    const stats = stock.stats;
-                    const formatNumber = (value?: number) => {
-                      if (value === null || value === undefined) return "N/A";
-                      return Math.round(value).toLocaleString('de-DE');
-                    };
-                    const formatPrice = (value?: number) => {
-                      if (value === null || value === undefined) return "N/A";
-                      return Math.round(value).toLocaleString('de-DE');
-                    };
-
-                    const buyLowPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.lowestPriceBuy);
-                    const buyHighPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.highestPriceBuy);
-                    const sellLowPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.lowestPriceSell);
-                    const sellHighPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.highestPriceSell);
-
                     return (
                       <TableRow key={stock.code}>
                         <TableCell className="font-semibold text-lg">
@@ -2080,95 +1827,95 @@ const TrackedStocks = () => {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-center w-32">
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="relative">
-                              <Input
-                                type="number"
-                                placeholder="Volume"
-                                value={shortTermVolumeValues[stock.code] || ""}
-                                onChange={(e) => {
-                                  const value = e.target.value;
+                        <TableCell className="text-center">
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              placeholder="Volume"
+                              value={shortTermVolumeValues[stock.code] || ""}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setShortTermVolumeValues(prev => ({
+                                  ...prev,
+                                  [stock.code]: value
+                                }));
+                              }}
+                              onBlur={() => {
+                                const currentValue = shortTermVolumeValues[stock.code] || "";
+                                const savedValue = stock.volume?.toString() || "";
+                                if (currentValue !== savedValue) {
+                                  saveShortTermVolume(stock.id, stock.code, currentValue);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowUp') {
+                                  e.preventDefault();
+                                  const currentValue = shortTermVolumeValues[stock.code] || "0";
+                                  const numValue = parseInt(currentValue) || 0;
+                                  const newValue = Math.max(0, numValue + 100);
                                   setShortTermVolumeValues(prev => ({
                                     ...prev,
-                                    [stock.code]: value
+                                    [stock.code]: newValue.toString()
                                   }));
-                                }}
-                                onBlur={() => {
-                                  const currentValue = shortTermVolumeValues[stock.code] || "";
-                                  const savedValue = stock.volume?.toString() || "";
-                                  if (currentValue !== savedValue) {
-                                    saveShortTermVolume(stock.id, stock.code, currentValue);
-                                  }
-                                }}
-                                className="w-24 h-8 text-sm text-center"
-                                min="0"
-                                step="1"
-                                disabled={savingShortTermVolume[stock.code]}
-                              />
-                              {savingShortTermVolume[stock.code] && (
-                                <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
-                              )}
-                            </div>
-                            {shortTermVolumeValues[stock.code] && stock.marketPrice && stock.costBasis && !isNaN(parseFloat(shortTermVolumeValues[stock.code])) && parseFloat(shortTermVolumeValues[stock.code]) > 0 && (
-                              <div className="text-xs">
-                                <span className="text-muted-foreground">Profit: </span>
-                                <span className={`font-semibold ${
-                                  (stock.marketPrice - stock.costBasis) * parseFloat(shortTermVolumeValues[stock.code]) >= 0 
-                                    ? 'text-green-600' 
-                                    : 'text-red-600'
-                                }`}>
-                                  {formatPrice((stock.marketPrice - stock.costBasis) * parseFloat(shortTermVolumeValues[stock.code]))}
-                                </span>
-                              </div>
+                                } else if (e.key === 'ArrowDown') {
+                                  e.preventDefault();
+                                  const currentValue = shortTermVolumeValues[stock.code] || "0";
+                                  const numValue = parseInt(currentValue) || 0;
+                                  const newValue = Math.max(0, numValue - 100);
+                                  setShortTermVolumeValues(prev => ({
+                                    ...prev,
+                                    [stock.code]: newValue.toString()
+                                  }));
+                                }
+                              }}
+                              onWheel={(e) => {
+                                e.preventDefault();
+                                const currentValue = shortTermVolumeValues[stock.code] || "0";
+                                const numValue = parseInt(currentValue) || 0;
+                                const newValue = e.deltaY < 0 
+                                  ? Math.max(0, numValue + 100)
+                                  : Math.max(0, numValue - 100);
+                                setShortTermVolumeValues(prev => ({
+                                  ...prev,
+                                  [stock.code]: newValue.toString()
+                                }));
+                              }}
+                              className="w-24 h-8 text-sm text-center"
+                              min="0"
+                              step="100"
+                              disabled={savingShortTermVolume[stock.code]}
+                            />
+                            {savingShortTermVolume[stock.code] && (
+                              <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-center bg-green-50/30 w-28">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceBuy)}</span>
-                            {buyLowPriceDiff !== null && (
-                              <span className={`text-xs ${buyLowPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPercentage(buyLowPriceDiff)}
-                              </span>
-                            )}
-                          </div>
+                        <TableCell className="text-center">
+                          {stock.costBasis && shortTermVolumeValues[stock.code] && !isNaN(parseFloat(shortTermVolumeValues[stock.code])) && parseFloat(shortTermVolumeValues[stock.code]) > 0 ? (
+                            <span className="text-sm font-medium">{formatPrice(stock.costBasis * parseFloat(shortTermVolumeValues[stock.code]))}</span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">N/A</span>
+                          )}
                         </TableCell>
-                        <TableCell className="text-center bg-green-50/30 w-28">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-sm text-muted-foreground">{formatPrice(stats?.highestPriceBuy)}</span>
-                            {buyHighPriceDiff !== null && (
-                              <span className={`text-xs ${buyHighPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPercentage(buyHighPriceDiff)}
-                              </span>
-                            )}
-                          </div>
+                        <TableCell className="text-center">
+                          {stock.marketPrice && shortTermVolumeValues[stock.code] && !isNaN(parseFloat(shortTermVolumeValues[stock.code])) && parseFloat(shortTermVolumeValues[stock.code]) > 0 ? (
+                            <span className="text-sm font-medium">{formatPrice(stock.marketPrice * parseFloat(shortTermVolumeValues[stock.code]))}</span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">N/A</span>
+                          )}
                         </TableCell>
-                        <TableCell className="text-center bg-green-50/30 border-r-2 border-gray-300 w-28">
-                          <span className="text-sm font-medium text-green-600">{formatNumber(stats?.largestVolumeBuy)}</span>
-                        </TableCell>
-                        <TableCell className="text-center bg-red-50/30 w-28">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceSell)}</span>
-                            {sellLowPriceDiff !== null && (
-                              <span className={`text-xs ${sellLowPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPercentage(sellLowPriceDiff)}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center bg-red-50/30 w-28">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-sm text-muted-foreground">{formatPrice(stats?.highestPriceSell)}</span>
-                            {sellHighPriceDiff !== null && (
-                              <span className={`text-xs ${sellHighPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPercentage(sellHighPriceDiff)}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center bg-red-50/30 w-28">
-                          <span className="text-sm font-medium text-red-600">{formatNumber(stats?.largestVolumeSell)}</span>
+                        <TableCell className="text-center">
+                          {shortTermVolumeValues[stock.code] && stock.marketPrice && stock.costBasis && !isNaN(parseFloat(shortTermVolumeValues[stock.code])) && parseFloat(shortTermVolumeValues[stock.code]) > 0 ? (
+                            <span className={`text-sm font-semibold ${
+                              (stock.marketPrice - stock.costBasis) * parseFloat(shortTermVolumeValues[stock.code]) >= 0 
+                                ? 'text-green-600' 
+                                : 'text-red-600'
+                            }`}>
+                              {formatPrice((stock.marketPrice - stock.costBasis) * parseFloat(shortTermVolumeValues[stock.code]))}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">N/A</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
@@ -2224,7 +1971,7 @@ const TrackedStocks = () => {
                 )}
                 {!loadingShortTermStocks && sortedAndPaginatedShortTermStocks.data.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                       {shortTermStocks.length === 0 
                         ? "No Short-Term Portfolio yet. Add some codes above to get started."
                         : "No results on this page."
@@ -2243,20 +1990,52 @@ const TrackedStocks = () => {
                   return sum;
                 }, 0);
                 
+                const totalNetValue = shortTermStocks.reduce((sum, stock) => {
+                  const volume = shortTermVolumeValues[stock.code];
+                  if (volume && stock.costBasis && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
+                    return sum + stock.costBasis * parseFloat(volume);
+                  }
+                  return sum;
+                }, 0);
+                
+                const totalMarketValue = shortTermStocks.reduce((sum, stock) => {
+                  const volume = shortTermVolumeValues[stock.code];
+                  if (volume && stock.marketPrice && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
+                    return sum + stock.marketPrice * parseFloat(volume);
+                  }
+                  return sum;
+                }, 0);
+                
                 return (
                   <tfoot>
                     <TableRow className="bg-muted/50 font-semibold border-t-2">
                       <TableCell colSpan={4} className="text-left">
-                        Total Profit:
+                        Total:
                       </TableCell>
-                      <TableCell className="text-left">
+                      <TableCell className="text-center">
+                        <span className="text-sm font-medium">{formatPrice(totalNetValue)}</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="text-sm font-medium">
+                          {formatPrice(totalMarketValue)}
+                          {totalNetValue > 0 && (
+                            <span className={`ml-2 text-xs font-medium ${
+                              totalMarketValue >= totalNetValue ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              ({totalMarketValue >= totalNetValue ? '+' : ''}
+                              {((totalMarketValue - totalNetValue) / totalNetValue * 100).toFixed(2)}%)
+                            </span>
+                          )}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
                         <span className={`text-lg font-bold ${
                           totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
                         }`}>
                           {formatPrice(totalProfit)}
                         </span>
                       </TableCell>
-                      <TableCell colSpan={6}></TableCell>
+                      <TableCell></TableCell>
                     </TableRow>
                   </tfoot>
                 );
