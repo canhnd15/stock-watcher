@@ -1434,66 +1434,112 @@ const TrackedStocks = () => {
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="relative">
-                        <Input
-                          type="number"
-                          placeholder="Volume"
-                          value={volumeValues[stock.code] || ""}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setVolumeValues(prev => ({
-                              ...prev,
-                              [stock.code]: value
-                            }));
-                          }}
-                          onBlur={() => {
-                            const currentValue = volumeValues[stock.code] || "";
-                            const savedValue = stock.volume?.toString() || "";
-                            if (currentValue !== savedValue) {
-                              saveVolume(stock.id, stock.code, currentValue);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'ArrowUp') {
-                              e.preventDefault();
-                              const currentValue = volumeValues[stock.code] || "0";
-                              const numValue = parseInt(currentValue) || 0;
-                              const newValue = Math.max(0, numValue + 100);
-                              setVolumeValues(prev => ({
-                                ...prev,
-                                [stock.code]: newValue.toString()
-                              }));
-                            } else if (e.key === 'ArrowDown') {
-                              e.preventDefault();
-                              const currentValue = volumeValues[stock.code] || "0";
-                              const numValue = parseInt(currentValue) || 0;
-                              const newValue = Math.max(0, numValue - 100);
-                              setVolumeValues(prev => ({
-                                ...prev,
-                                [stock.code]: newValue.toString()
-                              }));
-                            }
-                          }}
-                          onWheel={(e) => {
-                            e.preventDefault();
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => {
                             const currentValue = volumeValues[stock.code] || "0";
                             const numValue = parseInt(currentValue) || 0;
-                            const newValue = e.deltaY < 0 
-                              ? Math.max(0, numValue + 100)
-                              : Math.max(0, numValue - 100);
+                            const newValue = Math.max(0, numValue + 100);
                             setVolumeValues(prev => ({
                               ...prev,
                               [stock.code]: newValue.toString()
                             }));
+                            // Auto-save on button click
+                            setTimeout(() => {
+                              saveVolume(stock.id, stock.code, newValue.toString());
+                            }, 0);
                           }}
-                          className="w-24 h-8 text-sm text-center"
-                          min="0"
-                          step="100"
                           disabled={savingVolume[stock.code] || !stock.active}
-                        />
-                        {savingVolume[stock.code] && (
-                          <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
-                        )}
+                        >
+                          <ArrowUp className="h-3 w-3" />
+                        </Button>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            placeholder="Volume"
+                            value={volumeValues[stock.code] || ""}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setVolumeValues(prev => ({
+                                ...prev,
+                                [stock.code]: value
+                              }));
+                            }}
+                            onBlur={() => {
+                              const currentValue = volumeValues[stock.code] || "";
+                              const savedValue = stock.volume?.toString() || "";
+                              if (currentValue !== savedValue) {
+                                saveVolume(stock.id, stock.code, currentValue);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                const currentValue = volumeValues[stock.code] || "0";
+                                const numValue = parseInt(currentValue) || 0;
+                                const newValue = Math.max(0, numValue + 100);
+                                setVolumeValues(prev => ({
+                                  ...prev,
+                                  [stock.code]: newValue.toString()
+                                }));
+                              } else if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                const currentValue = volumeValues[stock.code] || "0";
+                                const numValue = parseInt(currentValue) || 0;
+                                const newValue = Math.max(0, numValue - 100);
+                                setVolumeValues(prev => ({
+                                  ...prev,
+                                  [stock.code]: newValue.toString()
+                                }));
+                              }
+                            }}
+                            onWheel={(e) => {
+                              e.preventDefault();
+                              const currentValue = volumeValues[stock.code] || "0";
+                              const numValue = parseInt(currentValue) || 0;
+                              const newValue = e.deltaY < 0 
+                                ? Math.max(0, numValue + 100)
+                                : Math.max(0, numValue - 100);
+                              setVolumeValues(prev => ({
+                                ...prev,
+                                [stock.code]: newValue.toString()
+                              }));
+                            }}
+                            className="w-24 h-8 text-sm text-center"
+                            min="0"
+                            step="100"
+                            disabled={savingVolume[stock.code] || !stock.active}
+                          />
+                          {savingVolume[stock.code] && (
+                            <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => {
+                            const currentValue = volumeValues[stock.code] || "0";
+                            const numValue = parseInt(currentValue) || 0;
+                            const newValue = Math.max(0, numValue - 100);
+                            setVolumeValues(prev => ({
+                              ...prev,
+                              [stock.code]: newValue.toString()
+                            }));
+                            // Auto-save on button click
+                            setTimeout(() => {
+                              saveVolume(stock.id, stock.code, newValue.toString());
+                            }, 0);
+                          }}
+                          disabled={savingVolume[stock.code] || !stock.active}
+                        >
+                          <ArrowDown className="h-3 w-3" />
+                        </Button>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
@@ -1834,66 +1880,112 @@ const TrackedStocks = () => {
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          <div className="relative">
-                            <Input
-                              type="number"
-                              placeholder="Volume"
-                              value={shortTermVolumeValues[stock.code] || ""}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                setShortTermVolumeValues(prev => ({
-                                  ...prev,
-                                  [stock.code]: value
-                                }));
-                              }}
-                              onBlur={() => {
-                                const currentValue = shortTermVolumeValues[stock.code] || "";
-                                const savedValue = stock.volume?.toString() || "";
-                                if (currentValue !== savedValue) {
-                                  saveShortTermVolume(stock.id, stock.code, currentValue);
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'ArrowUp') {
-                                  e.preventDefault();
-                                  const currentValue = shortTermVolumeValues[stock.code] || "0";
-                                  const numValue = parseInt(currentValue) || 0;
-                                  const newValue = Math.max(0, numValue + 100);
-                                  setShortTermVolumeValues(prev => ({
-                                    ...prev,
-                                    [stock.code]: newValue.toString()
-                                  }));
-                                } else if (e.key === 'ArrowDown') {
-                                  e.preventDefault();
-                                  const currentValue = shortTermVolumeValues[stock.code] || "0";
-                                  const numValue = parseInt(currentValue) || 0;
-                                  const newValue = Math.max(0, numValue - 100);
-                                  setShortTermVolumeValues(prev => ({
-                                    ...prev,
-                                    [stock.code]: newValue.toString()
-                                  }));
-                                }
-                              }}
-                              onWheel={(e) => {
-                                e.preventDefault();
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => {
                                 const currentValue = shortTermVolumeValues[stock.code] || "0";
                                 const numValue = parseInt(currentValue) || 0;
-                                const newValue = e.deltaY < 0 
-                                  ? Math.max(0, numValue + 100)
-                                  : Math.max(0, numValue - 100);
+                                const newValue = Math.max(0, numValue + 100);
                                 setShortTermVolumeValues(prev => ({
                                   ...prev,
                                   [stock.code]: newValue.toString()
                                 }));
+                                // Auto-save on button click
+                                setTimeout(() => {
+                                  saveShortTermVolume(stock.id, stock.code, newValue.toString());
+                                }, 0);
                               }}
-                              className="w-24 h-8 text-sm text-center"
-                              min="0"
-                              step="100"
                               disabled={savingShortTermVolume[stock.code] || !stock.active}
-                            />
-                            {savingShortTermVolume[stock.code] && (
-                              <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
-                            )}
+                            >
+                              <ArrowUp className="h-3 w-3" />
+                            </Button>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                placeholder="Volume"
+                                value={shortTermVolumeValues[stock.code] || ""}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setShortTermVolumeValues(prev => ({
+                                    ...prev,
+                                    [stock.code]: value
+                                  }));
+                                }}
+                                onBlur={() => {
+                                  const currentValue = shortTermVolumeValues[stock.code] || "";
+                                  const savedValue = stock.volume?.toString() || "";
+                                  if (currentValue !== savedValue) {
+                                    saveShortTermVolume(stock.id, stock.code, currentValue);
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'ArrowUp') {
+                                    e.preventDefault();
+                                    const currentValue = shortTermVolumeValues[stock.code] || "0";
+                                    const numValue = parseInt(currentValue) || 0;
+                                    const newValue = Math.max(0, numValue + 100);
+                                    setShortTermVolumeValues(prev => ({
+                                      ...prev,
+                                      [stock.code]: newValue.toString()
+                                    }));
+                                  } else if (e.key === 'ArrowDown') {
+                                    e.preventDefault();
+                                    const currentValue = shortTermVolumeValues[stock.code] || "0";
+                                    const numValue = parseInt(currentValue) || 0;
+                                    const newValue = Math.max(0, numValue - 100);
+                                    setShortTermVolumeValues(prev => ({
+                                      ...prev,
+                                      [stock.code]: newValue.toString()
+                                    }));
+                                  }
+                                }}
+                                onWheel={(e) => {
+                                  e.preventDefault();
+                                  const currentValue = shortTermVolumeValues[stock.code] || "0";
+                                  const numValue = parseInt(currentValue) || 0;
+                                  const newValue = e.deltaY < 0 
+                                    ? Math.max(0, numValue + 100)
+                                    : Math.max(0, numValue - 100);
+                                  setShortTermVolumeValues(prev => ({
+                                    ...prev,
+                                    [stock.code]: newValue.toString()
+                                  }));
+                                }}
+                                className="w-24 h-8 text-sm text-center"
+                                min="0"
+                                step="100"
+                                disabled={savingShortTermVolume[stock.code] || !stock.active}
+                              />
+                              {savingShortTermVolume[stock.code] && (
+                                <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
+                              )}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => {
+                                const currentValue = shortTermVolumeValues[stock.code] || "0";
+                                const numValue = parseInt(currentValue) || 0;
+                                const newValue = Math.max(0, numValue - 100);
+                                setShortTermVolumeValues(prev => ({
+                                  ...prev,
+                                  [stock.code]: newValue.toString()
+                                }));
+                                // Auto-save on button click
+                                setTimeout(() => {
+                                  saveShortTermVolume(stock.id, stock.code, newValue.toString());
+                                }, 0);
+                              }}
+                              disabled={savingShortTermVolume[stock.code] || !stock.active}
+                            >
+                              <ArrowDown className="h-3 w-3" />
+                            </Button>
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
