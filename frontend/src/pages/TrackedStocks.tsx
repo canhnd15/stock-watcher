@@ -1392,7 +1392,7 @@ const TrackedStocks = () => {
                 const sellHighPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.highestPriceSell);
 
                 return (
-                  <TableRow key={stock.code}>
+                  <TableRow key={stock.code} className={!stock.active ? "opacity-50" : ""}>
                     <TableCell className="font-semibold text-lg">
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -1489,7 +1489,7 @@ const TrackedStocks = () => {
                           className="w-24 h-8 text-sm text-center"
                           min="0"
                           step="100"
-                          disabled={savingVolume[stock.code]}
+                          disabled={savingVolume[stock.code] || !stock.active}
                         />
                         {savingVolume[stock.code] && (
                           <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
@@ -1589,6 +1589,8 @@ const TrackedStocks = () => {
             {/* Total Profit Row */}
             {!loadingStocks && trackedStocks.length > 0 && (() => {
               const totalProfit = trackedStocks.reduce((sum, stock) => {
+                // Only count active stocks
+                if (!stock.active) return sum;
                 const volume = volumeValues[stock.code];
                 if (volume && stock.marketPrice && stock.costBasis && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
                   return sum + (stock.marketPrice - stock.costBasis) * parseFloat(volume);
@@ -1597,6 +1599,8 @@ const TrackedStocks = () => {
               }, 0);
               
               const totalNetValue = trackedStocks.reduce((sum, stock) => {
+                // Only count active stocks
+                if (!stock.active) return sum;
                 const volume = volumeValues[stock.code];
                 if (volume && stock.costBasis && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
                   return sum + stock.costBasis * parseFloat(volume);
@@ -1605,6 +1609,8 @@ const TrackedStocks = () => {
               }, 0);
               
               const totalMarketValue = trackedStocks.reduce((sum, stock) => {
+                // Only count active stocks
+                if (!stock.active) return sum;
                 const volume = volumeValues[stock.code];
                 if (volume && stock.marketPrice && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
                   return sum + stock.marketPrice * parseFloat(volume);
@@ -1786,7 +1792,7 @@ const TrackedStocks = () => {
                 ) : (
                   sortedAndPaginatedShortTermStocks.data.map((stock) => {
                     return (
-                      <TableRow key={stock.code}>
+                      <TableRow key={stock.code} className={!stock.active ? "opacity-50" : ""}>
                         <TableCell className="font-semibold text-lg">
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -1883,7 +1889,7 @@ const TrackedStocks = () => {
                               className="w-24 h-8 text-sm text-center"
                               min="0"
                               step="100"
-                              disabled={savingShortTermVolume[stock.code]}
+                              disabled={savingShortTermVolume[stock.code] || !stock.active}
                             />
                             {savingShortTermVolume[stock.code] && (
                               <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
@@ -1983,6 +1989,8 @@ const TrackedStocks = () => {
               {/* Total Profit Row */}
               {!loadingShortTermStocks && shortTermStocks.length > 0 && (() => {
                 const totalProfit = shortTermStocks.reduce((sum, stock) => {
+                  // Only count active stocks
+                  if (!stock.active) return sum;
                   const volume = shortTermVolumeValues[stock.code];
                   if (volume && stock.marketPrice && stock.costBasis && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
                     return sum + (stock.marketPrice - stock.costBasis) * parseFloat(volume);
@@ -1991,6 +1999,8 @@ const TrackedStocks = () => {
                 }, 0);
                 
                 const totalNetValue = shortTermStocks.reduce((sum, stock) => {
+                  // Only count active stocks
+                  if (!stock.active) return sum;
                   const volume = shortTermVolumeValues[stock.code];
                   if (volume && stock.costBasis && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
                     return sum + stock.costBasis * parseFloat(volume);
@@ -1999,6 +2009,8 @@ const TrackedStocks = () => {
                 }, 0);
                 
                 const totalMarketValue = shortTermStocks.reduce((sum, stock) => {
+                  // Only count active stocks
+                  if (!stock.active) return sum;
                   const volume = shortTermVolumeValues[stock.code];
                   if (volume && stock.marketPrice && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
                     return sum + stock.marketPrice * parseFloat(volume);
