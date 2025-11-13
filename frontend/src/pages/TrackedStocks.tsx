@@ -180,11 +180,20 @@ const TrackedStocks = () => {
       return;
     }
 
+    // Find the stock to preserve costBasis
+    const stock = trackedStocks.find(s => s.id === stockId);
+    if (!stock) {
+      toast.error(`Stock not found for ${code}`);
+      return;
+    }
+
     setSavingVolume(prev => ({ ...prev, [code]: true }));
     
     try {
+      // Always send both volume and costBasis to prevent backend from clearing the other field
       const response = await api.put(`/api/tracked-stocks/${stockId}`, {
         volume: volumeNum,
+        costBasis: stock.costBasis || null, // Preserve existing costBasis
       });
       
       if (!response.ok) {
@@ -203,7 +212,6 @@ const TrackedStocks = () => {
       console.error("Error saving volume:", error);
       toast.error(`Failed to save volume for ${code}`);
       // Revert volume value on error
-      const stock = trackedStocks.find(s => s.id === stockId);
       if (stock && stock.volume !== undefined) {
         setVolumeValues(prev => ({
           ...prev,
@@ -457,13 +465,15 @@ const TrackedStocks = () => {
     }
 
     try {
-      const requestBody: { code?: string; active?: boolean; costBasis?: number | null } = {};
+      const requestBody: { code?: string; active?: boolean; costBasis?: number | null; volume?: number | null } = {};
       if (editCode !== editingStock.code) {
         requestBody.code = editCode.toUpperCase();
       }
       requestBody.active = editActive;
       // Always send costBasis - null to clear, number to set value
       requestBody.costBasis = costBasisValue.trim() !== "" && costBasis !== undefined ? costBasis : null;
+      // Always send volume to preserve it when updating costBasis
+      requestBody.volume = editingStock.volume || null;
 
       const response = await api.put(`/api/tracked-stocks/${editingStock.id}`, requestBody);
       if (!response.ok) throw new Error("Failed");
@@ -1250,7 +1260,7 @@ const TrackedStocks = () => {
               return (
                 <tfoot>
                   <TableRow className="bg-muted/50 font-semibold border-t-2">
-                    <TableCell colSpan={4} className="text-right">
+                    <TableCell colSpan={4} className="text-left">
                       Total Profit:
                     </TableCell>
                     <TableCell className="text-left">
