@@ -1,0 +1,227 @@
+package com.data.trade.controller;
+
+import com.data.trade.constants.ApiEndpoints;
+import com.data.trade.constants.RoleConstants;
+import com.data.trade.dto.ShortTermTrackedStockWithMarketPriceDTO;
+import com.data.trade.dto.TrackedStockStatsDTO;
+import com.data.trade.model.ShortTermTrackedStock;
+import com.data.trade.model.User;
+import com.data.trade.repository.ShortTermTrackedStockRepository;
+import com.data.trade.service.FinpathClient;
+import com.data.trade.service.TrackedStockStatsService;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping(ApiEndpoints.API_SHORT_TERM_TRACKED_STOCKS)
+@RequiredArgsConstructor
+@PreAuthorize(RoleConstants.HAS_ANY_ROLE_VIP_ADMIN)
+@Slf4j
+public class ShortTermTrackedStockController {
+
+    private final ShortTermTrackedStockRepository shortTermTrackedStockRepository;
+    private final TrackedStockStatsService trackedStockStatsService;
+    private final FinpathClient finpathClient;
+
+    @GetMapping
+    public List<ShortTermTrackedStockWithMarketPriceDTO> getAllShortTermTrackedStocks(@AuthenticationPrincipal User currentUser) {
+        List<ShortTermTrackedStock> stocks = shortTermTrackedStockRepository.findAllByUserId(currentUser.getId());
+        
+        return stocks.stream()
+                .map(stock -> {
+                    BigDecimal marketPrice = getMarketPrice(stock.getCode());
+                    return ShortTermTrackedStockWithMarketPriceDTO.fromShortTermTrackedStock(stock, marketPrice);
+                })
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Get market price for a stock code from TradingView API
+     */
+    private BigDecimal getMarketPrice(String code) {
+        try {
+            var response = finpathClient.fetchTradingViewBars(code);
+            if (response != null) {
+                Double price = response.getMarketPrice();
+                if (price != null) {
+                    return BigDecimal.valueOf(price);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Failed to fetch market price for {}: {}", code, e.getMessage());
+        }
+        return null;
+    }
+
+    @GetMapping(ApiEndpoints.SHORT_TERM_TRACKED_STOCKS_STATS_PATH)
+    public Map<String, TrackedStockStatsDTO> getShortTermTrackedStockStats(@AuthenticationPrincipal User currentUser) {
+        // Use the same stats service, but filter by short-term tracked stocks
+        List<ShortTermTrackedStock> stocks = shortTermTrackedStockRepository.findAllByUserIdAndActiveTrue(currentUser.getId());
+        List<String> codes = stocks.stream().map(ShortTermTrackedStock::getCode).collect(Collectors.toList());
+        return trackedStockStatsService.getStatsForCodes(codes);
+    }
+
+    @PostMapping("/refresh-market-price")
+    public ResponseEntity<?> refreshMarketPrice(@AuthenticationPrincipal User currentUser) {
+        try {
+            List<ShortTermTrackedStock> stocks = shortTermTrackedStockRepository.findAllByUserId(currentUser.getId());
+            
+            List<ShortTermTrackedStockWithMarketPriceDTO> result = stocks.stream()
+                    .map(stock -> {
+                        BigDecimal marketPrice = getMarketPrice(stock.getCode());
+                        return ShortTermTrackedStockWithMarketPriceDTO.fromShortTermTrackedStock(stock, marketPrice);
+                    })
+                    .collect(Collectors.toList());
+            
+            int successCount = (int) result.stream()
+                    .filter(dto -> dto.getMarketPrice() != null)
+                    .count();
+            
+            return ResponseEntity.ok(new RefreshMarketPriceResponse(
+                    "Market prices refreshed successfully",
+                    successCount,
+                    result.size() - successCount,
+                    result
+            ));
+        } catch (Exception e) {
+            log.error("Failed to refresh market prices", e);
+            return ResponseEntity.status(500).body("Failed to refresh market prices: " + e.getMessage());
+        }
+    }
+    
+    @Data
+    static class RefreshMarketPriceResponse {
+        private String message;
+        private int successCount;
+        private int failedCount;
+        private List<ShortTermTrackedStockWithMarketPriceDTO> stocks;
+        
+        public RefreshMarketPriceResponse(String message, int successCount, int failedCount, List<ShortTermTrackedStockWithMarketPriceDTO> stocks) {
+            this.message = message;
+            this.successCount = successCount;
+            this.failedCount = failedCount;
+            this.stocks = stocks;
+        }
+    }
+
+    @PostMapping
+    public ResponseEntity<?> addShortTermTrackedStock(
+            @RequestBody AddShortTermTrackedStockRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        
+        // Check if already exists
+        if (shortTermTrackedStockRepository.existsByUserIdAndCode(currentUser.getId(), request.getCode().toUpperCase())) {
+            return ResponseEntity.badRequest().body("Stock already tracked");
+        }
+
+        ShortTermTrackedStock trackedStock = ShortTermTrackedStock.builder()
+                .user(currentUser)
+                .code(request.getCode().toUpperCase())
+                .active(true)
+                .costBasis(request.getCostBasis())
+                .volume(request.getVolume())
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        ShortTermTrackedStock saved = shortTermTrackedStockRepository.save(trackedStock);
+        return ResponseEntity.ok(saved);
+    }
+
+    @DeleteMapping(ApiEndpoints.SHORT_TERM_TRACKED_STOCKS_BY_ID_PATH)
+    public ResponseEntity<?> deleteShortTermTrackedStock(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser) {
+        
+        ShortTermTrackedStock stock = shortTermTrackedStockRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Short-term tracked stock not found"));
+
+        // Verify ownership
+        if (!stock.getUser().getId().equals(currentUser.getId())) {
+            return ResponseEntity.status(403).body("Access denied");
+        }
+
+        shortTermTrackedStockRepository.delete(stock);
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping(ApiEndpoints.SHORT_TERM_TRACKED_STOCKS_TOGGLE_PATH)
+    public ResponseEntity<?> toggleShortTermTrackedStock(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser) {
+        
+        ShortTermTrackedStock stock = shortTermTrackedStockRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Short-term tracked stock not found"));
+
+        // Verify ownership
+        if (!stock.getUser().getId().equals(currentUser.getId())) {
+            return ResponseEntity.status(403).body("Access denied");
+        }
+
+        stock.setActive(!stock.getActive());
+        ShortTermTrackedStock updated = shortTermTrackedStockRepository.save(stock);
+        return ResponseEntity.ok(updated);
+    }
+
+    @PutMapping(ApiEndpoints.SHORT_TERM_TRACKED_STOCKS_BY_ID_PATH)
+    public ResponseEntity<?> updateShortTermTrackedStock(
+            @PathVariable Long id,
+            @RequestBody UpdateShortTermTrackedStockRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        
+        ShortTermTrackedStock stock = shortTermTrackedStockRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Short-term tracked stock not found"));
+
+        // Verify ownership
+        if (!stock.getUser().getId().equals(currentUser.getId())) {
+            return ResponseEntity.status(403).body("Access denied");
+        }
+
+        // Update fields if provided
+        if (request.getCode() != null) {
+            // Check if new code already exists (if changing code)
+            if (!stock.getCode().equals(request.getCode().toUpperCase())) {
+                if (shortTermTrackedStockRepository.existsByUserIdAndCode(currentUser.getId(), request.getCode().toUpperCase())) {
+                    return ResponseEntity.badRequest().body("Stock code already tracked");
+                }
+                stock.setCode(request.getCode().toUpperCase());
+            }
+        }
+        if (request.getActive() != null) {
+            stock.setActive(request.getActive());
+        }
+        // Update costBasis - if sent as null in request, it will clear the value
+        stock.setCostBasis(request.getCostBasis());
+        // Update volume - if sent as null in request, it will clear the value
+        stock.setVolume(request.getVolume());
+
+        ShortTermTrackedStock updated = shortTermTrackedStockRepository.save(stock);
+        return ResponseEntity.ok(updated);
+    }
+
+    @Data
+    static class AddShortTermTrackedStockRequest {
+        private String code;
+        private BigDecimal costBasis;
+        private Long volume;
+    }
+
+    @Data
+    static class UpdateShortTermTrackedStockRequest {
+        private String code;
+        private Boolean active;
+        private BigDecimal costBasis;
+        private Long volume;
+    }
+}
+

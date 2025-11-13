@@ -85,20 +85,16 @@ interface TrackedStock {
 
 type SortField = "code" | "buyLowPrice" | "buyHighPrice" | "buyMaxVolume" | "sellLowPrice" | "sellHighPrice" | "sellMaxVolume";
 
-const TrackedStocks = () => {
+const ShortTermPortfolio = () => {
   const [stockInput, setStockInput] = useState("");
   const [trackedStocks, setTrackedStocks] = useState<TrackedStock[]>([]);
-  const [shortTermStocks, setShortTermStocks] = useState<TrackedStock[]>([]);
   const [vn30Codes, setVn30Codes] = useState<string[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [loadingVn30, setLoadingVn30] = useState(true);
   const [loadingStocks, setLoadingStocks] = useState(true);
-  const [loadingShortTermStocks, setLoadingShortTermStocks] = useState(true);
   const [customCodesModalOpen, setCustomCodesModalOpen] = useState(false);
   const [costBasisDialogOpen, setCostBasisDialogOpen] = useState(false);
   const [costBasisValues, setCostBasisValues] = useState<Record<string, string>>({});
-  const [shortTermCostBasisDialogOpen, setShortTermCostBasisDialogOpen] = useState(false);
-  const [shortTermCostBasisValues, setShortTermCostBasisValues] = useState<Record<string, string>>({});
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingStock, setEditingStock] = useState<TrackedStock | null>(null);
   const [editCode, setEditCode] = useState("");
@@ -108,17 +104,6 @@ const TrackedStocks = () => {
   // Volume state for profit calculation - will be synced with backend
   const [volumeValues, setVolumeValues] = useState<Record<string, string>>({});
   const [savingVolume, setSavingVolume] = useState<Record<string, boolean>>({});
-  
-  // Short-term portfolio state
-  const [shortTermVolumeValues, setShortTermVolumeValues] = useState<Record<string, string>>({});
-  const [savingShortTermVolume, setSavingShortTermVolume] = useState<Record<string, boolean>>({});
-  const [shortTermEditDialogOpen, setShortTermEditDialogOpen] = useState(false);
-  const [editingShortTermStock, setEditingShortTermStock] = useState<TrackedStock | null>(null);
-  const [shortTermPage, setShortTermPage] = useState(0);
-  const [shortTermSize, setShortTermSize] = useState(10);
-  const [shortTermSortField, setShortTermSortField] = useState<SortField>("code");
-  const [shortTermSortDirection, setShortTermSortDirection] = useState<"asc" | "desc">("asc");
-  const [refreshingShortTermMarketPrice, setRefreshingShortTermMarketPrice] = useState(false);
   
   // Room bar statistics state
   const [selectedStockCode, setSelectedStockCode] = useState<string | null>(null);
@@ -148,11 +133,11 @@ const TrackedStocks = () => {
   // Refresh market price state
   const [refreshingMarketPrice, setRefreshingMarketPrice] = useState(false);
 
-  // Function to load tracked stocks and stats
+  // Function to load Short-Term Portfolio and stats
   const loadTrackedStocks = async () => {
     try {
       setLoadingStocks(true);
-      const stocksResponse = await api.get("/api/tracked-stocks");
+      const stocksResponse = await api.get("/api/short-term-tracked-stocks");
       if (!stocksResponse.ok) throw new Error("Failed to load stocks");
       const stocksData: TrackedStock[] = await stocksResponse.json();
       setTrackedStocks(stocksData);
@@ -166,11 +151,11 @@ const TrackedStocks = () => {
       });
       setVolumeValues(volumeMap);
       
-      // Load stats for tracked stocks
-      const statsResponse = await api.get("/api/tracked-stocks/stats");
+      // Load stats for Short-Term Portfolio
+      const statsResponse = await api.get("/api/short-term-tracked-stocks/stats");
       if (statsResponse.ok) {
         const statsData: Record<string, TrackedStockStats> = await statsResponse.json();
-        // Merge stats with tracked stocks
+        // Merge stats with Short-Term Portfolio
         setTrackedStocks((prev) => 
           prev.map((stock) => ({
             ...stock,
@@ -179,7 +164,7 @@ const TrackedStocks = () => {
         );
       }
     } catch (error) {
-      toast.error("Failed to load tracked stocks");
+      toast.error("Failed to load Short-Term Portfolio");
     } finally {
       setLoadingStocks(false);
     }
@@ -206,7 +191,7 @@ const TrackedStocks = () => {
     
     try {
       // Always send both volume and costBasis to prevent backend from clearing the other field
-      const response = await api.put(`/api/tracked-stocks/${stockId}`, {
+      const response = await api.put(`/api/short-term-tracked-stocks/${stockId}`, {
         volume: volumeNum,
         costBasis: stock.costBasis || null, // Preserve existing costBasis
       });
@@ -215,7 +200,7 @@ const TrackedStocks = () => {
         throw new Error("Failed to save volume");
       }
       
-      // Update tracked stocks with new volume
+      // Update Short-Term Portfolio with new volume
       setTrackedStocks(prev => 
         prev.map(stock => 
           stock.id === stockId 
@@ -249,7 +234,7 @@ const TrackedStocks = () => {
     try {
       setRefreshingMarketPrice(true);
       
-      const response = await api.post('/api/tracked-stocks/refresh-market-price');
+      const response = await api.post('/api/short-term-tracked-stocks/refresh-market-price');
       
       if (!response.ok) {
         throw new Error('Failed to refresh market prices');
@@ -257,7 +242,7 @@ const TrackedStocks = () => {
       
       const data = await response.json();
       
-      // Update tracked stocks with new market prices
+      // Update Short-Term Portfolio with new market prices
       if (data.stocks && Array.isArray(data.stocks)) {
         setTrackedStocks((prev) => 
           prev.map((stock) => {
@@ -317,46 +302,8 @@ const TrackedStocks = () => {
     }
   };
 
-  // Function to load short-term tracked stocks and stats
-  const loadShortTermTrackedStocks = async () => {
-    try {
-      setLoadingShortTermStocks(true);
-      const stocksResponse = await api.get("/api/short-term-tracked-stocks");
-      if (!stocksResponse.ok) throw new Error("Failed to load short-term stocks");
-      const stocksData: TrackedStock[] = await stocksResponse.json();
-      setShortTermStocks(stocksData);
-      
-      // Initialize volume values from backend data
-      const volumeMap: Record<string, string> = {};
-      stocksData.forEach(stock => {
-        if (stock.volume !== undefined && stock.volume !== null) {
-          volumeMap[stock.code] = stock.volume.toString();
-        }
-      });
-      setShortTermVolumeValues(volumeMap);
-      
-      // Load stats for short-term tracked stocks
-      const statsResponse = await api.get("/api/short-term-tracked-stocks/stats");
-      if (statsResponse.ok) {
-        const statsData: Record<string, TrackedStockStats> = await statsResponse.json();
-        // Merge stats with tracked stocks
-        setShortTermStocks((prev) => 
-          prev.map((stock) => ({
-            ...stock,
-            stats: statsData[stock.code],
-          }))
-        );
-      }
-    } catch (error) {
-      toast.error("Failed to load short-term tracked stocks");
-    } finally {
-      setLoadingShortTermStocks(false);
-    }
-  };
-
   useEffect(() => {
     loadTrackedStocks();
-    loadShortTermTrackedStocks();
     
     // Load VN30 codes - using hardcoded list
     setLoadingVn30(true);
@@ -374,12 +321,6 @@ const TrackedStocks = () => {
   useEffect(() => {
     if (statsMap.size > 0) {
       setTrackedStocks((prev) =>
-        prev.map((stock) => {
-          const stats = statsMap.get(stock.code);
-          return stats ? { ...stock, stats } : stock;
-        })
-      );
-      setShortTermStocks((prev) =>
         prev.map((stock) => {
           const stats = statsMap.get(stock.code);
           return stats ? { ...stock, stats } : stock;
@@ -416,22 +357,6 @@ const TrackedStocks = () => {
     setCostBasisDialogOpen(true);
   };
 
-  const handleSaveSelectedCodesToShortTerm = () => {
-    if (selectedCodes.size === 0) {
-      toast.error("Please select at least one stock code");
-      return;
-    }
-
-    // Initialize cost basis values for selected codes
-    const codes = Array.from(selectedCodes);
-    const initialValues: Record<string, string> = {};
-    codes.forEach(code => {
-      initialValues[code] = "";
-    });
-    setShortTermCostBasisValues(initialValues);
-    setShortTermCostBasisDialogOpen(true);
-  };
-
   const handleSaveWithCostBasis = async () => {
     const codes = Array.from(selectedCodes);
     let successCount = 0;
@@ -452,7 +377,7 @@ const TrackedStocks = () => {
           requestBody.costBasis = costBasis;
         }
 
-        const response = await api.post("/api/tracked-stocks", requestBody);
+        const response = await api.post("/api/short-term-tracked-stocks", requestBody);
         if (response.ok) {
           successCount++;
         }
@@ -470,44 +395,6 @@ const TrackedStocks = () => {
     }
   };
 
-  const handleSaveShortTermWithCostBasis = async () => {
-    const codes = Array.from(selectedCodes);
-    let successCount = 0;
-    
-    try {
-      // Add stocks one by one with cost basis to short-term portfolio
-      for (const code of codes) {
-        const costBasisValue = shortTermCostBasisValues[code]?.trim();
-        const costBasis = costBasisValue ? parseFloat(costBasisValue) : undefined;
-        
-        if (costBasis !== undefined && (isNaN(costBasis) || costBasis < 0)) {
-          toast.error(`Invalid cost basis for ${code}. Please enter a valid positive number.`);
-          continue;
-        }
-
-        const requestBody: { code: string; costBasis?: number } = { code };
-        if (costBasis !== undefined && !isNaN(costBasis)) {
-          requestBody.costBasis = costBasis;
-        }
-
-        const response = await api.post("/api/short-term-tracked-stocks", requestBody);
-        if (response.ok) {
-          successCount++;
-        }
-      }
-      
-      setSelectedCodes(new Set());
-      setShortTermCostBasisValues({});
-      setShortTermCostBasisDialogOpen(false);
-      toast.success(`Added ${successCount} stock code(s) to short-term portfolio`);
-      
-      // Refresh the list
-      await loadShortTermTrackedStocks();
-    } catch (error) {
-      toast.error("Failed to add some codes");
-    }
-  };
-
   const handleSaveCodes = async () => {
     const codes = stockInput
       .split(/[\s\n,]+/)
@@ -520,7 +407,7 @@ const TrackedStocks = () => {
     try {
       // Add stocks one by one
       for (const code of codes) {
-        const response = await api.post("/api/tracked-stocks", { code });
+        const response = await api.post("/api/short-term-tracked-stocks", { code });
         if (response.ok) {
           successCount++;
         }
@@ -546,7 +433,7 @@ const TrackedStocks = () => {
     setTrackedStocks(prev => prev.map(s => s.id === id ? { ...s, active: nextActive } : s));
     
     try {
-      const response = await api.put(`/api/tracked-stocks/${id}/toggle`);
+      const response = await api.put(`/api/short-term-tracked-stocks/${id}/toggle`);
       if (!response.ok) throw new Error("Failed");
     } catch (error) {
       // Revert on failure
@@ -588,7 +475,7 @@ const TrackedStocks = () => {
       // Always send volume to preserve it when updating costBasis
       requestBody.volume = editingStock.volume || null;
 
-      const response = await api.put(`/api/tracked-stocks/${editingStock.id}`, requestBody);
+      const response = await api.put(`/api/short-term-tracked-stocks/${editingStock.id}`, requestBody);
       if (!response.ok) throw new Error("Failed");
 
       toast.success(`Updated ${editCode}`);
@@ -605,206 +492,15 @@ const TrackedStocks = () => {
 
   const handleDelete = async (id: number, code: string) => {
     try {
-      const response = await api.delete(`/api/tracked-stocks/${id}`);
+      const response = await api.delete(`/api/short-term-tracked-stocks/${id}`);
       if (!response.ok) throw new Error("Failed");
       
-      toast.success(`Deleted ${code} from tracked stocks`);
+      toast.success(`Deleted ${code} from Short-Term Portfolio`);
       // Remove from local state
       setTrackedStocks(prev => prev.filter(s => s.id !== id));
     } catch (error) {
       toast.error(`Failed to delete ${code}`);
     }
-  };
-
-  // Short-term portfolio functions
-  const saveShortTermVolume = async (stockId: number, code: string, volume: string) => {
-    const volumeNum = volume.trim() === "" ? null : parseInt(volume, 10);
-    
-    // Validate volume
-    if (volumeNum !== null && (isNaN(volumeNum) || volumeNum < 0)) {
-      toast.error(`Invalid volume for ${code}`);
-      return;
-    }
-
-    // Find the stock to preserve costBasis
-    const stock = shortTermStocks.find(s => s.id === stockId);
-    if (!stock) {
-      toast.error(`Stock not found for ${code}`);
-      return;
-    }
-
-    setSavingShortTermVolume(prev => ({ ...prev, [code]: true }));
-    
-    try {
-      // Always send both volume and costBasis to prevent backend from clearing the other field
-      const response = await api.put(`/api/short-term-tracked-stocks/${stockId}`, {
-        volume: volumeNum,
-        costBasis: stock.costBasis || null, // Preserve existing costBasis
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to save volume");
-      }
-      
-      // Update short-term stocks with new volume
-      setShortTermStocks(prev => 
-        prev.map(stock => 
-          stock.id === stockId 
-            ? { ...stock, volume: volumeNum || undefined }
-            : stock
-        )
-      );
-    } catch (error) {
-      console.error("Error saving volume:", error);
-      toast.error(`Failed to save volume for ${code}`);
-      // Revert volume value on error
-      if (stock && stock.volume !== undefined) {
-        setShortTermVolumeValues(prev => ({
-          ...prev,
-          [code]: stock.volume!.toString()
-        }));
-      } else {
-        setShortTermVolumeValues(prev => {
-          const newValues = { ...prev };
-          delete newValues[code];
-          return newValues;
-        });
-      }
-    } finally {
-      setSavingShortTermVolume(prev => ({ ...prev, [code]: false }));
-    }
-  };
-
-  const handleShortTermRefreshMarketPrice = async () => {
-    try {
-      setRefreshingShortTermMarketPrice(true);
-      
-      const response = await api.post('/api/short-term-tracked-stocks/refresh-market-price');
-      
-      if (!response.ok) {
-        throw new Error('Failed to refresh market prices');
-      }
-      
-      const data = await response.json();
-      
-      // Update short-term stocks with new market prices
-      if (data.stocks && Array.isArray(data.stocks)) {
-        setShortTermStocks((prev) => 
-          prev.map((stock) => {
-            const updated = data.stocks.find((s: TrackedStock) => s.id === stock.id);
-            return updated ? {
-              ...stock,
-              marketPrice: updated.marketPrice,
-              priceChangePercent: updated.priceChangePercent
-            } : stock;
-          })
-        );
-      }
-      
-      toast.success(
-        `Market prices refreshed: ${data.successCount} successful, ${data.failedCount} failed`
-      );
-    } catch (error: any) {
-      console.error('Error refreshing market prices:', error);
-      toast.error(error?.message || 'Failed to refresh market prices');
-    } finally {
-      setRefreshingShortTermMarketPrice(false);
-    }
-  };
-
-  const toggleShortTermActive = async (id: number) => {
-    const current = shortTermStocks.find(s => s.id === id);
-    if (!current) return;
-    const nextActive = !current.active;
-    
-    // Optimistic update
-    setShortTermStocks(prev => prev.map(s => s.id === id ? { ...s, active: nextActive } : s));
-    
-    try {
-      const response = await api.put(`/api/short-term-tracked-stocks/${id}/toggle`);
-      if (!response.ok) throw new Error("Failed");
-    } catch (error) {
-      // Revert on failure
-      setShortTermStocks(prev => prev.map(s => s.id === id ? { ...s, active: !nextActive } : s));
-      toast.error(`Failed to update ${current.code}`);
-    }
-  };
-
-  const handleShortTermEdit = (stock: TrackedStock) => {
-    setEditingShortTermStock(stock);
-    setEditCode(stock.code);
-    setEditActive(stock.active);
-    setEditCostBasis(stock.costBasis?.toString() || "");
-    setShortTermEditDialogOpen(true);
-  };
-
-  const handleShortTermUpdateStock = async () => {
-    if (!editingShortTermStock) return;
-
-    const costBasisValue = editCostBasis.trim();
-    let costBasis: number | undefined = undefined;
-    if (costBasisValue) {
-      const parsed = parseFloat(costBasisValue);
-      if (isNaN(parsed) || parsed < 0) {
-        toast.error("Invalid cost basis. Please enter a valid positive number.");
-        return;
-      }
-      costBasis = parsed;
-    }
-
-    try {
-      const requestBody: { code?: string; active?: boolean; costBasis?: number | null; volume?: number | null } = {};
-      if (editCode !== editingShortTermStock.code) {
-        requestBody.code = editCode.toUpperCase();
-      }
-      requestBody.active = editActive;
-      // Always send costBasis - null to clear, number to set value
-      requestBody.costBasis = costBasisValue.trim() !== "" && costBasis !== undefined ? costBasis : null;
-      // Always send volume to preserve it when updating costBasis
-      requestBody.volume = editingShortTermStock.volume || null;
-
-      const response = await api.put(`/api/short-term-tracked-stocks/${editingShortTermStock.id}`, requestBody);
-      if (!response.ok) throw new Error("Failed");
-
-      toast.success(`Updated ${editCode}`);
-      setShortTermEditDialogOpen(false);
-      setEditingShortTermStock(null);
-      
-      // Refresh the list
-      await loadShortTermTrackedStocks();
-    } catch (error: any) {
-      const errorMessage = error?.response?.data || error?.message || "Failed to update stock";
-      toast.error(errorMessage);
-    }
-  };
-
-  const handleShortTermDelete = async (id: number, code: string) => {
-    try {
-      const response = await api.delete(`/api/short-term-tracked-stocks/${id}`);
-      if (!response.ok) throw new Error("Failed");
-      
-      toast.success(`Deleted ${code} from short-term portfolio`);
-      // Remove from local state
-      setShortTermStocks(prev => prev.filter(s => s.id !== id));
-    } catch (error) {
-      toast.error(`Failed to delete ${code}`);
-    }
-  };
-
-  const handleShortTermSort = (field: SortField) => {
-    let newDirection: "asc" | "desc" = "asc";
-    
-    if (shortTermSortField === field) {
-      // Toggle direction if same field
-      newDirection = shortTermSortDirection === "asc" ? "desc" : "asc";
-    } else {
-      // New field, default to ascending
-      newDirection = "asc";
-    }
-    
-    setShortTermSortField(field);
-    setShortTermSortDirection(newDirection);
-    setShortTermPage(0); // Reset to first page when sorting changes
   };
 
   // Handle stock click to show roombar statistics
@@ -929,69 +625,6 @@ const TrackedStocks = () => {
     };
   }, [trackedStocks, sortField, sortDirection, page, size]);
 
-  // Sort and paginate short-term data
-  const sortedAndPaginatedShortTermStocks = useMemo(() => {
-    let sorted = [...shortTermStocks];
-
-    if (shortTermSortField) {
-      sorted.sort((a, b) => {
-        // Handle code sorting (string comparison)
-        if (shortTermSortField === "code") {
-          const comparison = a.code.localeCompare(b.code);
-          return shortTermSortDirection === "asc" ? comparison : -comparison;
-        }
-
-        // Handle numeric sorting for other fields
-        let aValue: number | null = null;
-        let bValue: number | null = null;
-
-        switch (shortTermSortField) {
-          case "buyLowPrice":
-            aValue = formatPrice(a.stats?.lowestPriceBuy);
-            bValue = formatPrice(b.stats?.lowestPriceBuy);
-            break;
-          case "buyHighPrice":
-            aValue = formatPrice(a.stats?.highestPriceBuy);
-            bValue = formatPrice(b.stats?.highestPriceBuy);
-            break;
-          case "buyMaxVolume":
-            aValue = formatNumber(a.stats?.largestVolumeBuy);
-            bValue = formatNumber(b.stats?.largestVolumeBuy);
-            break;
-          case "sellLowPrice":
-            aValue = formatPrice(a.stats?.lowestPriceSell);
-            bValue = formatPrice(b.stats?.lowestPriceSell);
-            break;
-          case "sellHighPrice":
-            aValue = formatPrice(a.stats?.highestPriceSell);
-            bValue = formatPrice(b.stats?.highestPriceSell);
-            break;
-          case "sellMaxVolume":
-            aValue = formatNumber(a.stats?.largestVolumeSell);
-            bValue = formatNumber(b.stats?.largestVolumeSell);
-            break;
-        }
-
-        // Handle null values (put them at the end)
-        if (aValue === null && bValue === null) return 0;
-        if (aValue === null) return 1;
-        if (bValue === null) return -1;
-
-        const comparison = aValue - bValue;
-        return shortTermSortDirection === "asc" ? comparison : -comparison;
-      });
-    }
-
-    // Apply pagination
-    const startIndex = shortTermPage * shortTermSize;
-    const endIndex = startIndex + shortTermSize;
-    return {
-      data: sorted.slice(startIndex, endIndex),
-      total: sorted.length,
-      totalPages: Math.ceil(sorted.length / shortTermSize),
-    };
-  }, [shortTermStocks, shortTermSortField, shortTermSortDirection, shortTermPage, shortTermSize]);
-
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background">
@@ -1000,7 +633,7 @@ const TrackedStocks = () => {
         <main className="container mx-auto px-4 py-8">
           {/* Header */}
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-2xl font-bold">Tracked Stocks</h2>
+            <h2 className="text-2xl font-bold">Short-Term Portfolio</h2>
             
             <div className="flex items-center gap-3">
               <Button
@@ -1049,21 +682,12 @@ const TrackedStocks = () => {
               )}
             </div>
             <div className="flex gap-2 justify-between items-center">
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handleSaveSelectedCodes}
-                  disabled={selectedCodes.size === 0}
-                >
-                  Save to Tracked Stocks
-                </Button>
-                <Button 
-                  onClick={handleSaveSelectedCodesToShortTerm}
-                  disabled={selectedCodes.size === 0}
-                  variant="outline"
-                >
-                  Save to Short-Term Portfolio
-                </Button>
-              </div>
+              <Button 
+                onClick={handleSaveSelectedCodes}
+                disabled={selectedCodes.size === 0}
+              >
+                Save Selected Codes
+              </Button>
               
               <Dialog open={customCodesModalOpen} onOpenChange={setCustomCodesModalOpen}>
                 <DialogTrigger asChild>
@@ -1139,50 +763,6 @@ const TrackedStocks = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Short-Term Cost Basis Input Dialog */}
-        <Dialog open={shortTermCostBasisDialogOpen} onOpenChange={setShortTermCostBasisDialogOpen}>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>Enter Cost Basis for Short-Term Portfolio</DialogTitle>
-              <DialogDescription>
-                Enter the cost basis (purchase price) for each stock. Leave empty if not applicable.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4 max-h-[400px] overflow-y-auto">
-              {Array.from(selectedCodes).map((code) => (
-                <div key={code} className="flex items-center gap-4">
-                  <label className="text-sm font-medium w-20">{code}</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Cost basis (optional)"
-                    value={shortTermCostBasisValues[code] || ""}
-                    onChange={(e) => {
-                      setShortTermCostBasisValues(prev => ({
-                        ...prev,
-                        [code]: e.target.value
-                      }));
-                    }}
-                    className="flex-1"
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => {
-                setShortTermCostBasisDialogOpen(false);
-                setShortTermCostBasisValues({});
-              }}>
-                Cancel
-              </Button>
-              <Button onClick={handleSaveShortTermWithCostBasis}>
-                Save
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
         {/* Edit Tracked Stock Dialog */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
@@ -1231,60 +811,6 @@ const TrackedStocks = () => {
                 Cancel
               </Button>
               <Button onClick={handleUpdateStock}>
-                Save Changes
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Edit Short-Term Stock Dialog */}
-        <Dialog open={shortTermEditDialogOpen} onOpenChange={setShortTermEditDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Edit Short-Term Stock</DialogTitle>
-              <DialogDescription>
-                Update the stock code, active status, and cost basis.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div>
-                <label className="text-sm font-medium mb-1 block">Stock Code</label>
-                <Input
-                  value={editCode}
-                  onChange={(e) => setEditCode(e.target.value.toUpperCase())}
-                  placeholder="Stock code"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">Cost Basis</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editCostBasis}
-                  onChange={(e) => setEditCostBasis(e.target.value)}
-                  placeholder="Cost basis (optional)"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={editActive}
-                  onCheckedChange={(checked) => setEditActive(checked === true)}
-                  id="edit-short-term-active"
-                />
-                <label htmlFor="edit-short-term-active" className="text-sm font-medium cursor-pointer">
-                  Active
-                </label>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => {
-                setShortTermEditDialogOpen(false);
-                setEditingShortTermStock(null);
-              }}>
-                Cancel
-              </Button>
-              <Button onClick={handleShortTermUpdateStock}>
                 Save Changes
               </Button>
             </div>
@@ -1689,9 +1215,9 @@ const TrackedStocks = () => {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Tracked Stock</AlertDialogTitle>
+                                <AlertDialogTitle>Delete Short-Term Stock</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Are you sure you want to remove <strong>{stock.code}</strong> from tracked stocks?
+                                  Are you sure you want to remove <strong>{stock.code}</strong> from Short-Term Portfolio?
                                   This action cannot be undone.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
@@ -1714,7 +1240,7 @@ const TrackedStocks = () => {
                 <TableRow>
                   <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     {trackedStocks.length === 0 
-                      ? "No tracked stocks yet. Add some codes above to get started."
+                      ? "No Short-Term Portfolio yet. Add some codes above to get started."
                       : "No results on this page."
                     }
                   </TableCell>
@@ -1801,519 +1327,6 @@ const TrackedStocks = () => {
             </div>
           </div>
         )}
-
-        {/* Short-Term Portfolio Section */}
-        <div className="mt-12 pt-8 border-t">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-2xl font-bold">Short-Term Portfolio</h2>
-            
-            <Button
-              variant="outline"
-              onClick={handleShortTermRefreshMarketPrice}
-              disabled={refreshingShortTermMarketPrice || loadingShortTermStocks}
-              className="border-2"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshingShortTermMarketPrice ? 'animate-spin' : ''}`} />
-              Refresh Market Price
-            </Button>
-          </div>
-
-          <div className="rounded-lg border bg-card overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("code")}
-                    >
-                      Stock
-                      {shortTermSortField === "code" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead>Cost Basis</TableHead>
-                  <TableHead className="text-center">Market Price</TableHead>
-                  <TableHead className="text-center w-32">Volume / Profit</TableHead>
-                  <TableHead className="text-center bg-green-50 w-28">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("buyLowPrice")}
-                    >
-                      Low Price
-                      {shortTermSortField === "buyLowPrice" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-center bg-green-50 w-28">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("buyHighPrice")}
-                    >
-                      High Price
-                      {shortTermSortField === "buyHighPrice" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-center bg-green-50 border-r-2 border-gray-300 w-28">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("buyMaxVolume")}
-                    >
-                      Max Volume
-                      {shortTermSortField === "buyMaxVolume" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-center bg-red-50 w-28">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("sellLowPrice")}
-                    >
-                      Low Price
-                      {shortTermSortField === "sellLowPrice" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-center bg-red-50 w-28">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("sellHighPrice")}
-                    >
-                      High Price
-                      {shortTermSortField === "sellHighPrice" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-center bg-red-50 w-28">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => handleShortTermSort("sellMaxVolume")}
-                    >
-                      Max Volume
-                      {shortTermSortField === "sellMaxVolume" ? (
-                        shortTermSortDirection === "asc" ? (
-                          <ArrowUp className="ml-2 h-4 w-4" />
-                        ) : (
-                          <ArrowDown className="ml-2 h-4 w-4" />
-                        )
-                      ) : (
-                        <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                      )}
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loadingShortTermStocks ? (
-                  // Loading skeleton rows
-                  Array.from({ length: shortTermSize }).map((_, index) => (
-                    <TableRow key={`skeleton-short-${index}`}>
-                      <TableCell>
-                        <Skeleton className="h-5 w-16" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-4 w-20" />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex flex-col items-center gap-1">
-                          <Skeleton className="h-4 w-16" />
-                          <Skeleton className="h-3 w-14" />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex flex-col items-center gap-2">
-                          <Skeleton className="h-8 w-24" />
-                          <Skeleton className="h-3 w-20" />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center bg-green-50/30 w-28">
-                        <div className="flex flex-col items-center gap-1">
-                          <Skeleton className="h-4 w-16" />
-                          <Skeleton className="h-3 w-14" />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center bg-green-50/30 w-28">
-                        <div className="flex flex-col items-center gap-1">
-                          <Skeleton className="h-4 w-16" />
-                          <Skeleton className="h-3 w-14" />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center bg-green-50/30 border-r-2 border-gray-300 w-28">
-                        <Skeleton className="h-4 w-16 mx-auto" />
-                      </TableCell>
-                      <TableCell className="text-center bg-red-50/30 w-28">
-                        <div className="flex flex-col items-center gap-1">
-                          <Skeleton className="h-4 w-16" />
-                          <Skeleton className="h-3 w-14" />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center bg-red-50/30 w-28">
-                        <div className="flex flex-col items-center gap-1">
-                          <Skeleton className="h-4 w-16" />
-                          <Skeleton className="h-3 w-14" />
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center bg-red-50/30 w-28">
-                        <Skeleton className="h-4 w-16 mx-auto" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end">
-                          <Skeleton className="h-8 w-8" />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  sortedAndPaginatedShortTermStocks.data.map((stock) => {
-                    const stats = stock.stats;
-                    const formatNumber = (value?: number) => {
-                      if (value === null || value === undefined) return "N/A";
-                      return Math.round(value).toLocaleString('de-DE');
-                    };
-                    const formatPrice = (value?: number) => {
-                      if (value === null || value === undefined) return "N/A";
-                      return Math.round(value).toLocaleString('de-DE');
-                    };
-
-                    const buyLowPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.lowestPriceBuy);
-                    const buyHighPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.highestPriceBuy);
-                    const sellLowPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.lowestPriceSell);
-                    const sellHighPriceDiff = calculatePercentageDiff(stock.costBasis, stats?.highestPriceSell);
-
-                    return (
-                      <TableRow key={stock.code}>
-                        <TableCell className="font-semibold text-lg">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => handleStockClick(stock.code)}
-                                className="hover:underline cursor-pointer text-primary font-semibold"
-                              >
-                                {stock.code}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Click to view {stock.code} 10 days stats</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TableCell>
-                        <TableCell>
-                          {stock.costBasis ? (
-                            <span className="text-sm font-medium">{formatPrice(stock.costBasis)}</span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">N/A</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex flex-col items-center gap-1">
-                            {stock.marketPrice ? (
-                              <>
-                                <span className="text-sm font-semibold">{formatPrice(stock.marketPrice)}</span>
-                                {stock.priceChangePercent !== undefined && stock.priceChangePercent !== null && (
-                                  <span className={`text-xs font-medium ${
-                                    stock.priceChangePercent >= 0 ? 'text-green-600' : 'text-red-600'
-                                  }`}>
-                                    {stock.priceChangePercent >= 0 ? '+' : ''}{stock.priceChangePercent.toFixed(2)}%
-                                  </span>
-                                )}
-                              </>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">N/A</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center w-32">
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="relative">
-                              <Input
-                                type="number"
-                                placeholder="Volume"
-                                value={shortTermVolumeValues[stock.code] || ""}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  setShortTermVolumeValues(prev => ({
-                                    ...prev,
-                                    [stock.code]: value
-                                  }));
-                                }}
-                                onBlur={() => {
-                                  const currentValue = shortTermVolumeValues[stock.code] || "";
-                                  const savedValue = stock.volume?.toString() || "";
-                                  if (currentValue !== savedValue) {
-                                    saveShortTermVolume(stock.id, stock.code, currentValue);
-                                  }
-                                }}
-                                className="w-24 h-8 text-sm text-center"
-                                min="0"
-                                step="1"
-                                disabled={savingShortTermVolume[stock.code]}
-                              />
-                              {savingShortTermVolume[stock.code] && (
-                                <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
-                              )}
-                            </div>
-                            {shortTermVolumeValues[stock.code] && stock.marketPrice && stock.costBasis && !isNaN(parseFloat(shortTermVolumeValues[stock.code])) && parseFloat(shortTermVolumeValues[stock.code]) > 0 && (
-                              <div className="text-xs">
-                                <span className="text-muted-foreground">Profit: </span>
-                                <span className={`font-semibold ${
-                                  (stock.marketPrice - stock.costBasis) * parseFloat(shortTermVolumeValues[stock.code]) >= 0 
-                                    ? 'text-green-600' 
-                                    : 'text-red-600'
-                                }`}>
-                                  {formatPrice((stock.marketPrice - stock.costBasis) * parseFloat(shortTermVolumeValues[stock.code]))}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center bg-green-50/30 w-28">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceBuy)}</span>
-                            {buyLowPriceDiff !== null && (
-                              <span className={`text-xs ${buyLowPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPercentage(buyLowPriceDiff)}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center bg-green-50/30 w-28">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-sm text-muted-foreground">{formatPrice(stats?.highestPriceBuy)}</span>
-                            {buyHighPriceDiff !== null && (
-                              <span className={`text-xs ${buyHighPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPercentage(buyHighPriceDiff)}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center bg-green-50/30 border-r-2 border-gray-300 w-28">
-                          <span className="text-sm font-medium text-green-600">{formatNumber(stats?.largestVolumeBuy)}</span>
-                        </TableCell>
-                        <TableCell className="text-center bg-red-50/30 w-28">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-sm text-muted-foreground">{formatPrice(stats?.lowestPriceSell)}</span>
-                            {sellLowPriceDiff !== null && (
-                              <span className={`text-xs ${sellLowPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPercentage(sellLowPriceDiff)}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center bg-red-50/30 w-28">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-sm text-muted-foreground">{formatPrice(stats?.highestPriceSell)}</span>
-                            {sellHighPriceDiff !== null && (
-                              <span className={`text-xs ${sellHighPriceDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPercentage(sellHighPriceDiff)}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center bg-red-50/30 w-28">
-                          <span className="text-sm font-medium text-red-600">{formatNumber(stats?.largestVolumeSell)}</span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreVertical className="h-4 w-4" />
-                                <span className="sr-only">Open menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => toggleShortTermActive(stock.id)}>
-                                <Check className={`mr-2 h-4 w-4 ${stock.active ? 'opacity-100' : 'opacity-0'}`} />
-                                {stock.active ? 'Deactivate' : 'Activate'}
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleShortTermEdit(stock)}>
-                                <Pencil className="mr-2 h-4 w-4" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <DropdownMenuItem
-                                    onSelect={(e) => e.preventDefault()}
-                                    className="text-red-600 focus:text-red-600"
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete Short-Term Stock</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Are you sure you want to remove <strong>{stock.code}</strong> from short-term portfolio?
-                                      This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleShortTermDelete(stock.id, stock.code)}>
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-                {!loadingShortTermStocks && sortedAndPaginatedShortTermStocks.data.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
-                      {shortTermStocks.length === 0 
-                        ? "No Short-Term Portfolio yet. Add some codes above to get started."
-                        : "No results on this page."
-                      }
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-              {/* Total Profit Row */}
-              {!loadingShortTermStocks && shortTermStocks.length > 0 && (() => {
-                const totalProfit = shortTermStocks.reduce((sum, stock) => {
-                  const volume = shortTermVolumeValues[stock.code];
-                  if (volume && stock.marketPrice && stock.costBasis && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
-                    return sum + (stock.marketPrice - stock.costBasis) * parseFloat(volume);
-                  }
-                  return sum;
-                }, 0);
-                
-                return (
-                  <tfoot>
-                    <TableRow className="bg-muted/50 font-semibold border-t-2">
-                      <TableCell colSpan={4} className="text-left">
-                        Total Profit:
-                      </TableCell>
-                      <TableCell className="text-left">
-                        <span className={`text-lg font-bold ${
-                          totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {formatPrice(totalProfit)}
-                        </span>
-                      </TableCell>
-                      <TableCell colSpan={6}></TableCell>
-                    </TableRow>
-                  </tfoot>
-                );
-              })()}
-            </Table>
-          </div>
-
-          {/* Pagination */}
-          {sortedAndPaginatedShortTermStocks.total > 0 && (
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-muted-foreground">
-                <div className="flex items-center gap-4">
-                  <span>Page size: <span className="font-semibold">{shortTermSize}</span></span>
-                  <span>•</span>
-                  <span>Current page: <span className="font-semibold">{shortTermPage + 1}</span></span>
-                  <span>•</span>
-                  <span>Total pages: <span className="font-semibold">{sortedAndPaginatedShortTermStocks.totalPages}</span></span>
-                  <span>•</span>
-                  <span>Total records: <span className="font-semibold">{sortedAndPaginatedShortTermStocks.total.toLocaleString()}</span></span>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Select value={String(shortTermSize)} onValueChange={(v) => { 
-                  const n = Number(v); 
-                  setShortTermSize(n); 
-                  setShortTermPage(0); 
-                }}>
-                  <SelectTrigger className="w-28">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10 / page</SelectItem>
-                    <SelectItem value="20">20 / page</SelectItem>
-                    <SelectItem value="50">50 / page</SelectItem>
-                    <SelectItem value="100">100 / page</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={shortTermPage <= 0} 
-                  onClick={() => setShortTermPage(shortTermPage - 1)}
-                >
-                  Prev
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={shortTermPage + 1 >= sortedAndPaginatedShortTermStocks.totalPages} 
-                  onClick={() => setShortTermPage(shortTermPage + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Real-time Signals Section */}
         <div className="mt-12 pt-8 border-t">
@@ -2505,4 +1518,4 @@ const TrackedStocks = () => {
   );
 };
 
-export default TrackedStocks;
+export default ShortTermPortfolio;

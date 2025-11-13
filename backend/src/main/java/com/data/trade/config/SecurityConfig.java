@@ -54,6 +54,9 @@ public class SecurityConfig {
                 // Tracked stocks - VIP and ADMIN only
                 .requestMatchers(ApiEndpoints.API_TRACKED_STOCKS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
                 
+                // Short-term tracked stocks - VIP and ADMIN only
+                .requestMatchers(ApiEndpoints.API_SHORT_TERM_TRACKED_STOCKS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
+                
                 // Suggestions - VIP and ADMIN only (if you have this endpoint)
                 .requestMatchers(ApiEndpoints.API_SUGGESTIONS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
                 

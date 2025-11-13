@@ -12,6 +12,7 @@ public class ApiEndpoints {
     public static final String API_ADMIN = "/api/admin";
     public static final String API_TRADES = "/api/trades";
     public static final String API_TRACKED_STOCKS = "/api/tracked-stocks";
+    public static final String API_SHORT_TERM_TRACKED_STOCKS = "/api/short-term-tracked-stocks";
     public static final String API_STOCKS = "/api/stocks";
     public static final String API_SUGGESTIONS = "/api/suggestions";
     public static final String API_SIGNALS = "/api/signals";
@@ -51,6 +52,11 @@ public class ApiEndpoints {
     public static final String TRACKED_STOCKS_BY_ID_PATH = "/{id}";
     public static final String TRACKED_STOCKS_TOGGLE_PATH = "/{id}/toggle";
     
+    // Short-term Tracked Stocks endpoint paths (relative to base /api/short-term-tracked-stocks)
+    public static final String SHORT_TERM_TRACKED_STOCKS_STATS_PATH = "/stats";
+    public static final String SHORT_TERM_TRACKED_STOCKS_BY_ID_PATH = "/{id}";
+    public static final String SHORT_TERM_TRACKED_STOCKS_TOGGLE_PATH = "/{id}/toggle";
+    
     // Stocks endpoint paths (relative to base /api/stocks)
     public static final String STOCKS_ROOMBARS_CODE_PATH = "/roombars/{code}";
     public static final String STOCKS_INTRADAY_PRICE_CODE_PATH = "/intraday-price/{code}";
@@ -78,6 +84,7 @@ public class ApiEndpoints {
     public static final String API_INTERNAL_PATTERN = "/api/internal/**";
     public static final String API_TRADES_PATTERN = "/api/trades/**";
     public static final String API_TRACKED_STOCKS_PATTERN = "/api/tracked-stocks/**";
+    public static final String API_SHORT_TERM_TRACKED_STOCKS_PATTERN = "/api/short-term-tracked-stocks/**";
     public static final String API_SUGGESTIONS_PATTERN = "/api/suggestions/**";
     public static final String API_SIGNALS_PATTERN = "/api/signals/**";
     public static final String API_ADMIN_PATTERN = "/api/admin/**";

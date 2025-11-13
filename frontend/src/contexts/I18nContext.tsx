@@ -38,6 +38,7 @@ const translations = {
     // Navigation
     'nav.trades': 'Giao dịch',
     'nav.trackedStocks': 'Cổ phiếu theo dõi',
+    'nav.shortTermPortfolio': 'Portfolio ngắn hạn',
     'nav.suggestions': 'Gợi ý',
     'nav.signals': 'Tín hiệu',
     'nav.userManagement': 'Quản lý người dùng',
@@ -220,6 +221,7 @@ const translations = {
     // Navigation
     'nav.trades': 'Trades',
     'nav.trackedStocks': 'Tracked Stocks',
+    'nav.shortTermPortfolio': 'Short-Term Portfolio',
     'nav.suggestions': 'Suggestions',
     'nav.signals': 'Signals',
     'nav.userManagement': 'User Management',
