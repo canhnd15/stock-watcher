@@ -79,8 +79,10 @@ interface TrackedStock {
   active: boolean;
   costBasis?: number;
   volume?: number;
+  targetPrice?: number;
   marketPrice?: number;
   priceChangePercent?: number;
+  targetProfit?: number;
   stats?: TrackedStockStats;
 }
 
@@ -110,9 +112,23 @@ const TrackedStocks = () => {
   const [volumeValues, setVolumeValues] = useState<Record<string, string>>({});
   const [savingVolume, setSavingVolume] = useState<Record<string, boolean>>({});
   
+  // Target price state - supports both direct value and percentage
+  const [targetPriceValues, setTargetPriceValues] = useState<Record<string, string>>({});
+  const [targetPriceMode, setTargetPriceMode] = useState<Record<string, "value" | "percent">>({});
+  const [savingTargetPrice, setSavingTargetPrice] = useState<Record<string, boolean>>({});
+  
+  // Track unsaved changes
+  const [unsavedChanges, setUnsavedChanges] = useState<Set<string>>(new Set());
+  const [savingAll, setSavingAll] = useState(false);
+  
   // Short-term portfolio state
   const [shortTermVolumeValues, setShortTermVolumeValues] = useState<Record<string, string>>({});
   const [savingShortTermVolume, setSavingShortTermVolume] = useState<Record<string, boolean>>({});
+  const [shortTermTargetPriceValues, setShortTermTargetPriceValues] = useState<Record<string, string>>({});
+  const [shortTermTargetPriceMode, setShortTermTargetPriceMode] = useState<Record<string, "value" | "percent">>({});
+  const [savingShortTermTargetPrice, setSavingShortTermTargetPrice] = useState<Record<string, boolean>>({});
+  const [shortTermUnsavedChanges, setShortTermUnsavedChanges] = useState<Set<string>>(new Set());
+  const [savingShortTermAll, setSavingShortTermAll] = useState(false);
   const [shortTermEditDialogOpen, setShortTermEditDialogOpen] = useState(false);
   const [editingShortTermStock, setEditingShortTermStock] = useState<TrackedStock | null>(null);
   const [shortTermPage, setShortTermPage] = useState(0);
@@ -164,12 +180,21 @@ const TrackedStocks = () => {
       
       // Initialize volume values from backend data
       const volumeMap: Record<string, string> = {};
+      const targetPriceMap: Record<string, string> = {};
+      const targetPriceModeMap: Record<string, "value" | "percent"> = {};
       stocksData.forEach(stock => {
         if (stock.volume !== undefined && stock.volume !== null) {
           volumeMap[stock.code] = stock.volume.toString();
         }
+        if (stock.targetPrice !== undefined && stock.targetPrice !== null) {
+          targetPriceMap[stock.code] = stock.targetPrice.toString();
+          targetPriceModeMap[stock.code] = "value";
+        }
       });
       setVolumeValues(volumeMap);
+      setTargetPriceValues(targetPriceMap);
+      setTargetPriceMode(targetPriceModeMap);
+      setUnsavedChanges(new Set()); // Clear unsaved changes after loading
       
       // Load stats for tracked stocks
       const statsResponse = await api.get("/api/tracked-stocks/stats");
@@ -190,63 +215,192 @@ const TrackedStocks = () => {
     }
   };
 
-  // Function to save volume to backend
-  const saveVolume = async (stockId: number, code: string, volume: string) => {
-    const volumeNum = volume.trim() === "" ? null : parseInt(volume, 10);
+  // Calculate target profit locally: (targetPrice - costBasis) * volume
+  const calculateTargetProfit = (stock: TrackedStock): number | null => {
+    const volumeStr = volumeValues[stock.code] || stock.volume?.toString() || "0";
+    const volume = parseFloat(volumeStr);
     
-    // Validate volume
-    if (volumeNum !== null && (isNaN(volumeNum) || volumeNum < 0)) {
-      toast.error(`Invalid volume for ${code}`);
+    if (!stock.costBasis || volume <= 0) return null;
+    
+    // Get target price from input or saved value
+    let targetPrice: number | null = null;
+    const targetPriceInput = targetPriceValues[stock.code];
+    const mode = targetPriceMode[stock.code] || "value";
+    
+    if (targetPriceInput && targetPriceInput.trim() !== "") {
+      const inputValue = parseFloat(targetPriceInput);
+      if (!isNaN(inputValue) && inputValue >= 0) {
+        if (mode === "percent") {
+          if (stock.costBasis && stock.costBasis > 0) {
+            targetPrice = stock.costBasis * (1 + inputValue / 100);
+          }
+        } else {
+          targetPrice = inputValue;
+        }
+      }
+    } else if (stock.targetPrice) {
+      targetPrice = stock.targetPrice;
+    }
+    
+    if (!targetPrice) return null;
+    
+    return (targetPrice - stock.costBasis) * volume;
+  };
+
+  // Save all pending changes
+  const saveAllChanges = async () => {
+    if (unsavedChanges.size === 0) {
+      toast.info("No changes to save");
       return;
     }
 
-    // Find the stock to preserve costBasis
+    setSavingAll(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (const code of Array.from(unsavedChanges)) {
+        const stock = trackedStocks.find(s => s.code === code);
+        if (!stock) continue;
+
+        try {
+          // Get current values from state
+          const volumeStr = volumeValues[code] || "";
+          const volumeNum = volumeStr.trim() === "" ? null : parseInt(volumeStr, 10);
+          
+          let targetPrice: number | null = null;
+          const targetPriceInput = targetPriceValues[code];
+          const mode = targetPriceMode[code] || "value";
+          
+          if (targetPriceInput && targetPriceInput.trim() !== "") {
+            const inputValue = parseFloat(targetPriceInput);
+            if (!isNaN(inputValue) && inputValue >= 0) {
+              if (mode === "percent") {
+                if (stock.costBasis && stock.costBasis > 0) {
+                  targetPrice = stock.costBasis * (1 + inputValue / 100);
+                }
+              } else {
+                targetPrice = inputValue;
+              }
+            }
+          }
+
+          const response = await api.put(`/api/tracked-stocks/${stock.id}`, {
+            volume: volumeNum,
+            costBasis: stock.costBasis || null,
+            targetPrice: targetPrice,
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          console.error(`Error saving ${code}:`, error);
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        await loadTrackedStocks();
+        setUnsavedChanges(new Set());
+        toast.success(`Saved ${successCount} stock(s)${failCount > 0 ? `, ${failCount} failed` : ""}`);
+      } else {
+        toast.error("Failed to save changes");
+      }
+    } catch (error) {
+      console.error("Error saving all changes:", error);
+      toast.error("Failed to save changes");
+    } finally {
+      setSavingAll(false);
+    }
+  };
+
+  // Function to save target price to backend (kept for backward compatibility, but not used in new flow)
+  const saveTargetPrice = async (stockId: number, code: string, targetPriceInput: string, mode: "value" | "percent") => {
     const stock = trackedStocks.find(s => s.id === stockId);
     if (!stock) {
       toast.error(`Stock not found for ${code}`);
       return;
     }
 
-    setSavingVolume(prev => ({ ...prev, [code]: true }));
+    let targetPrice: number | null = null;
+    
+    if (targetPriceInput.trim() !== "") {
+      const inputValue = parseFloat(targetPriceInput);
+      if (isNaN(inputValue) || inputValue < 0) {
+        toast.error(`Invalid target price for ${code}`);
+        return;
+      }
+      
+      if (mode === "percent") {
+        // Calculate target price from percentage: costBasis * (1 + percent/100)
+        if (stock.costBasis && stock.costBasis > 0) {
+          targetPrice = stock.costBasis * (1 + inputValue / 100);
+        } else {
+          toast.error(`Cannot calculate target price from percentage: cost basis is required for ${code}`);
+          return;
+        }
+      } else {
+        targetPrice = inputValue;
+      }
+    }
+
+    setSavingTargetPrice(prev => ({ ...prev, [code]: true }));
     
     try {
-      // Always send both volume and costBasis to prevent backend from clearing the other field
+      // Use volume from state if available, otherwise from stock object
+      const currentVolume = volumeValues[code] ? parseInt(volumeValues[code], 10) : (stock.volume || null);
+      
       const response = await api.put(`/api/tracked-stocks/${stockId}`, {
-        volume: volumeNum,
-        costBasis: stock.costBasis || null, // Preserve existing costBasis
+        targetPrice: targetPrice,
+        costBasis: stock.costBasis || null,
+        volume: currentVolume,
       });
       
       if (!response.ok) {
-        throw new Error("Failed to save volume");
+        throw new Error("Failed to save target price");
       }
       
-      // Update tracked stocks with new volume
-      setTrackedStocks(prev => 
-        prev.map(stock => 
-          stock.id === stockId 
-            ? { ...stock, volume: volumeNum || undefined }
-            : stock
-        )
-      );
-    } catch (error) {
-      console.error("Error saving volume:", error);
-      toast.error(`Failed to save volume for ${code}`);
-      // Revert volume value on error
-      if (stock && stock.volume !== undefined) {
-        setVolumeValues(prev => ({
+      // Reload stocks to get updated target profit calculation from backend
+      await loadTrackedStocks();
+      
+      // Update the input value to show the calculated price if percentage mode
+      if (mode === "percent" && targetPrice !== null) {
+        setTargetPriceValues(prev => ({
           ...prev,
-          [code]: stock.volume!.toString()
+          [code]: targetPrice!.toString()
+        }));
+        setTargetPriceMode(prev => ({
+          ...prev,
+          [code]: "value"
+        }));
+      }
+    } catch (error) {
+      console.error("Error saving target price:", error);
+      toast.error(`Failed to save target price for ${code}`);
+      // Revert target price value on error
+      if (stock && stock.targetPrice !== undefined) {
+        setTargetPriceValues(prev => ({
+          ...prev,
+          [code]: stock.targetPrice!.toString()
         }));
       } else {
-        setVolumeValues(prev => {
+        setTargetPriceValues(prev => {
           const newValues = { ...prev };
           delete newValues[code];
           return newValues;
         });
       }
     } finally {
-      setSavingVolume(prev => ({ ...prev, [code]: false }));
+      setSavingTargetPrice(prev => ({ ...prev, [code]: false }));
     }
+  };
+
+  // Function to mark changes as unsaved (no longer auto-saves)
+  const markAsUnsaved = (code: string) => {
+    setUnsavedChanges(prev => new Set(prev).add(code));
   };
 
   // Handle refresh market price
@@ -333,12 +487,21 @@ const TrackedStocks = () => {
       
       // Initialize volume values from backend data
       const volumeMap: Record<string, string> = {};
+      const targetPriceMap: Record<string, string> = {};
+      const targetPriceModeMap: Record<string, "value" | "percent"> = {};
       stocksData.forEach(stock => {
         if (stock.volume !== undefined && stock.volume !== null) {
           volumeMap[stock.code] = stock.volume.toString();
         }
+        if (stock.targetPrice !== undefined && stock.targetPrice !== null) {
+          targetPriceMap[stock.code] = stock.targetPrice.toString();
+          targetPriceModeMap[stock.code] = "value";
+        }
       });
       setShortTermVolumeValues(volumeMap);
+      setShortTermTargetPriceValues(targetPriceMap);
+      setShortTermTargetPriceMode(targetPriceModeMap);
+      setShortTermUnsavedChanges(new Set()); // Clear unsaved changes after loading
       
       // Load stats for short-term tracked stocks
       const statsResponse = await api.get("/api/short-term-tracked-stocks/stats");
@@ -622,62 +785,191 @@ const TrackedStocks = () => {
   };
 
   // Short-term portfolio functions
-  const saveShortTermVolume = async (stockId: number, code: string, volume: string) => {
-    const volumeNum = volume.trim() === "" ? null : parseInt(volume, 10);
-    
-    // Validate volume
-    if (volumeNum !== null && (isNaN(volumeNum) || volumeNum < 0)) {
-      toast.error(`Invalid volume for ${code}`);
-      return;
-    }
-
-    // Find the stock to preserve costBasis
+  const saveShortTermTargetPrice = async (stockId: number, code: string, targetPriceInput: string, mode: "value" | "percent") => {
     const stock = shortTermStocks.find(s => s.id === stockId);
     if (!stock) {
       toast.error(`Stock not found for ${code}`);
       return;
     }
 
-    setSavingShortTermVolume(prev => ({ ...prev, [code]: true }));
+    let targetPrice: number | null = null;
+    
+    if (targetPriceInput.trim() !== "") {
+      const inputValue = parseFloat(targetPriceInput);
+      if (isNaN(inputValue) || inputValue < 0) {
+        toast.error(`Invalid target price for ${code}`);
+        return;
+      }
+      
+      if (mode === "percent") {
+        // Calculate target price from percentage: costBasis * (1 + percent/100)
+        if (stock.costBasis && stock.costBasis > 0) {
+          targetPrice = stock.costBasis * (1 + inputValue / 100);
+        } else {
+          toast.error(`Cannot calculate target price from percentage: cost basis is required for ${code}`);
+          return;
+        }
+      } else {
+        targetPrice = inputValue;
+      }
+    }
+
+    setSavingShortTermTargetPrice(prev => ({ ...prev, [code]: true }));
     
     try {
-      // Always send both volume and costBasis to prevent backend from clearing the other field
+      // Use volume from state if available, otherwise from stock object
+      const currentVolume = shortTermVolumeValues[code] ? parseInt(shortTermVolumeValues[code], 10) : (stock.volume || null);
+      
       const response = await api.put(`/api/short-term-tracked-stocks/${stockId}`, {
-        volume: volumeNum,
-        costBasis: stock.costBasis || null, // Preserve existing costBasis
+        targetPrice: targetPrice,
+        costBasis: stock.costBasis || null,
+        volume: currentVolume,
       });
       
       if (!response.ok) {
-        throw new Error("Failed to save volume");
+        throw new Error("Failed to save target price");
       }
       
-      // Update short-term stocks with new volume
-      setShortTermStocks(prev => 
-        prev.map(stock => 
-          stock.id === stockId 
-            ? { ...stock, volume: volumeNum || undefined }
-            : stock
-        )
-      );
-    } catch (error) {
-      console.error("Error saving volume:", error);
-      toast.error(`Failed to save volume for ${code}`);
-      // Revert volume value on error
-      if (stock && stock.volume !== undefined) {
-        setShortTermVolumeValues(prev => ({
+      // Reload short-term stocks to get updated target profit calculation from backend
+      await loadShortTermTrackedStocks();
+      
+      // Update the input value to show the calculated price if percentage mode
+      if (mode === "percent" && targetPrice !== null) {
+        setShortTermTargetPriceValues(prev => ({
           ...prev,
-          [code]: stock.volume!.toString()
+          [code]: targetPrice!.toString()
+        }));
+        setShortTermTargetPriceMode(prev => ({
+          ...prev,
+          [code]: "value"
+        }));
+      }
+    } catch (error) {
+      console.error("Error saving target price:", error);
+      toast.error(`Failed to save target price for ${code}`);
+      // Revert target price value on error
+      if (stock && stock.targetPrice !== undefined) {
+        setShortTermTargetPriceValues(prev => ({
+          ...prev,
+          [code]: stock.targetPrice!.toString()
         }));
       } else {
-        setShortTermVolumeValues(prev => {
+        setShortTermTargetPriceValues(prev => {
           const newValues = { ...prev };
           delete newValues[code];
           return newValues;
         });
       }
     } finally {
-      setSavingShortTermVolume(prev => ({ ...prev, [code]: false }));
+      setSavingShortTermTargetPrice(prev => ({ ...prev, [code]: false }));
     }
+  };
+
+  // Calculate target profit locally for short-term: (targetPrice - costBasis) * volume
+  const calculateShortTermTargetProfit = (stock: TrackedStock): number | null => {
+    const volumeStr = shortTermVolumeValues[stock.code] || stock.volume?.toString() || "0";
+    const volume = parseFloat(volumeStr);
+    
+    if (!stock.costBasis || volume <= 0) return null;
+    
+    // Get target price from input or saved value
+    let targetPrice: number | null = null;
+    const targetPriceInput = shortTermTargetPriceValues[stock.code];
+    const mode = shortTermTargetPriceMode[stock.code] || "value";
+    
+    if (targetPriceInput && targetPriceInput.trim() !== "") {
+      const inputValue = parseFloat(targetPriceInput);
+      if (!isNaN(inputValue) && inputValue >= 0) {
+        if (mode === "percent") {
+          if (stock.costBasis && stock.costBasis > 0) {
+            targetPrice = stock.costBasis * (1 + inputValue / 100);
+          }
+        } else {
+          targetPrice = inputValue;
+        }
+      }
+    } else if (stock.targetPrice) {
+      targetPrice = stock.targetPrice;
+    }
+    
+    if (!targetPrice) return null;
+    
+    return (targetPrice - stock.costBasis) * volume;
+  };
+
+  // Save all pending changes for short-term portfolio
+  const saveShortTermAllChanges = async () => {
+    if (shortTermUnsavedChanges.size === 0) {
+      toast.info("No changes to save");
+      return;
+    }
+
+    setSavingShortTermAll(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      for (const code of Array.from(shortTermUnsavedChanges)) {
+        const stock = shortTermStocks.find(s => s.code === code);
+        if (!stock) continue;
+
+        try {
+          // Get current values from state
+          const volumeStr = shortTermVolumeValues[code] || "";
+          const volumeNum = volumeStr.trim() === "" ? null : parseInt(volumeStr, 10);
+          
+          let targetPrice: number | null = null;
+          const targetPriceInput = shortTermTargetPriceValues[code];
+          const mode = shortTermTargetPriceMode[code] || "value";
+          
+          if (targetPriceInput && targetPriceInput.trim() !== "") {
+            const inputValue = parseFloat(targetPriceInput);
+            if (!isNaN(inputValue) && inputValue >= 0) {
+              if (mode === "percent") {
+                if (stock.costBasis && stock.costBasis > 0) {
+                  targetPrice = stock.costBasis * (1 + inputValue / 100);
+                }
+              } else {
+                targetPrice = inputValue;
+              }
+            }
+          }
+
+          const response = await api.put(`/api/short-term-tracked-stocks/${stock.id}`, {
+            volume: volumeNum,
+            costBasis: stock.costBasis || null,
+            targetPrice: targetPrice,
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          console.error(`Error saving ${code}:`, error);
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        await loadShortTermTrackedStocks();
+        setShortTermUnsavedChanges(new Set());
+        toast.success(`Saved ${successCount} stock(s)${failCount > 0 ? `, ${failCount} failed` : ""}`);
+      } else {
+        toast.error("Failed to save changes");
+      }
+    } catch (error) {
+      console.error("Error saving all changes:", error);
+      toast.error("Failed to save changes");
+    } finally {
+      setSavingShortTermAll(false);
+    }
+  };
+
+  // Function to mark short-term changes as unsaved
+  const markShortTermAsUnsaved = (code: string) => {
+    setShortTermUnsavedChanges(prev => new Set(prev).add(code));
   };
 
   const handleShortTermRefreshMarketPrice = async () => {
@@ -889,28 +1181,28 @@ const TrackedStocks = () => {
 
         switch (sortField) {
           case "buyLowPrice":
-            aValue = formatPrice(a.stats?.lowestPriceBuy);
-            bValue = formatPrice(b.stats?.lowestPriceBuy);
+            aValue = a.stats?.lowestPriceBuy ?? null;
+            bValue = b.stats?.lowestPriceBuy ?? null;
             break;
           case "buyHighPrice":
-            aValue = formatPrice(a.stats?.highestPriceBuy);
-            bValue = formatPrice(b.stats?.highestPriceBuy);
+            aValue = a.stats?.highestPriceBuy ?? null;
+            bValue = b.stats?.highestPriceBuy ?? null;
             break;
           case "buyMaxVolume":
-            aValue = formatNumber(a.stats?.largestVolumeBuy);
-            bValue = formatNumber(b.stats?.largestVolumeBuy);
+            aValue = a.stats?.largestVolumeBuy ?? null;
+            bValue = b.stats?.largestVolumeBuy ?? null;
             break;
           case "sellLowPrice":
-            aValue = formatPrice(a.stats?.lowestPriceSell);
-            bValue = formatPrice(b.stats?.lowestPriceSell);
+            aValue = a.stats?.lowestPriceSell ?? null;
+            bValue = b.stats?.lowestPriceSell ?? null;
             break;
           case "sellHighPrice":
-            aValue = formatPrice(a.stats?.highestPriceSell);
-            bValue = formatPrice(b.stats?.highestPriceSell);
+            aValue = a.stats?.highestPriceSell ?? null;
+            bValue = b.stats?.highestPriceSell ?? null;
             break;
           case "sellMaxVolume":
-            aValue = formatNumber(a.stats?.largestVolumeSell);
-            bValue = formatNumber(b.stats?.largestVolumeSell);
+            aValue = a.stats?.largestVolumeSell ?? null;
+            bValue = b.stats?.largestVolumeSell ?? null;
             break;
         }
 
@@ -952,28 +1244,28 @@ const TrackedStocks = () => {
 
         switch (shortTermSortField) {
           case "buyLowPrice":
-            aValue = formatPrice(a.stats?.lowestPriceBuy);
-            bValue = formatPrice(b.stats?.lowestPriceBuy);
+            aValue = a.stats?.lowestPriceBuy ?? null;
+            bValue = b.stats?.lowestPriceBuy ?? null;
             break;
           case "buyHighPrice":
-            aValue = formatPrice(a.stats?.highestPriceBuy);
-            bValue = formatPrice(b.stats?.highestPriceBuy);
+            aValue = a.stats?.highestPriceBuy ?? null;
+            bValue = b.stats?.highestPriceBuy ?? null;
             break;
           case "buyMaxVolume":
-            aValue = formatNumber(a.stats?.largestVolumeBuy);
-            bValue = formatNumber(b.stats?.largestVolumeBuy);
+            aValue = a.stats?.largestVolumeBuy ?? null;
+            bValue = b.stats?.largestVolumeBuy ?? null;
             break;
           case "sellLowPrice":
-            aValue = formatPrice(a.stats?.lowestPriceSell);
-            bValue = formatPrice(b.stats?.lowestPriceSell);
+            aValue = a.stats?.lowestPriceSell ?? null;
+            bValue = b.stats?.lowestPriceSell ?? null;
             break;
           case "sellHighPrice":
-            aValue = formatPrice(a.stats?.highestPriceSell);
-            bValue = formatPrice(b.stats?.highestPriceSell);
+            aValue = a.stats?.highestPriceSell ?? null;
+            bValue = b.stats?.highestPriceSell ?? null;
             break;
           case "sellMaxVolume":
-            aValue = formatNumber(a.stats?.largestVolumeSell);
-            bValue = formatNumber(b.stats?.largestVolumeSell);
+            aValue = a.stats?.largestVolumeSell ?? null;
+            bValue = b.stats?.largestVolumeSell ?? null;
             break;
         }
 
@@ -1298,6 +1590,25 @@ const TrackedStocks = () => {
 
         {/* Refresh Market Price Button */}
         <div className="mb-4 flex justify-end gap-3">
+          {unsavedChanges.size > 0 && (
+            <Button
+              onClick={saveAllChanges}
+              disabled={savingAll}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {savingAll ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Save Changes ({unsavedChanges.size})
+                </>
+              )}
+            </Button>
+          )}
           <Button
             onClick={() => setPortfolioSimulationOpen(true)}
             variant="outline"
@@ -1341,6 +1652,8 @@ const TrackedStocks = () => {
                 <TableHead>Cost Basis</TableHead>
                 <TableHead className="text-center">Market Price</TableHead>
                 <TableHead className="text-center w-32">Volume</TableHead>
+                <TableHead className="text-center">Target Price</TableHead>
+                <TableHead className="text-center">Target Profit</TableHead>
                 <TableHead className="text-center">Total Net Value</TableHead>
                 <TableHead className="text-center">Total Market Value</TableHead>
                 <TableHead className="text-center">Profit</TableHead>
@@ -1366,6 +1679,12 @@ const TrackedStocks = () => {
                     </TableCell>
                     <TableCell className="text-center">
                       <Skeleton className="h-8 w-24 mx-auto" />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Skeleton className="h-8 w-24 mx-auto" />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Skeleton className="h-4 w-20 mx-auto" />
                     </TableCell>
                     <TableCell className="text-center">
                       <Skeleton className="h-4 w-20 mx-auto" />
@@ -1459,12 +1778,9 @@ const TrackedStocks = () => {
                               ...prev,
                               [stock.code]: newValue.toString()
                             }));
-                            // Auto-save on button click
-                            setTimeout(() => {
-                              saveVolume(stock.id, stock.code, newValue.toString());
-                            }, 0);
+                            markAsUnsaved(stock.code);
                           }}
-                          disabled={savingVolume[stock.code] || !stock.active}
+                          disabled={!stock.active}
                         >
                           <ArrowUp className="h-3 w-3" />
                         </Button>
@@ -1479,13 +1795,7 @@ const TrackedStocks = () => {
                                 ...prev,
                                 [stock.code]: value
                               }));
-                            }}
-                            onBlur={() => {
-                              const currentValue = volumeValues[stock.code] || "";
-                              const savedValue = stock.volume?.toString() || "";
-                              if (currentValue !== savedValue) {
-                                saveVolume(stock.id, stock.code, currentValue);
-                              }
+                              markAsUnsaved(stock.code);
                             }}
                             onKeyDown={(e) => {
                               if (e.key === 'ArrowUp') {
@@ -1497,6 +1807,7 @@ const TrackedStocks = () => {
                                   ...prev,
                                   [stock.code]: newValue.toString()
                                 }));
+                                markAsUnsaved(stock.code);
                               } else if (e.key === 'ArrowDown') {
                                 e.preventDefault();
                                 const currentValue = volumeValues[stock.code] || "0";
@@ -1506,6 +1817,7 @@ const TrackedStocks = () => {
                                   ...prev,
                                   [stock.code]: newValue.toString()
                                 }));
+                                markAsUnsaved(stock.code);
                               }
                             }}
                             onWheel={(e) => {
@@ -1519,14 +1831,15 @@ const TrackedStocks = () => {
                                 ...prev,
                                 [stock.code]: newValue.toString()
                               }));
+                              markAsUnsaved(stock.code);
                             }}
                             className="w-24 h-8 text-sm text-center"
                             min="0"
                             step="100"
-                            disabled={savingVolume[stock.code] || !stock.active}
+                            disabled={!stock.active}
                           />
-                          {savingVolume[stock.code] && (
-                            <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
+                          {unsavedChanges.has(stock.code) && (
+                            <span className="absolute -top-1 -right-1 h-2 w-2 bg-orange-500 rounded-full" title="Unsaved changes" />
                           )}
                         </div>
                         <Button
@@ -1542,16 +1855,95 @@ const TrackedStocks = () => {
                               ...prev,
                               [stock.code]: newValue.toString()
                             }));
-                            // Auto-save on button click
-                            setTimeout(() => {
-                              saveVolume(stock.id, stock.code, newValue.toString());
-                            }, 0);
+                            markAsUnsaved(stock.code);
                           }}
-                          disabled={savingVolume[stock.code] || !stock.active}
+                          disabled={!stock.active}
                         >
                           <ArrowDown className="h-3 w-3" />
                         </Button>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center gap-1">
+                          <Select
+                            value={targetPriceMode[stock.code] || "value"}
+                            onValueChange={(value: "value" | "percent") => {
+                              setTargetPriceMode(prev => ({
+                                ...prev,
+                                [stock.code]: value
+                              }));
+                              markAsUnsaved(stock.code);
+                            }}
+                          >
+                            <SelectTrigger className="h-6 w-12 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="value">VND</SelectItem>
+                              <SelectItem value="percent">%</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder={targetPriceMode[stock.code] === "percent" ? "%" : "Price"}
+                              value={targetPriceValues[stock.code] || ""}
+                              onChange={(e) => {
+                                setTargetPriceValues(prev => ({
+                                  ...prev,
+                                  [stock.code]: e.target.value
+                                }));
+                                markAsUnsaved(stock.code);
+                              }}
+                              className="w-20 h-8 text-sm text-center"
+                              disabled={!stock.active}
+                            />
+                          </div>
+                        </div>
+                        {(() => {
+                          // Show calculated target price if in percentage mode, otherwise show saved or input value
+                          const targetPriceInput = targetPriceValues[stock.code];
+                          const mode = targetPriceMode[stock.code] || "value";
+                          let displayPrice: number | null = null;
+                          
+                          if (targetPriceInput && targetPriceInput.trim() !== "") {
+                            const inputValue = parseFloat(targetPriceInput);
+                            if (!isNaN(inputValue) && inputValue >= 0) {
+                              if (mode === "percent" && stock.costBasis && stock.costBasis > 0) {
+                                displayPrice = stock.costBasis * (1 + inputValue / 100);
+                              } else if (mode === "value") {
+                                displayPrice = inputValue;
+                              }
+                            }
+                          } else if (stock.targetPrice) {
+                            displayPrice = stock.targetPrice;
+                          }
+                          
+                          return displayPrice ? (
+                            <span className="text-xs text-muted-foreground">
+                              {formatPrice(displayPrice)}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {(() => {
+                        const calculatedProfit = calculateTargetProfit(stock);
+                        if (calculatedProfit !== null) {
+                          return (
+                            <span className={`text-sm font-semibold ${
+                              calculatedProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {formatPrice(calculatedProfit)}
+                            </span>
+                          );
+                        }
+                        return <span className="text-sm text-muted-foreground">N/A</span>;
+                      })()}
                     </TableCell>
                     <TableCell className="text-center">
                       {stock.costBasis && volumeValues[stock.code] && !isNaN(parseFloat(volumeValues[stock.code])) && parseFloat(volumeValues[stock.code]) > 0 ? (
@@ -1634,7 +2026,7 @@ const TrackedStocks = () => {
               )}
               {!loadingStocks && sortedAndPaginatedStocks.data.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     {trackedStocks.length === 0 
                       ? "No tracked stocks yet. Add some codes above to get started."
                       : "No results on this page."
@@ -1675,11 +2067,67 @@ const TrackedStocks = () => {
                 return sum;
               }, 0);
               
+              // Calculate total target value: sum of (targetPrice * volume) for stocks with target price
+              const totalTargetValue = trackedStocks.reduce((sum, stock) => {
+                // Only count active stocks
+                if (!stock.active) return sum;
+                const volumeStr = volumeValues[stock.code] || stock.volume?.toString() || "0";
+                const volume = parseFloat(volumeStr);
+                
+                // Get target price from input or saved value
+                let targetPrice: number | null = null;
+                const targetPriceInput = targetPriceValues[stock.code];
+                const mode = targetPriceMode[stock.code] || "value";
+                
+                if (targetPriceInput && targetPriceInput.trim() !== "") {
+                  const inputValue = parseFloat(targetPriceInput);
+                  if (!isNaN(inputValue) && inputValue >= 0) {
+                    if (mode === "percent") {
+                      if (stock.costBasis && stock.costBasis > 0) {
+                        targetPrice = stock.costBasis * (1 + inputValue / 100);
+                      }
+                    } else {
+                      targetPrice = inputValue;
+                    }
+                  }
+                } else if (stock.targetPrice) {
+                  targetPrice = stock.targetPrice;
+                }
+                
+                if (targetPrice && volume > 0) {
+                  return sum + targetPrice * volume;
+                }
+                return sum;
+              }, 0);
+              
+              // Calculate total target profit: sum of locally calculated target profits
+              const totalTargetProfit = trackedStocks.reduce((sum, stock) => {
+                // Only count active stocks
+                if (!stock.active) return sum;
+                const calculatedProfit = calculateTargetProfit(stock);
+                if (calculatedProfit !== null) {
+                  return sum + calculatedProfit;
+                }
+                return sum;
+              }, 0);
+              
               return (
                 <tfoot>
                   <TableRow className="bg-muted/50 font-semibold border-t-2">
                     <TableCell colSpan={4} className="text-left">
                       Total:
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <span className="text-sm font-medium">
+                        {totalTargetValue > 0 ? formatPrice(totalTargetValue) : "N/A"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <span className={`text-sm font-semibold ${
+                        totalTargetProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {totalTargetProfit !== 0 ? formatPrice(totalTargetProfit) : "N/A"}
+                      </span>
                     </TableCell>
                     <TableCell className="text-center">
                       <span className="text-sm font-medium">{formatPrice(totalNetValue)}</span>
@@ -1768,6 +2216,25 @@ const TrackedStocks = () => {
             <h2 className="text-2xl font-bold">Short-Term Portfolio</h2>
             
             <div className="flex items-center gap-3">
+              {shortTermUnsavedChanges.size > 0 && (
+                <Button
+                  onClick={saveShortTermAllChanges}
+                  disabled={savingShortTermAll}
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  {savingShortTermAll ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Save Changes ({shortTermUnsavedChanges.size})
+                    </>
+                  )}
+                </Button>
+              )}
               <Button
                 onClick={() => setShortTermPortfolioSimulationOpen(true)}
                 variant="outline"
@@ -1812,6 +2279,8 @@ const TrackedStocks = () => {
                   <TableHead>Cost Basis</TableHead>
                   <TableHead className="text-center">Market Price</TableHead>
                   <TableHead className="text-center w-32">Volume</TableHead>
+                  <TableHead className="text-center">Target Price</TableHead>
+                  <TableHead className="text-center">Target Profit</TableHead>
                   <TableHead className="text-center">Total Net Value</TableHead>
                   <TableHead className="text-center">Total Market Value</TableHead>
                   <TableHead className="text-center">Profit</TableHead>
@@ -1837,6 +2306,12 @@ const TrackedStocks = () => {
                       </TableCell>
                       <TableCell className="text-center">
                         <Skeleton className="h-8 w-24 mx-auto" />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Skeleton className="h-8 w-24 mx-auto" />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Skeleton className="h-4 w-20 mx-auto" />
                       </TableCell>
                       <TableCell className="text-center">
                         <Skeleton className="h-4 w-20 mx-auto" />
@@ -1913,12 +2388,9 @@ const TrackedStocks = () => {
                                   ...prev,
                                   [stock.code]: newValue.toString()
                                 }));
-                                // Auto-save on button click
-                                setTimeout(() => {
-                                  saveShortTermVolume(stock.id, stock.code, newValue.toString());
-                                }, 0);
+                                markShortTermAsUnsaved(stock.code);
                               }}
-                              disabled={savingShortTermVolume[stock.code] || !stock.active}
+                              disabled={!stock.active}
                             >
                               <ArrowUp className="h-3 w-3" />
                             </Button>
@@ -1933,13 +2405,7 @@ const TrackedStocks = () => {
                                     ...prev,
                                     [stock.code]: value
                                   }));
-                                }}
-                                onBlur={() => {
-                                  const currentValue = shortTermVolumeValues[stock.code] || "";
-                                  const savedValue = stock.volume?.toString() || "";
-                                  if (currentValue !== savedValue) {
-                                    saveShortTermVolume(stock.id, stock.code, currentValue);
-                                  }
+                                  markShortTermAsUnsaved(stock.code);
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === 'ArrowUp') {
@@ -1951,6 +2417,7 @@ const TrackedStocks = () => {
                                       ...prev,
                                       [stock.code]: newValue.toString()
                                     }));
+                                    markShortTermAsUnsaved(stock.code);
                                   } else if (e.key === 'ArrowDown') {
                                     e.preventDefault();
                                     const currentValue = shortTermVolumeValues[stock.code] || "0";
@@ -1960,6 +2427,7 @@ const TrackedStocks = () => {
                                       ...prev,
                                       [stock.code]: newValue.toString()
                                     }));
+                                    markShortTermAsUnsaved(stock.code);
                                   }
                                 }}
                                 onWheel={(e) => {
@@ -1973,14 +2441,15 @@ const TrackedStocks = () => {
                                     ...prev,
                                     [stock.code]: newValue.toString()
                                   }));
+                                  markShortTermAsUnsaved(stock.code);
                                 }}
                                 className="w-24 h-8 text-sm text-center"
                                 min="0"
                                 step="100"
-                                disabled={savingShortTermVolume[stock.code] || !stock.active}
+                                disabled={!stock.active}
                               />
-                              {savingShortTermVolume[stock.code] && (
-                                <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
+                              {shortTermUnsavedChanges.has(stock.code) && (
+                                <span className="absolute -top-1 -right-1 h-2 w-2 bg-orange-500 rounded-full" title="Unsaved changes" />
                               )}
                             </div>
                             <Button
@@ -1996,16 +2465,95 @@ const TrackedStocks = () => {
                                   ...prev,
                                   [stock.code]: newValue.toString()
                                 }));
-                                // Auto-save on button click
-                                setTimeout(() => {
-                                  saveShortTermVolume(stock.id, stock.code, newValue.toString());
-                                }, 0);
+                                markShortTermAsUnsaved(stock.code);
                               }}
-                              disabled={savingShortTermVolume[stock.code] || !stock.active}
+                              disabled={!stock.active}
                             >
                               <ArrowDown className="h-3 w-3" />
                             </Button>
                           </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            <div className="flex items-center gap-1">
+                              <Select
+                                value={shortTermTargetPriceMode[stock.code] || "value"}
+                                onValueChange={(value: "value" | "percent") => {
+                                  setShortTermTargetPriceMode(prev => ({
+                                    ...prev,
+                                    [stock.code]: value
+                                  }));
+                                  markShortTermAsUnsaved(stock.code);
+                                }}
+                              >
+                                <SelectTrigger className="h-6 w-12 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="value">VND</SelectItem>
+                                  <SelectItem value="percent">%</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder={shortTermTargetPriceMode[stock.code] === "percent" ? "%" : "Price"}
+                                  value={shortTermTargetPriceValues[stock.code] || ""}
+                                  onChange={(e) => {
+                                    setShortTermTargetPriceValues(prev => ({
+                                      ...prev,
+                                      [stock.code]: e.target.value
+                                    }));
+                                    markShortTermAsUnsaved(stock.code);
+                                  }}
+                                  className="w-20 h-8 text-sm text-center"
+                                  disabled={!stock.active}
+                                />
+                              </div>
+                            </div>
+                            {(() => {
+                              // Show calculated target price if in percentage mode, otherwise show saved or input value
+                              const targetPriceInput = shortTermTargetPriceValues[stock.code];
+                              const mode = shortTermTargetPriceMode[stock.code] || "value";
+                              let displayPrice: number | null = null;
+                              
+                              if (targetPriceInput && targetPriceInput.trim() !== "") {
+                                const inputValue = parseFloat(targetPriceInput);
+                                if (!isNaN(inputValue) && inputValue >= 0) {
+                                  if (mode === "percent" && stock.costBasis && stock.costBasis > 0) {
+                                    displayPrice = stock.costBasis * (1 + inputValue / 100);
+                                  } else if (mode === "value") {
+                                    displayPrice = inputValue;
+                                  }
+                                }
+                              } else if (stock.targetPrice) {
+                                displayPrice = stock.targetPrice;
+                              }
+                              
+                              return displayPrice ? (
+                                <span className="text-xs text-muted-foreground">
+                                  {formatPrice(displayPrice)}
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {(() => {
+                            const calculatedProfit = calculateShortTermTargetProfit(stock);
+                            if (calculatedProfit !== null) {
+                              return (
+                                <span className={`text-sm font-semibold ${
+                                  calculatedProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                                }`}>
+                                  {formatPrice(calculatedProfit)}
+                                </span>
+                              );
+                            }
+                            return <span className="text-sm text-muted-foreground">N/A</span>;
+                          })()}
                         </TableCell>
                         <TableCell className="text-center">
                           {stock.costBasis && shortTermVolumeValues[stock.code] && !isNaN(parseFloat(shortTermVolumeValues[stock.code])) && parseFloat(shortTermVolumeValues[stock.code]) > 0 ? (
@@ -2088,7 +2636,7 @@ const TrackedStocks = () => {
                 )}
                 {!loadingShortTermStocks && sortedAndPaginatedShortTermStocks.data.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                       {shortTermStocks.length === 0 
                         ? "No Short-Term Portfolio yet. Add some codes above to get started."
                         : "No results on this page."
@@ -2129,11 +2677,67 @@ const TrackedStocks = () => {
                   return sum;
                 }, 0);
                 
+                // Calculate total target value: sum of (targetPrice * volume) for stocks with target price
+                const totalTargetValue = shortTermStocks.reduce((sum, stock) => {
+                  // Only count active stocks
+                  if (!stock.active) return sum;
+                  const volumeStr = shortTermVolumeValues[stock.code] || stock.volume?.toString() || "0";
+                  const volume = parseFloat(volumeStr);
+                  
+                  // Get target price from input or saved value
+                  let targetPrice: number | null = null;
+                  const targetPriceInput = shortTermTargetPriceValues[stock.code];
+                  const mode = shortTermTargetPriceMode[stock.code] || "value";
+                  
+                  if (targetPriceInput && targetPriceInput.trim() !== "") {
+                    const inputValue = parseFloat(targetPriceInput);
+                    if (!isNaN(inputValue) && inputValue >= 0) {
+                      if (mode === "percent") {
+                        if (stock.costBasis && stock.costBasis > 0) {
+                          targetPrice = stock.costBasis * (1 + inputValue / 100);
+                        }
+                      } else {
+                        targetPrice = inputValue;
+                      }
+                    }
+                  } else if (stock.targetPrice) {
+                    targetPrice = stock.targetPrice;
+                  }
+                  
+                  if (targetPrice && volume > 0) {
+                    return sum + targetPrice * volume;
+                  }
+                  return sum;
+                }, 0);
+                
+                // Calculate total target profit: sum of locally calculated target profits
+                const totalTargetProfit = shortTermStocks.reduce((sum, stock) => {
+                  // Only count active stocks
+                  if (!stock.active) return sum;
+                  const calculatedProfit = calculateShortTermTargetProfit(stock);
+                  if (calculatedProfit !== null) {
+                    return sum + calculatedProfit;
+                  }
+                  return sum;
+                }, 0);
+                
                 return (
                   <tfoot>
                     <TableRow className="bg-muted/50 font-semibold border-t-2">
                       <TableCell colSpan={4} className="text-left">
                         Total:
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="text-sm font-medium">
+                          {totalTargetValue > 0 ? formatPrice(totalTargetValue) : "N/A"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className={`text-sm font-semibold ${
+                          totalTargetProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {totalTargetProfit !== 0 ? formatPrice(totalTargetProfit) : "N/A"}
+                        </span>
                       </TableCell>
                       <TableCell className="text-center">
                         <span className="text-sm font-medium">{formatPrice(totalNetValue)}</span>

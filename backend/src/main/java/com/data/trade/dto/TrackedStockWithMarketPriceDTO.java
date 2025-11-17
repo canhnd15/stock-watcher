@@ -19,11 +19,15 @@ public class TrackedStockWithMarketPriceDTO {
     private Boolean active;
     private BigDecimal costBasis;
     private Long volume; // Volume for profit calculation
+    private BigDecimal targetPrice; // Target price for profit calculation
     private OffsetDateTime createdAt;
     
     // Market price data
     private BigDecimal marketPrice;
     private BigDecimal priceChangePercent; // Percentage change from cost basis
+    
+    // Target profit calculation
+    private BigDecimal targetProfit; // Profit at target price: (targetPrice - costBasis) * volume
     
     public static TrackedStockWithMarketPriceDTO fromTrackedStock(TrackedStock stock, BigDecimal marketPrice) {
         TrackedStockWithMarketPriceDTO dto = TrackedStockWithMarketPriceDTO.builder()
@@ -32,6 +36,7 @@ public class TrackedStockWithMarketPriceDTO {
                 .active(stock.getActive())
                 .costBasis(stock.getCostBasis())
                 .volume(stock.getVolume())
+                .targetPrice(stock.getTargetPrice())
                 .createdAt(stock.getCreatedAt())
                 .marketPrice(marketPrice)
                 .build();
@@ -42,6 +47,13 @@ public class TrackedStockWithMarketPriceDTO {
             BigDecimal percentChange = change.divide(stock.getCostBasis(), 4, java.math.RoundingMode.HALF_UP)
                     .multiply(BigDecimal.valueOf(100));
             dto.setPriceChangePercent(percentChange);
+        }
+        
+        // Calculate target profit: (targetPrice - costBasis) * volume
+        if (stock.getTargetPrice() != null && stock.getCostBasis() != null && stock.getVolume() != null && stock.getVolume() > 0) {
+            BigDecimal profit = stock.getTargetPrice().subtract(stock.getCostBasis())
+                    .multiply(BigDecimal.valueOf(stock.getVolume()));
+            dto.setTargetProfit(profit);
         }
         
         return dto;

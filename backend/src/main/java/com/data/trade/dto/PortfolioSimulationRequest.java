@@ -34,6 +34,8 @@ public class PortfolioSimulationRequest {
         private BigDecimal costBasis; // Purchase price
         
         private Long volume; // Number of shares
+        
+        private BigDecimal targetPrice; // Target price for profit calculation
     }
 }
 

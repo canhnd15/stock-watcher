@@ -3,6 +3,13 @@ import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.tsx";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -25,16 +32,19 @@ interface SimulatedStock {
   code: string;
   costBasis?: number;
   volume?: number;
+  targetPrice?: number;
 }
 
 interface SimulatedStockResult {
   code: string;
   costBasis?: number;
   volume?: number;
+  targetPrice?: number;
   marketPrice?: number;
   profit?: number;
   profitPercent?: number;
   currentValue?: number;
+  targetProfit?: number;
   error?: string;
 }
 
@@ -58,6 +68,7 @@ interface ExistingStock {
   code: string;
   costBasis?: number;
   volume?: number;
+  targetPrice?: number;
 }
 
 export function PortfolioSimulationModal({
@@ -71,12 +82,16 @@ export function PortfolioSimulationModal({
   const [selectedCode, setSelectedCode] = useState("");
   const [costBasis, setCostBasis] = useState("");
   const [volume, setVolume] = useState("");
+  const [targetPrice, setTargetPrice] = useState("");
+  const [targetPriceMode, setTargetPriceMode] = useState<"value" | "percent">("value");
   const [results, setResults] = useState<PortfolioSimulationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [editingStock, setEditingStock] = useState<string | null>(null);
   const [editCostBasis, setEditCostBasis] = useState("");
   const [editVolume, setEditVolume] = useState("");
+  const [editTargetPrice, setEditTargetPrice] = useState("");
+  const [editTargetPriceMode, setEditTargetPriceMode] = useState<"value" | "percent">("value");
 
   const loadExistingStocks = useCallback(async () => {
     setLoading(true);
@@ -92,6 +107,7 @@ export function PortfolioSimulationModal({
         code: stock.code,
         costBasis: stock.costBasis,
         volume: stock.volume,
+        targetPrice: stock.targetPrice,
       }));
       
       setSimulatedStocks(simulated);
@@ -114,7 +130,11 @@ export function PortfolioSimulationModal({
       setSelectedCode("");
       setCostBasis("");
       setVolume("");
+      setTargetPrice("");
+      setTargetPriceMode("value");
       setEditingStock(null);
+      setEditTargetPrice("");
+      setEditTargetPriceMode("value");
     }
   }, [open, loadExistingStocks]);
 
@@ -129,16 +149,38 @@ export function PortfolioSimulationModal({
       return;
     }
 
+    let targetPriceValue: number | undefined = undefined;
+    if (targetPrice.trim()) {
+      const inputValue = parseFloat(targetPrice);
+      if (!isNaN(inputValue) && inputValue >= 0) {
+        if (targetPriceMode === "percent") {
+          // Calculate from percentage if cost basis is provided
+          const costBasisValue = costBasis ? parseFloat(costBasis) : undefined;
+          if (costBasisValue && costBasisValue > 0) {
+            targetPriceValue = costBasisValue * (1 + inputValue / 100);
+          } else {
+            toast.error("Cost basis is required to calculate target price from percentage");
+            return;
+          }
+        } else {
+          targetPriceValue = inputValue;
+        }
+      }
+    }
+
     const newStock: SimulatedStock = {
       code: selectedCode,
       costBasis: costBasis ? parseFloat(costBasis) : undefined,
       volume: volume ? parseInt(volume, 10) : undefined,
+      targetPrice: targetPriceValue,
     };
 
     setSimulatedStocks([...simulatedStocks, newStock]);
     setSelectedCode("");
     setCostBasis("");
     setVolume("");
+    setTargetPrice("");
+    setTargetPriceMode("value");
   };
 
   const handleRemoveStock = (code: string) => {
@@ -154,6 +196,8 @@ export function PortfolioSimulationModal({
       setEditingStock(code);
       setEditCostBasis(stock.costBasis?.toString() || "");
       setEditVolume(stock.volume?.toString() || "");
+      setEditTargetPrice(stock.targetPrice?.toString() || "");
+      setEditTargetPriceMode("value");
     }
   };
 
@@ -162,6 +206,23 @@ export function PortfolioSimulationModal({
 
     const costBasisValue = editCostBasis.trim() ? parseFloat(editCostBasis) : undefined;
     const volumeValue = editVolume.trim() ? parseInt(editVolume, 10) : undefined;
+    
+    let targetPriceValue: number | undefined = undefined;
+    if (editTargetPrice.trim()) {
+      const inputValue = parseFloat(editTargetPrice);
+      if (!isNaN(inputValue) && inputValue >= 0) {
+        if (editTargetPriceMode === "percent") {
+          if (costBasisValue && costBasisValue > 0) {
+            targetPriceValue = costBasisValue * (1 + inputValue / 100);
+          } else {
+            toast.error("Cost basis is required to calculate target price from percentage");
+            return;
+          }
+        } else {
+          targetPriceValue = inputValue;
+        }
+      }
+    }
 
     if (costBasisValue !== undefined && (isNaN(costBasisValue) || costBasisValue < 0)) {
       toast.error("Invalid cost basis");
@@ -180,6 +241,7 @@ export function PortfolioSimulationModal({
               ...stock,
               costBasis: costBasisValue,
               volume: volumeValue,
+              targetPrice: targetPriceValue,
             }
           : stock
       )
@@ -187,6 +249,8 @@ export function PortfolioSimulationModal({
     setEditingStock(null);
     setEditCostBasis("");
     setEditVolume("");
+    setEditTargetPrice("");
+    setEditTargetPriceMode("value");
     setResults(null); // Clear results when stocks change
   };
 
@@ -194,6 +258,8 @@ export function PortfolioSimulationModal({
     setEditingStock(null);
     setEditCostBasis("");
     setEditVolume("");
+    setEditTargetPrice("");
+    setEditTargetPriceMode("value");
   };
 
   const handleCalculate = async () => {
@@ -209,6 +275,7 @@ export function PortfolioSimulationModal({
           code: stock.code,
           costBasis: stock.costBasis || null,
           volume: stock.volume || null,
+          targetPrice: stock.targetPrice || null,
         })),
       };
 
@@ -292,6 +359,29 @@ export function PortfolioSimulationModal({
                   onChange={(e) => setVolume(e.target.value)}
                 />
               </div>
+              <div className="flex-1">
+                <label className="text-sm font-medium mb-1 block">Target Price</label>
+                <div className="flex gap-2">
+                  <Select value={targetPriceMode} onValueChange={(value: "value" | "percent") => setTargetPriceMode(value)}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="value">VND</SelectItem>
+                      <SelectItem value="percent">%</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder={targetPriceMode === "percent" ? "%" : "Target price"}
+                    value={targetPrice}
+                    onChange={(e) => setTargetPrice(e.target.value)}
+                    className="flex-1"
+                  />
+                </div>
+              </div>
               <Button onClick={handleAddStock} disabled={!selectedCode}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add
@@ -323,7 +413,10 @@ export function PortfolioSimulationModal({
                     <TableHead>Code</TableHead>
                     <TableHead>Cost Basis</TableHead>
                     <TableHead>Volume</TableHead>
+                    <TableHead>Target Price</TableHead>
+                    <TableHead>Target Profit</TableHead>
                     <TableHead>Market Price</TableHead>
+                    <TableHead>Total Net Value</TableHead>
                     <TableHead>Current Value</TableHead>
                     <TableHead>Profit</TableHead>
                     <TableHead>Profit %</TableHead>
@@ -333,7 +426,7 @@ export function PortfolioSimulationModal({
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8">
+                      <TableCell colSpan={11} className="text-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                         <p className="text-sm text-muted-foreground mt-2">Loading existing stocks...</p>
                       </TableCell>
@@ -375,6 +468,43 @@ export function PortfolioSimulationModal({
                               stock.volume?.toLocaleString() || "N/A"
                             )}
                           </TableCell>
+                          <TableCell>
+                            {isEditing ? (
+                              <div className="flex gap-1">
+                                <Select value={editTargetPriceMode} onValueChange={(value: "value" | "percent") => setEditTargetPriceMode(value)}>
+                                  <SelectTrigger className="w-16 h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="value">VND</SelectItem>
+                                    <SelectItem value="percent">%</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={editTargetPrice}
+                                  onChange={(e) => setEditTargetPrice(e.target.value)}
+                                  className="w-20"
+                                  placeholder={editTargetPriceMode === "percent" ? "%" : "Price"}
+                                />
+                              </div>
+                            ) : (
+                              formatPrice(stock.targetPrice)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {result?.targetProfit !== undefined && result.targetProfit !== null ? (
+                              <span className={`font-semibold ${
+                                result.targetProfit >= 0 ? "text-green-600" : "text-red-600"
+                              }`}>
+                                {formatPrice(result.targetProfit)}
+                              </span>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
                         <TableCell>
                           {result?.error ? (
                             <span className="text-red-600 text-sm">{result.error}</span>
@@ -383,6 +513,11 @@ export function PortfolioSimulationModal({
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          {result?.costBasis && result?.volume && result.volume > 0
+                            ? formatPrice(result.costBasis * result.volume)
+                            : "-"}
                         </TableCell>
                         <TableCell>
                           {result?.currentValue !== undefined && result.currentValue !== null
@@ -457,28 +592,77 @@ export function PortfolioSimulationModal({
                   })
                   )}
                 </TableBody>
-                {results && (
-                  <tfoot>
-                    <TableRow className="bg-muted/50 font-semibold border-t-2">
-                      <TableCell colSpan={4} className="text-right">
-                        Total:
-                      </TableCell>
-                      <TableCell className="font-bold">
-                        {formatPrice(results.totalCurrentValue)}
-                      </TableCell>
-                      <TableCell className="font-bold">
-                        <span
-                          className={
-                            results.totalProfit >= 0 ? "text-green-600" : "text-red-600"
-                          }
-                        >
-                          {formatPrice(results.totalProfit)}
-                        </span>
-                      </TableCell>
-                      <TableCell colSpan={2}></TableCell>
-                    </TableRow>
-                  </tfoot>
-                )}
+                {results && (() => {
+                  // Calculate totals from results
+                  const totalTargetValue = results.stocks.reduce((sum, stock) => {
+                    if (stock.targetPrice && stock.volume && stock.volume > 0) {
+                      return sum + stock.targetPrice * stock.volume;
+                    }
+                    return sum;
+                  }, 0);
+                  
+                  const totalTargetProfit = results.stocks.reduce((sum, stock) => {
+                    if (stock.targetProfit !== undefined && stock.targetProfit !== null) {
+                      return sum + stock.targetProfit;
+                    }
+                    return sum;
+                  }, 0);
+                  
+                  const totalNetValue = results.stocks.reduce((sum, stock) => {
+                    if (stock.costBasis && stock.volume && stock.volume > 0) {
+                      return sum + stock.costBasis * stock.volume;
+                    }
+                    return sum;
+                  }, 0);
+                  
+                  return (
+                    <tfoot>
+                      <TableRow className="bg-muted/50 font-semibold border-t-2">
+                        <TableCell colSpan={4} className="text-left">
+                          Total:
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="text-sm font-medium">
+                            {totalTargetValue > 0 ? formatPrice(totalTargetValue) : "N/A"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className={`text-sm font-semibold ${
+                            totalTargetProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {totalTargetProfit !== 0 ? formatPrice(totalTargetProfit) : "N/A"}
+                          </span>
+                        </TableCell>
+                        <TableCell></TableCell>
+                        <TableCell className="text-center">
+                          <span className="text-sm font-medium">{formatPrice(totalNetValue)}</span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="text-sm font-medium">
+                            {formatPrice(results.totalCurrentValue)}
+                            {totalNetValue > 0 && (
+                              <span className={`ml-2 text-xs font-medium ${
+                                results.totalCurrentValue >= totalNetValue ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                ({results.totalCurrentValue >= totalNetValue ? '+' : ''}
+                                {((results.totalCurrentValue - totalNetValue) / totalNetValue * 100).toFixed(2)}%)
+                              </span>
+                            )}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className={`text-lg font-bold ${
+                            results.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {formatPrice(results.totalProfit)}
+                          </span>
+                        </TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+                    </tfoot>
+                  );
+                })()}
               </Table>
             </div>
 

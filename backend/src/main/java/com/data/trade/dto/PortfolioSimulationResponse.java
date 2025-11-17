@@ -33,10 +33,12 @@ public class PortfolioSimulationResponse {
         private String code;
         private BigDecimal costBasis;
         private Long volume;
+        private BigDecimal targetPrice;
         private BigDecimal marketPrice;
         private BigDecimal profit;
         private BigDecimal profitPercent;
         private BigDecimal currentValue;
+        private BigDecimal targetProfit; // Profit at target price: (targetPrice - costBasis) * volume
         private String error; // Error message if market price fetch failed
     }
 }

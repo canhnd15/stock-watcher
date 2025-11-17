@@ -137,6 +137,7 @@ public class ShortTermTrackedStockController {
                 String code = stock.getCode().toUpperCase();
                 BigDecimal costBasis = stock.getCostBasis();
                 Long volume = stock.getVolume();
+                BigDecimal targetPrice = stock.getTargetPrice();
 
                 // Get market price
                 BigDecimal marketPrice = getMarketPrice(code);
@@ -147,10 +148,12 @@ public class ShortTermTrackedStockController {
                             .code(code)
                             .costBasis(costBasis)
                             .volume(volume)
+                            .targetPrice(targetPrice)
                             .marketPrice(null)
                             .profit(null)
                             .profitPercent(null)
                             .currentValue(null)
+                            .targetProfit(null)
                             .error("Failed to fetch market price")
                             .build();
                 } else {
@@ -166,15 +169,22 @@ public class ShortTermTrackedStockController {
                                     .divide(costBasis, 4, RoundingMode.HALF_UP)
                                     .multiply(BigDecimal.valueOf(100))
                             : null;
+                    
+                    // Calculate target profit: (targetPrice - costBasis) * volume
+                    BigDecimal targetProfit = (targetPrice != null && costBasis != null && volume != null && volume > 0)
+                            ? targetPrice.subtract(costBasis).multiply(BigDecimal.valueOf(volume))
+                            : null;
 
                     result = PortfolioSimulationResponse.SimulatedStockResult.builder()
                             .code(code)
                             .costBasis(costBasis)
                             .volume(volume)
+                            .targetPrice(targetPrice)
                             .marketPrice(marketPrice)
                             .profit(profit)
                             .profitPercent(profitPercent)
                             .currentValue(currentValue)
+                            .targetProfit(targetProfit)
                             .error(null)
                             .build();
 
@@ -223,6 +233,7 @@ public class ShortTermTrackedStockController {
                 .active(true)
                 .costBasis(request.getCostBasis())
                 .volume(request.getVolume())
+                .targetPrice(request.getTargetPrice())
                 .createdAt(OffsetDateTime.now())
                 .build();
 
@@ -296,6 +307,8 @@ public class ShortTermTrackedStockController {
         stock.setCostBasis(request.getCostBasis());
         // Update volume - if sent as null in request, it will clear the value
         stock.setVolume(request.getVolume());
+        // Update targetPrice - if sent as null in request, it will clear the value
+        stock.setTargetPrice(request.getTargetPrice());
 
         ShortTermTrackedStock updated = shortTermTrackedStockRepository.save(stock);
         return ResponseEntity.ok(updated);
@@ -306,6 +319,7 @@ public class ShortTermTrackedStockController {
         private String code;
         private BigDecimal costBasis;
         private Long volume;
+        private BigDecimal targetPrice;
     }
 
     @Data
@@ -314,6 +328,7 @@ public class ShortTermTrackedStockController {
         private Boolean active;
         private BigDecimal costBasis;
         private Long volume;
+        private BigDecimal targetPrice;
     }
 }
 
