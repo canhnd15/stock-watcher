@@ -48,6 +48,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { api, getStockRoombars, RoombarResponse } from "@/lib/api";
 import { StockRoombarStats } from "@/components/StockRoombarStats";
 import { RealtimePriceTracking } from "@/components/RealtimePriceTracking";
+import { PortfolioSimulationModal } from "@/components/PortfolioSimulationModal";
 import {
   Tooltip,
   TooltipContent,
@@ -113,6 +114,9 @@ const ShortTermPortfolio = () => {
   
   // Realtime price tracking state
   const [realtimePriceTrackingOpen, setRealtimePriceTrackingOpen] = useState(false);
+  
+  // Portfolio simulation state
+  const [portfolioSimulationOpen, setPortfolioSimulationOpen] = useState(false);
   
   // Pagination state
   const [page, setPage] = useState(0);
@@ -636,6 +640,12 @@ const ShortTermPortfolio = () => {
             <h2 className="text-2xl font-bold">Short-Term Portfolio</h2>
             
             <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setPortfolioSimulationOpen(true)}
+                variant="outline"
+              >
+                Portfolio Simulation
+              </Button>
               <Button
                 onClick={() => setRealtimePriceTrackingOpen(true)}
                 variant="default"
@@ -1584,6 +1594,15 @@ const ShortTermPortfolio = () => {
             )}
           </DialogContent>
         </Dialog>
+
+          {/* Portfolio Simulation Modal */}
+          <PortfolioSimulationModal
+            open={portfolioSimulationOpen}
+            onOpenChange={setPortfolioSimulationOpen}
+            vn30Codes={vn30Codes}
+            apiEndpoint="/api/short-term-tracked-stocks/simulate-portfolio"
+            fetchStocksEndpoint="/api/short-term-tracked-stocks"
+          />
 
           {/* Realtime Price Tracking Dialog */}
           <RealtimePriceTracking

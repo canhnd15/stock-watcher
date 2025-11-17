@@ -2,6 +2,8 @@ package com.data.trade.controller;
 
 import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.constants.RoleConstants;
+import com.data.trade.dto.PortfolioSimulationRequest;
+import com.data.trade.dto.PortfolioSimulationResponse;
 import com.data.trade.dto.ShortTermTrackedStockWithMarketPriceDTO;
 import com.data.trade.dto.TrackedStockStatsDTO;
 import com.data.trade.model.ShortTermTrackedStock;
@@ -9,6 +11,7 @@ import com.data.trade.model.User;
 import com.data.trade.repository.ShortTermTrackedStockRepository;
 import com.data.trade.service.FinpathClient;
 import com.data.trade.service.TrackedStockStatsService;
+import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +21,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -112,6 +117,93 @@ public class ShortTermTrackedStockController {
             this.successCount = successCount;
             this.failedCount = failedCount;
             this.stocks = stocks;
+        }
+    }
+
+    /**
+     * Simulate portfolio profit calculation
+     * Accepts a list of stocks with cost basis and volume, returns profit calculations
+     */
+    @PostMapping("/simulate-portfolio")
+    public ResponseEntity<PortfolioSimulationResponse> simulatePortfolio(
+            @Valid @RequestBody PortfolioSimulationRequest request) {
+        try {
+            List<PortfolioSimulationResponse.SimulatedStockResult> results = new ArrayList<>();
+            BigDecimal totalProfit = BigDecimal.ZERO;
+            BigDecimal totalCostBasis = BigDecimal.ZERO;
+            BigDecimal totalCurrentValue = BigDecimal.ZERO;
+
+            for (PortfolioSimulationRequest.SimulatedStock stock : request.getStocks()) {
+                String code = stock.getCode().toUpperCase();
+                BigDecimal costBasis = stock.getCostBasis();
+                Long volume = stock.getVolume();
+
+                // Get market price
+                BigDecimal marketPrice = getMarketPrice(code);
+
+                PortfolioSimulationResponse.SimulatedStockResult result;
+                if (marketPrice == null) {
+                    result = PortfolioSimulationResponse.SimulatedStockResult.builder()
+                            .code(code)
+                            .costBasis(costBasis)
+                            .volume(volume)
+                            .marketPrice(null)
+                            .profit(null)
+                            .profitPercent(null)
+                            .currentValue(null)
+                            .error("Failed to fetch market price")
+                            .build();
+                } else {
+                    // Calculate profit
+                    BigDecimal currentValue = (volume != null && volume > 0) 
+                            ? marketPrice.multiply(BigDecimal.valueOf(volume))
+                            : BigDecimal.ZERO;
+                    BigDecimal profit = (costBasis != null && volume != null && volume > 0)
+                            ? marketPrice.subtract(costBasis).multiply(BigDecimal.valueOf(volume))
+                            : null;
+                    BigDecimal profitPercent = (costBasis != null && costBasis.compareTo(BigDecimal.ZERO) > 0)
+                            ? marketPrice.subtract(costBasis)
+                                    .divide(costBasis, 4, RoundingMode.HALF_UP)
+                                    .multiply(BigDecimal.valueOf(100))
+                            : null;
+
+                    result = PortfolioSimulationResponse.SimulatedStockResult.builder()
+                            .code(code)
+                            .costBasis(costBasis)
+                            .volume(volume)
+                            .marketPrice(marketPrice)
+                            .profit(profit)
+                            .profitPercent(profitPercent)
+                            .currentValue(currentValue)
+                            .error(null)
+                            .build();
+
+                    // Accumulate totals
+                    if (profit != null) {
+                        totalProfit = totalProfit.add(profit);
+                    }
+                    if (costBasis != null && volume != null && volume > 0) {
+                        totalCostBasis = totalCostBasis.add(costBasis.multiply(BigDecimal.valueOf(volume)));
+                    }
+                    if (currentValue != null) {
+                        totalCurrentValue = totalCurrentValue.add(currentValue);
+                    }
+                }
+
+                results.add(result);
+            }
+
+            PortfolioSimulationResponse response = PortfolioSimulationResponse.builder()
+                    .stocks(results)
+                    .totalProfit(totalProfit)
+                    .totalCostBasis(totalCostBasis)
+                    .totalCurrentValue(totalCurrentValue)
+                    .build();
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to simulate portfolio", e);
+            return ResponseEntity.status(500).build();
         }
     }
 

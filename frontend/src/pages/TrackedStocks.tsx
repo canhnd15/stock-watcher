@@ -48,6 +48,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { api, getStockRoombars, RoombarResponse } from "@/lib/api";
 import { StockRoombarStats } from "@/components/StockRoombarStats";
 import { RealtimePriceTracking } from "@/components/RealtimePriceTracking";
+import { PortfolioSimulationModal } from "@/components/PortfolioSimulationModal";
 import {
   Tooltip,
   TooltipContent,
@@ -128,6 +129,10 @@ const TrackedStocks = () => {
   
   // Realtime price tracking state
   const [realtimePriceTrackingOpen, setRealtimePriceTrackingOpen] = useState(false);
+  
+  // Portfolio simulation state
+  const [portfolioSimulationOpen, setPortfolioSimulationOpen] = useState(false);
+  const [shortTermPortfolioSimulationOpen, setShortTermPortfolioSimulationOpen] = useState(false);
   
   // Pagination state
   const [page, setPage] = useState(0);
@@ -1292,7 +1297,13 @@ const TrackedStocks = () => {
         </Dialog>
 
         {/* Refresh Market Price Button */}
-        <div className="mb-4 flex justify-end">
+        <div className="mb-4 flex justify-end gap-3">
+          <Button
+            onClick={() => setPortfolioSimulationOpen(true)}
+            variant="outline"
+          >
+            Portfolio Simulation
+          </Button>
           <Button
             variant="outline"
             onClick={handleRefreshMarketPrice}
@@ -1756,15 +1767,23 @@ const TrackedStocks = () => {
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-2xl font-bold">Short-Term Portfolio</h2>
             
-            <Button
-              variant="outline"
-              onClick={handleShortTermRefreshMarketPrice}
-              disabled={refreshingShortTermMarketPrice || loadingShortTermStocks}
-              className="border-2"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshingShortTermMarketPrice ? 'animate-spin' : ''}`} />
-              Refresh Market Price
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setShortTermPortfolioSimulationOpen(true)}
+                variant="outline"
+              >
+                Portfolio Simulation
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleShortTermRefreshMarketPrice}
+                disabled={refreshingShortTermMarketPrice || loadingShortTermStocks}
+                className="border-2"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshingShortTermMarketPrice ? 'animate-spin' : ''}`} />
+                Refresh Market Price
+              </Button>
+            </div>
           </div>
 
           <div className="rounded-lg border bg-card overflow-x-auto">
@@ -2375,6 +2394,24 @@ const TrackedStocks = () => {
             )}
           </DialogContent>
         </Dialog>
+
+          {/* Portfolio Simulation Modal for Tracked Stocks */}
+          <PortfolioSimulationModal
+            open={portfolioSimulationOpen}
+            onOpenChange={setPortfolioSimulationOpen}
+            vn30Codes={vn30Codes}
+            apiEndpoint="/api/tracked-stocks/simulate-portfolio"
+            fetchStocksEndpoint="/api/tracked-stocks"
+          />
+
+          {/* Portfolio Simulation Modal for Short-Term Portfolio */}
+          <PortfolioSimulationModal
+            open={shortTermPortfolioSimulationOpen}
+            onOpenChange={setShortTermPortfolioSimulationOpen}
+            vn30Codes={vn30Codes}
+            apiEndpoint="/api/short-term-tracked-stocks/simulate-portfolio"
+            fetchStocksEndpoint="/api/short-term-tracked-stocks"
+          />
 
           {/* Realtime Price Tracking Dialog */}
           <RealtimePriceTracking
