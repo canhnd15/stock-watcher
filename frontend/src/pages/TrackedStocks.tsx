@@ -1011,12 +1011,61 @@ const TrackedStocks = () => {
     }
   };
 
+  // Get current cost basis for short-term (recalculated if volume changed)
+  const getShortTermCurrentCostBasis = (stock: TrackedStock): number | null => {
+    const volumeStr = shortTermVolumeValues[stock.code];
+    const oldVolume = stock.volume || 0;
+    const newVolume = volumeStr ? parseInt(volumeStr, 10) : oldVolume;
+    
+    if (!stock.costBasis || oldVolume === 0) {
+      return stock.costBasis || null;
+    }
+    
+    // If volume hasn't changed, return original cost basis
+    if (newVolume === oldVolume || !volumeStr) {
+      return stock.costBasis;
+    }
+    
+    // Calculate new cost basis
+    const newCostBasis = calculateNewCostBasis(
+      oldVolume,
+      stock.costBasis,
+      newVolume,
+      stock.marketPrice
+    );
+    
+    return newCostBasis;
+  };
+
+  // Calculate current profit for short-term (recalculated if volume or cost basis changed)
+  const calculateShortTermCurrentProfit = (stock: TrackedStock): number | null => {
+    const volumeStr = shortTermVolumeValues[stock.code];
+    const volume = volumeStr ? parseFloat(volumeStr) : (stock.volume || 0);
+    
+    if (volume <= 0 || !stock.marketPrice) {
+      return null;
+    }
+    
+    const currentCostBasis = getShortTermCurrentCostBasis(stock);
+    if (!currentCostBasis) {
+      return null;
+    }
+    
+    // Profit = (marketPrice - costBasis) * volume
+    const profit = (stock.marketPrice - currentCostBasis) * volume;
+    
+    return profit;
+  };
+
   // Calculate target profit locally for short-term: (targetPrice - costBasis) * volume
   const calculateShortTermTargetProfit = (stock: TrackedStock): number | null => {
     const volumeStr = shortTermVolumeValues[stock.code] || stock.volume?.toString() || "0";
     const volume = parseFloat(volumeStr);
     
-    if (!stock.costBasis || volume <= 0) return null;
+    // Use recalculated cost basis if volume changed, otherwise use stock.costBasis
+    const currentCostBasis = getShortTermCurrentCostBasis(stock);
+    
+    if (!currentCostBasis || volume <= 0) return null;
     
     // Get target price from input or saved value
     let targetPrice: number | null = null;
@@ -1027,8 +1076,8 @@ const TrackedStocks = () => {
       const inputValue = parseFloat(targetPriceInput);
       if (!isNaN(inputValue) && inputValue >= 0) {
         if (mode === "percent") {
-          if (stock.costBasis && stock.costBasis > 0) {
-            targetPrice = stock.costBasis * (1 + inputValue / 100);
+          if (currentCostBasis && currentCostBasis > 0) {
+            targetPrice = currentCostBasis * (1 + inputValue / 100);
           }
         } else {
           targetPrice = inputValue;
@@ -1040,7 +1089,7 @@ const TrackedStocks = () => {
     
     if (!targetPrice) return null;
     
-    return (targetPrice - stock.costBasis) * volume;
+    return (targetPrice - currentCostBasis) * volume;
   };
 
   // Save all pending changes for short-term portfolio
@@ -1072,8 +1121,9 @@ const TrackedStocks = () => {
             const inputValue = parseFloat(targetPriceInput);
             if (!isNaN(inputValue) && inputValue >= 0) {
               if (mode === "percent") {
-                if (stock.costBasis && stock.costBasis > 0) {
-                  targetPrice = stock.costBasis * (1 + inputValue / 100);
+                const currentCostBasis = getShortTermCurrentCostBasis(stock);
+                if (currentCostBasis && currentCostBasis > 0) {
+                  targetPrice = currentCostBasis * (1 + inputValue / 100);
                 }
               } else {
                 targetPrice = inputValue;
@@ -1081,9 +1131,24 @@ const TrackedStocks = () => {
             }
           }
 
+          // Calculate new cost basis if volume changed
+          let newCostBasis = stock.costBasis || null;
+          const oldVolume = stock.volume || 0;
+          if (volumeNum !== null && oldVolume > 0 && volumeNum !== oldVolume && stock.marketPrice) {
+            const calculatedCostBasis = calculateNewCostBasis(
+              oldVolume,
+              stock.costBasis!,
+              volumeNum,
+              stock.marketPrice
+            );
+            if (calculatedCostBasis !== null) {
+              newCostBasis = calculatedCostBasis;
+            }
+          }
+
           const response = await api.put(`/api/short-term-tracked-stocks/${stock.id}`, {
             volume: volumeNum,
-            costBasis: stock.costBasis || null,
+            costBasis: newCostBasis,
             targetPrice: targetPrice,
           });
 
@@ -2593,11 +2658,25 @@ const TrackedStocks = () => {
                           </Tooltip>
                         </TableCell>
                         <TableCell>
-                          {stock.costBasis ? (
-                            <span className="text-sm font-medium">{formatPrice(stock.costBasis)}</span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">N/A</span>
-                          )}
+                          {(() => {
+                            const currentCostBasis = getShortTermCurrentCostBasis(stock);
+                            if (currentCostBasis) {
+                              const isRecalculated = shortTermVolumeValues[stock.code] && 
+                                stock.volume && 
+                                parseInt(shortTermVolumeValues[stock.code] || "0", 10) !== stock.volume;
+                              return (
+                                <span className={`text-sm font-medium ${isRecalculated ? 'text-orange-600' : ''}`}>
+                                  {formatPrice(currentCostBasis)}
+                                  {isRecalculated && (
+                                    <span className="ml-1 text-xs text-muted-foreground" title="Recalculated based on volume change">
+                                      *
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            }
+                            return <span className="text-sm text-muted-foreground">N/A</span>;
+                          })()}
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex flex-col items-center gap-1">
@@ -2766,8 +2845,11 @@ const TrackedStocks = () => {
                               if (targetPriceInput && targetPriceInput.trim() !== "") {
                                 const inputValue = parseFloat(targetPriceInput);
                                 if (!isNaN(inputValue) && inputValue >= 0) {
-                                  if (mode === "percent" && stock.costBasis && stock.costBasis > 0) {
-                                    displayPrice = stock.costBasis * (1 + inputValue / 100);
+                                  if (mode === "percent") {
+                                    const currentCostBasis = getShortTermCurrentCostBasis(stock);
+                                    if (currentCostBasis && currentCostBasis > 0) {
+                                      displayPrice = currentCostBasis * (1 + inputValue / 100);
+                                    }
                                   } else if (mode === "value") {
                                     displayPrice = inputValue;
                                   }
@@ -2800,31 +2882,38 @@ const TrackedStocks = () => {
                           })()}
                         </TableCell>
                         <TableCell className="text-center">
-                          {stock.costBasis && shortTermVolumeValues[stock.code] && !isNaN(parseFloat(shortTermVolumeValues[stock.code])) && parseFloat(shortTermVolumeValues[stock.code]) > 0 ? (
-                            <span className="text-sm font-medium">{formatPrice(stock.costBasis * parseFloat(shortTermVolumeValues[stock.code]))}</span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">N/A</span>
-                          )}
+                          {(() => {
+                            const currentCostBasis = getShortTermCurrentCostBasis(stock);
+                            const volume = shortTermVolumeValues[stock.code] ? parseFloat(shortTermVolumeValues[stock.code]) : (stock.volume || 0);
+                            if (currentCostBasis && volume > 0) {
+                              return <span className="text-sm font-medium">{formatPrice(currentCostBasis * volume)}</span>;
+                            }
+                            return <span className="text-sm text-muted-foreground">N/A</span>;
+                          })()}
                         </TableCell>
                         <TableCell className="text-center">
-                          {stock.marketPrice && shortTermVolumeValues[stock.code] && !isNaN(parseFloat(shortTermVolumeValues[stock.code])) && parseFloat(shortTermVolumeValues[stock.code]) > 0 ? (
-                            <span className="text-sm font-medium">{formatPrice(stock.marketPrice * parseFloat(shortTermVolumeValues[stock.code]))}</span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">N/A</span>
-                          )}
+                          {(() => {
+                            const volume = shortTermVolumeValues[stock.code] ? parseFloat(shortTermVolumeValues[stock.code]) : (stock.volume || 0);
+                            if (stock.marketPrice && volume > 0) {
+                              return <span className="text-sm font-medium">{formatPrice(stock.marketPrice * volume)}</span>;
+                            }
+                            return <span className="text-sm text-muted-foreground">N/A</span>;
+                          })()}
                         </TableCell>
                         <TableCell className="text-center">
-                          {shortTermVolumeValues[stock.code] && stock.marketPrice && stock.costBasis && !isNaN(parseFloat(shortTermVolumeValues[stock.code])) && parseFloat(shortTermVolumeValues[stock.code]) > 0 ? (
-                            <span className={`text-sm font-semibold ${
-                              (stock.marketPrice - stock.costBasis) * parseFloat(shortTermVolumeValues[stock.code]) >= 0 
-                                ? 'text-green-600' 
-                                : 'text-red-600'
-                            }`}>
-                              {formatPrice((stock.marketPrice - stock.costBasis) * parseFloat(shortTermVolumeValues[stock.code]))}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">N/A</span>
-                          )}
+                          {(() => {
+                            const profit = calculateShortTermCurrentProfit(stock);
+                            if (profit !== null) {
+                              return (
+                                <span className={`text-sm font-semibold ${
+                                  profit >= 0 ? 'text-green-600' : 'text-red-600'
+                                }`}>
+                                  {formatPrice(profit)}
+                                </span>
+                              );
+                            }
+                            return <span className="text-sm text-muted-foreground">N/A</span>;
+                          })()}
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
@@ -2894,9 +2983,9 @@ const TrackedStocks = () => {
                 const totalProfit = shortTermStocks.reduce((sum, stock) => {
                   // Only count active stocks
                   if (!stock.active) return sum;
-                  const volume = shortTermVolumeValues[stock.code];
-                  if (volume && stock.marketPrice && stock.costBasis && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
-                    return sum + (stock.marketPrice - stock.costBasis) * parseFloat(volume);
+                  const profit = calculateShortTermCurrentProfit(stock);
+                  if (profit !== null) {
+                    return sum + profit;
                   }
                   return sum;
                 }, 0);
@@ -2905,8 +2994,12 @@ const TrackedStocks = () => {
                   // Only count active stocks
                   if (!stock.active) return sum;
                   const volume = shortTermVolumeValues[stock.code];
-                  if (volume && stock.costBasis && !isNaN(parseFloat(volume)) && parseFloat(volume) > 0) {
-                    return sum + stock.costBasis * parseFloat(volume);
+                  const volumeNum = volume ? parseFloat(volume) : (stock.volume || 0);
+                  if (volumeNum > 0) {
+                    const currentCostBasis = getShortTermCurrentCostBasis(stock);
+                    if (currentCostBasis) {
+                      return sum + currentCostBasis * volumeNum;
+                    }
                   }
                   return sum;
                 }, 0);
@@ -2937,8 +3030,9 @@ const TrackedStocks = () => {
                     const inputValue = parseFloat(targetPriceInput);
                     if (!isNaN(inputValue) && inputValue >= 0) {
                       if (mode === "percent") {
-                        if (stock.costBasis && stock.costBasis > 0) {
-                          targetPrice = stock.costBasis * (1 + inputValue / 100);
+                        const currentCostBasis = getShortTermCurrentCostBasis(stock);
+                        if (currentCostBasis && currentCostBasis > 0) {
+                          targetPrice = currentCostBasis * (1 + inputValue / 100);
                         }
                       } else {
                         targetPrice = inputValue;
