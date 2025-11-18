@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/table.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Pencil, X, Activity, RefreshCw, TrendingUp, TrendingDown, MoreVertical } from "lucide-react";
+import { Loader2, Check, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Pencil, X, Activity, RefreshCw, TrendingUp, TrendingDown, MoreVertical, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input.tsx";
 import { useTrackedStockStats } from "@/hooks/useTrackedStockStats";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -401,6 +401,59 @@ const TrackedStocks = () => {
   // Function to mark changes as unsaved (no longer auto-saves)
   const markAsUnsaved = (code: string) => {
     setUnsavedChanges(prev => new Set(prev).add(code));
+  };
+
+  // Discard all pending changes for tracked stocks
+  const discardAllChanges = () => {
+    if (unsavedChanges.size === 0) {
+      toast.info("No changes to discard");
+      return;
+    }
+
+    const changeCount = unsavedChanges.size;
+
+    // Revert volume values back to original values from trackedStocks
+    const volumeMap: Record<string, string> = {};
+    const targetPriceMap: Record<string, string> = {};
+    const targetPriceModeMap: Record<string, "value" | "percent"> = {};
+    
+    trackedStocks.forEach(stock => {
+      if (stock.volume !== undefined && stock.volume !== null) {
+        volumeMap[stock.code] = stock.volume.toString();
+      }
+      if (stock.targetPrice !== undefined && stock.targetPrice !== null) {
+        targetPriceMap[stock.code] = stock.targetPrice.toString();
+        targetPriceModeMap[stock.code] = "value";
+      }
+    });
+
+    // Only revert values for stocks with unsaved changes
+    const revertedVolumeMap: Record<string, string> = { ...volumeValues };
+    const revertedTargetPriceMap: Record<string, string> = { ...targetPriceValues };
+    const revertedTargetPriceModeMap: Record<string, "value" | "percent"> = { ...targetPriceMode };
+
+    unsavedChanges.forEach(code => {
+      if (volumeMap[code] !== undefined) {
+        revertedVolumeMap[code] = volumeMap[code];
+      } else {
+        delete revertedVolumeMap[code];
+      }
+      
+      if (targetPriceMap[code] !== undefined) {
+        revertedTargetPriceMap[code] = targetPriceMap[code];
+        revertedTargetPriceModeMap[code] = "value";
+      } else {
+        delete revertedTargetPriceMap[code];
+        delete revertedTargetPriceModeMap[code];
+      }
+    });
+
+    setVolumeValues(revertedVolumeMap);
+    setTargetPriceValues(revertedTargetPriceMap);
+    setTargetPriceMode(revertedTargetPriceModeMap);
+    setUnsavedChanges(new Set());
+    
+    toast.success(`Discarded changes for ${changeCount} stock(s)`);
   };
 
   // Handle refresh market price
@@ -970,6 +1023,59 @@ const TrackedStocks = () => {
   // Function to mark short-term changes as unsaved
   const markShortTermAsUnsaved = (code: string) => {
     setShortTermUnsavedChanges(prev => new Set(prev).add(code));
+  };
+
+  // Discard all pending changes for short-term tracked stocks
+  const discardShortTermAllChanges = () => {
+    if (shortTermUnsavedChanges.size === 0) {
+      toast.info("No changes to discard");
+      return;
+    }
+
+    const changeCount = shortTermUnsavedChanges.size;
+
+    // Revert volume values back to original values from shortTermStocks
+    const volumeMap: Record<string, string> = {};
+    const targetPriceMap: Record<string, string> = {};
+    const targetPriceModeMap: Record<string, "value" | "percent"> = {};
+    
+    shortTermStocks.forEach(stock => {
+      if (stock.volume !== undefined && stock.volume !== null) {
+        volumeMap[stock.code] = stock.volume.toString();
+      }
+      if (stock.targetPrice !== undefined && stock.targetPrice !== null) {
+        targetPriceMap[stock.code] = stock.targetPrice.toString();
+        targetPriceModeMap[stock.code] = "value";
+      }
+    });
+
+    // Only revert values for stocks with unsaved changes
+    const revertedVolumeMap: Record<string, string> = { ...shortTermVolumeValues };
+    const revertedTargetPriceMap: Record<string, string> = { ...shortTermTargetPriceValues };
+    const revertedTargetPriceModeMap: Record<string, "value" | "percent"> = { ...shortTermTargetPriceMode };
+
+    shortTermUnsavedChanges.forEach(code => {
+      if (volumeMap[code] !== undefined) {
+        revertedVolumeMap[code] = volumeMap[code];
+      } else {
+        delete revertedVolumeMap[code];
+      }
+      
+      if (targetPriceMap[code] !== undefined) {
+        revertedTargetPriceMap[code] = targetPriceMap[code];
+        revertedTargetPriceModeMap[code] = "value";
+      } else {
+        delete revertedTargetPriceMap[code];
+        delete revertedTargetPriceModeMap[code];
+      }
+    });
+
+    setShortTermVolumeValues(revertedVolumeMap);
+    setShortTermTargetPriceValues(revertedTargetPriceMap);
+    setShortTermTargetPriceMode(revertedTargetPriceModeMap);
+    setShortTermUnsavedChanges(new Set());
+    
+    toast.success(`Discarded changes for ${changeCount} stock(s)`);
   };
 
   const handleShortTermRefreshMarketPrice = async () => {
@@ -1591,23 +1697,33 @@ const TrackedStocks = () => {
         {/* Refresh Market Price Button */}
         <div className="mb-4 flex justify-end gap-3">
           {unsavedChanges.size > 0 && (
-            <Button
-              onClick={saveAllChanges}
-              disabled={savingAll}
-              className="bg-orange-600 hover:bg-orange-700 text-white"
-            >
-              {savingAll ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Check className="h-4 w-4 mr-2" />
-                  Save Changes ({unsavedChanges.size})
-                </>
-              )}
-            </Button>
+            <>
+              <Button
+                onClick={discardAllChanges}
+                variant="outline"
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Discard Changes
+              </Button>
+              <Button
+                onClick={saveAllChanges}
+                disabled={savingAll}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                {savingAll ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    Save Changes ({unsavedChanges.size})
+                  </>
+                )}
+              </Button>
+            </>
           )}
           <Button
             onClick={() => setPortfolioSimulationOpen(true)}
@@ -2217,23 +2333,33 @@ const TrackedStocks = () => {
             
             <div className="flex items-center gap-3">
               {shortTermUnsavedChanges.size > 0 && (
-                <Button
-                  onClick={saveShortTermAllChanges}
-                  disabled={savingShortTermAll}
-                  className="bg-orange-600 hover:bg-orange-700 text-white"
-                >
-                  {savingShortTermAll ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="h-4 w-4 mr-2" />
-                      Save Changes ({shortTermUnsavedChanges.size})
-                    </>
-                  )}
-                </Button>
+                <>
+                  <Button
+                    onClick={discardShortTermAllChanges}
+                    variant="outline"
+                    className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Discard Changes
+                  </Button>
+                  <Button
+                    onClick={saveShortTermAllChanges}
+                    disabled={savingShortTermAll}
+                    className="bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    {savingShortTermAll ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        Save Changes ({shortTermUnsavedChanges.size})
+                      </>
+                    )}
+                  </Button>
+                </>
               )}
               <Button
                 onClick={() => setShortTermPortfolioSimulationOpen(true)}

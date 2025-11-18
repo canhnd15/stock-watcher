@@ -6,10 +6,13 @@ import com.data.trade.dto.IntradayPriceBatchRequest;
 import com.data.trade.dto.IntradayPriceBatchResponse;
 import com.data.trade.dto.IntradayPriceDTO;
 import com.data.trade.dto.RoombarResponse;
+import com.data.trade.service.FinpathClient;
 import com.data.trade.service.StockRoombarService;
 import com.data.trade.service.TradeService;
 import jakarta.validation.Valid;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,10 +26,12 @@ import java.util.Map;
 @RestController
 @RequestMapping(ApiEndpoints.API_STOCKS)
 @RequiredArgsConstructor
+@Slf4j
 public class StockController {
     
     private final StockRoombarService stockRoombarService;
     private final TradeService tradeService;
+    private final FinpathClient finpathClient;
     
     @GetMapping(ApiEndpoints.STOCKS_ROOMBARS_CODE_PATH)
     @PreAuthorize(RoleConstants.HAS_ANY_ROLE_ALL)
@@ -60,6 +65,38 @@ public class StockController {
                 .build();
         
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get current market price for a stock code
+     */
+    @GetMapping("/market-price/{code}")
+    @PreAuthorize(RoleConstants.HAS_ANY_ROLE_ALL)
+    public ResponseEntity<MarketPriceResponse> getMarketPrice(@PathVariable String code) {
+        try {
+            var response = finpathClient.fetchTradingViewBars(code.toUpperCase());
+            if (response != null) {
+                Double price = response.getMarketPrice();
+                if (price != null) {
+                    return ResponseEntity.ok(new MarketPriceResponse(code.toUpperCase(), price));
+                }
+            }
+            return ResponseEntity.ok(new MarketPriceResponse(code.toUpperCase(), null));
+        } catch (Exception e) {
+            log.debug("Failed to fetch market price for {}: {}", code, e.getMessage());
+            return ResponseEntity.ok(new MarketPriceResponse(code.toUpperCase(), null));
+        }
+    }
+
+    @Data
+    static class MarketPriceResponse {
+        private String code;
+        private Double marketPrice;
+
+        public MarketPriceResponse(String code, Double marketPrice) {
+            this.code = code;
+            this.marketPrice = marketPrice;
+        }
     }
 }
 

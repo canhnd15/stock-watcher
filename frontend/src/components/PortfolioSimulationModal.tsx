@@ -24,9 +24,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table.tsx";
-import { Loader2, Plus, Trash2, RefreshCw, Pencil } from "lucide-react";
+import { Loader2, Plus, Trash2, RefreshCw, Pencil, MoreVertical } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.tsx";
 
 interface SimulatedStock {
   code: string;
@@ -92,6 +98,7 @@ export function PortfolioSimulationModal({
   const [editVolume, setEditVolume] = useState("");
   const [editTargetPrice, setEditTargetPrice] = useState("");
   const [editTargetPriceMode, setEditTargetPriceMode] = useState<"value" | "percent">("value");
+  const [loadingMarketPrice, setLoadingMarketPrice] = useState(false);
 
   const loadExistingStocks = useCallback(async () => {
     setLoading(true);
@@ -137,6 +144,36 @@ export function PortfolioSimulationModal({
       setEditTargetPriceMode("value");
     }
   }, [open, loadExistingStocks]);
+
+  // Fetch market price when stock code is selected
+  const handleStockCodeChange = async (code: string) => {
+    setSelectedCode(code);
+    
+    if (!code) {
+      setCostBasis("");
+      return;
+    }
+
+    // Fetch market price and fill cost basis
+    setLoadingMarketPrice(true);
+    try {
+      const response = await api.get(`/api/stocks/market-price/${code}`);
+      if (response.ok) {
+        const data: { code: string; marketPrice: number | null } = await response.json();
+        if (data.marketPrice !== null && data.marketPrice !== undefined) {
+          setCostBasis(data.marketPrice.toString());
+        } else {
+          setCostBasis("");
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching market price:", error);
+      // Don't show error toast, just leave cost basis empty
+      setCostBasis("");
+    } finally {
+      setLoadingMarketPrice(false);
+    }
+  };
 
   const handleAddStock = () => {
     if (!selectedCode) {
@@ -323,11 +360,12 @@ export function PortfolioSimulationModal({
             <div className="flex gap-4 items-end">
               <div className="flex-1">
                 <label className="text-sm font-medium mb-1 block">Stock Code</label>
-                <select
-                  value={selectedCode}
-                  onChange={(e) => setSelectedCode(e.target.value)}
-                  className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
+                <div className="relative">
+                  <select
+                    value={selectedCode}
+                    onChange={(e) => handleStockCodeChange(e.target.value)}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
                   <option value="">Select a stock...</option>
                   {vn30Codes
                     .filter((code) => !simulatedStocks.some((s) => s.code === code))
@@ -336,7 +374,11 @@ export function PortfolioSimulationModal({
                         {code}
                       </option>
                     ))}
-                </select>
+                  </select>
+                  {loadingMarketPrice && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
               </div>
               <div className="flex-1">
                 <label className="text-sm font-medium mb-1 block">Cost Basis (VND)</label>
@@ -347,6 +389,7 @@ export function PortfolioSimulationModal({
                   placeholder="Purchase price"
                   value={costBasis}
                   onChange={(e) => setCostBasis(e.target.value)}
+                  disabled={loadingMarketPrice}
                 />
               </div>
               <div className="flex-1">
@@ -354,9 +397,34 @@ export function PortfolioSimulationModal({
                 <Input
                   type="number"
                   min="0"
+                  step="100"
                   placeholder="Number of shares"
                   value={volume}
                   onChange={(e) => setVolume(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      const currentValue = volume || "0";
+                      const numValue = parseInt(currentValue) || 0;
+                      const newValue = Math.max(0, numValue + 100);
+                      setVolume(newValue.toString());
+                    } else if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      const currentValue = volume || "0";
+                      const numValue = parseInt(currentValue) || 0;
+                      const newValue = Math.max(0, numValue - 100);
+                      setVolume(newValue.toString());
+                    }
+                  }}
+                  onWheel={(e) => {
+                    e.preventDefault();
+                    const currentValue = volume || "0";
+                    const numValue = parseInt(currentValue) || 0;
+                    const newValue = e.deltaY < 0 
+                      ? Math.max(0, numValue + 100)
+                      : Math.max(0, numValue - 100);
+                    setVolume(newValue.toString());
+                  }}
                 />
               </div>
               <div className="flex-1">
@@ -419,8 +487,8 @@ export function PortfolioSimulationModal({
                     <TableHead>Total Net Value</TableHead>
                     <TableHead>Current Value</TableHead>
                     <TableHead>Profit</TableHead>
-                    <TableHead>Profit %</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="w-20">Profit %</TableHead>
+                    <TableHead className="text-right w-12">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -459,8 +527,33 @@ export function PortfolioSimulationModal({
                               <Input
                                 type="number"
                                 min="0"
+                                step="100"
                                 value={editVolume}
                                 onChange={(e) => setEditVolume(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'ArrowUp') {
+                                    e.preventDefault();
+                                    const currentValue = editVolume || "0";
+                                    const numValue = parseInt(currentValue) || 0;
+                                    const newValue = Math.max(0, numValue + 100);
+                                    setEditVolume(newValue.toString());
+                                  } else if (e.key === 'ArrowDown') {
+                                    e.preventDefault();
+                                    const currentValue = editVolume || "0";
+                                    const numValue = parseInt(currentValue) || 0;
+                                    const newValue = Math.max(0, numValue - 100);
+                                    setEditVolume(newValue.toString());
+                                  }
+                                }}
+                                onWheel={(e) => {
+                                  e.preventDefault();
+                                  const currentValue = editVolume || "0";
+                                  const numValue = parseInt(currentValue) || 0;
+                                  const newValue = e.deltaY < 0 
+                                    ? Math.max(0, numValue + 100)
+                                    : Math.max(0, numValue - 100);
+                                  setEditVolume(newValue.toString());
+                                }}
                                 className="w-24"
                                 placeholder="Volume"
                               />
@@ -550,7 +643,7 @@ export function PortfolioSimulationModal({
                             "-"
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right w-12">
                           {isEditing ? (
                             <div className="flex gap-2 justify-end">
                               <Button
@@ -569,22 +662,27 @@ export function PortfolioSimulationModal({
                               </Button>
                             </div>
                           ) : (
-                            <div className="flex gap-2 justify-end">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditStock(stock.code)}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveStock(stock.code)}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreVertical className="h-4 w-4" />
+                                  <span className="sr-only">Open menu</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleEditStock(stock.code)}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleRemoveStock(stock.code)}
+                                  className="text-red-600 focus:text-red-600"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           )}
                         </TableCell>
                       </TableRow>
@@ -622,11 +720,6 @@ export function PortfolioSimulationModal({
                           Total:
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className="text-sm font-medium">
-                            {totalTargetValue > 0 ? formatPrice(totalTargetValue) : "N/A"}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center">
                           <span className={`text-sm font-semibold ${
                             totalTargetProfit >= 0 ? 'text-green-600' : 'text-red-600'
                           }`}>
@@ -634,20 +727,13 @@ export function PortfolioSimulationModal({
                           </span>
                         </TableCell>
                         <TableCell></TableCell>
+                        <TableCell></TableCell>
                         <TableCell className="text-center">
                           <span className="text-sm font-medium">{formatPrice(totalNetValue)}</span>
                         </TableCell>
                         <TableCell className="text-center">
                           <span className="text-sm font-medium">
                             {formatPrice(results.totalCurrentValue)}
-                            {totalNetValue > 0 && (
-                              <span className={`ml-2 text-xs font-medium ${
-                                results.totalCurrentValue >= totalNetValue ? 'text-green-600' : 'text-red-600'
-                              }`}>
-                                ({results.totalCurrentValue >= totalNetValue ? '+' : ''}
-                                {((results.totalCurrentValue - totalNetValue) / totalNetValue * 100).toFixed(2)}%)
-                              </span>
-                            )}
                           </span>
                         </TableCell>
                         <TableCell className="text-center">
@@ -655,10 +741,18 @@ export function PortfolioSimulationModal({
                             results.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
                           }`}>
                             {formatPrice(results.totalProfit)}
+                            {totalNetValue > 0 && (
+                              <span className={`ml-2 text-xs font-medium ${
+                                results.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                ({results.totalProfit >= 0 ? '+' : ''}
+                                {((results.totalProfit / totalNetValue) * 100).toFixed(2)}%)
+                              </span>
+                            )}
                           </span>
                         </TableCell>
-                        <TableCell></TableCell>
-                        <TableCell></TableCell>
+                        <TableCell className="w-20"></TableCell>
+                        <TableCell className="w-12"></TableCell>
                       </TableRow>
                     </tfoot>
                   );
