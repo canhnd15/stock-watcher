@@ -39,7 +39,7 @@ import {
 import { Badge } from "@/components/ui/badge.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, HelpCircle } from "lucide-react";
+import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, HelpCircle, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
@@ -89,6 +89,8 @@ interface TradeFilters {
   type: string;
   minVolume: string;
   maxVolume: string;
+  minPrice: string;
+  maxPrice: string;
   fromDate: string;
   toDate: string;
   page: number;
@@ -173,6 +175,8 @@ const Trades = () => {
   const [type, setType] = useState(savedFilters.type || "All");
   const [minVolume, setMinVolume] = useState(savedFilters.minVolume || "");
   const [maxVolume, setMaxVolume] = useState(savedFilters.maxVolume || "");
+  const [minPrice, setMinPrice] = useState(savedFilters.minPrice || "");
+  const [maxPrice, setMaxPrice] = useState(savedFilters.maxPrice || "");
   const [fromDate, setFromDate] = useState(defaultFromDate); // yyyy-MM-dd
   const [toDate, setToDate] = useState(defaultToDate);     // yyyy-MM-dd
   const [page, setPage] = useState(savedFilters.page ?? 0);
@@ -292,6 +296,8 @@ const Trades = () => {
     if (type && type !== "All") params.set("type", type.toLowerCase());
     if (minVolume) params.set("minVolume", String(parseInt(minVolume)));
     if (maxVolume) params.set("maxVolume", String(parseInt(maxVolume)));
+    if (minPrice) params.set("minPrice", String(parseFloat(minPrice)));
+    if (maxPrice) params.set("maxPrice", String(parseFloat(maxPrice)));
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
     params.set("page", String(nextPage));
@@ -409,6 +415,8 @@ const Trades = () => {
       type,
       minVolume,
       maxVolume,
+      minPrice,
+      maxPrice,
       fromDate,
       // toDate is not saved - always uses today's date
       page,
@@ -418,7 +426,7 @@ const Trades = () => {
       chartFromDate,
       // chartToDate is not saved - always uses today's date
     });
-  }, [code, type, minVolume, maxVolume, fromDate, page, size, sortField, sortDirection, chartFromDate]);
+  }, [code, type, minVolume, maxVolume, minPrice, maxPrice, fromDate, page, size, sortField, sortDirection, chartFromDate]);
 
   // Reset toDate and chartToDate to today when component mounts
   // This ensures they always default to current date on page load/reload
@@ -427,6 +435,33 @@ const Trades = () => {
     setToDate(today);
     setChartToDate(today);
   }, []);
+
+  // Clear all filters and reset to defaults
+  const clearFilters = () => {
+    const today = getTodayDate();
+    const defaultChartFrom = getNTradingDaysBack(5);
+    
+    // Reset all filter states to defaults
+    setCode("");
+    setType("All");
+    setMinVolume("");
+    setMaxVolume("");
+    setMinPrice("");
+    setMaxPrice("");
+    setFromDate(today);
+    setToDate(today);
+    setChartFromDate(defaultChartFrom);
+    setChartToDate(today);
+    setPage(0);
+    setSortField("code");
+    setSortDirection("asc");
+    
+    // Clear localStorage
+    localStorage.removeItem(TRADES_FILTERS_STORAGE_KEY);
+    
+    toast.success("Filters cleared");
+    // Note: useEffect will automatically trigger fetchTrades when filter states change
+  };
 
   // Load initial data when component mounts (with saved filters)
   useEffect(() => {
@@ -450,7 +485,7 @@ const Trades = () => {
     setPage(0);
     fetchTrades(0, size);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, type, minVolume, maxVolume, fromDate, toDate]); // Fetch when any filter changes
+  }, [code, type, minVolume, maxVolume, minPrice, maxPrice, fromDate, toDate]); // Fetch when any filter changes
 
   // Fetch chart data when code or chart-specific date range changes (but not on initial mount)
   useEffect(() => {
@@ -470,7 +505,7 @@ const Trades = () => {
       
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.code')}</label>
               <Popover open={codeOpen} onOpenChange={setCodeOpen}>
@@ -549,7 +584,7 @@ const Trades = () => {
               </Select>
             </div>
             
-            <div className="md:col-span-2">
+            <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.volumeRange')}</label>
               <Select
                 value={`${minVolume || ''}|${maxVolume || ''}`}
@@ -576,6 +611,32 @@ const Trades = () => {
             </div>
             
             <div>
+              <label className="text-sm font-medium mb-1 block">Price Range</label>
+              <Select
+                value={`${minPrice || ''}|${maxPrice || ''}`}
+                onValueChange={(v) => {
+                  const [minP, maxP] = v.split("|");
+                  setMinPrice(minP);
+                  setMaxPrice(maxP);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="|">{t('common.all')}</SelectItem>
+                  <SelectItem value="|10000">{"<=10,000"}</SelectItem>
+                  <SelectItem value="10000|20000">{"10,000 - 20,000"}</SelectItem>
+                  <SelectItem value="20000|50000">{"20,000 - 50,000"}</SelectItem>
+                  <SelectItem value="50000|100000">{"50,000 - 100,000"}</SelectItem>
+                  <SelectItem value="100000|200000">{"100,000 - 200,000"}</SelectItem>
+                  <SelectItem value="200000|500000">{"200,000 - 500,000"}</SelectItem>
+                  <SelectItem value="500000|">{">= 500,000"}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.fromDate')}</label>
               <DatePicker
                 value={fromDate}
@@ -591,6 +652,17 @@ const Trades = () => {
                 onChange={setToDate}
                 placeholder="Select to date"
               />
+            </div>
+            
+            <div className="flex items-end">
+              <Button
+                onClick={clearFilters}
+                variant="outline"
+                className="w-full border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Clear
+              </Button>
             </div>
           </div>
         </div>
