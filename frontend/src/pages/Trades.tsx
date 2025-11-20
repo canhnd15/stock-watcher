@@ -43,6 +43,7 @@ import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, Trendi
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { DailyPriceVolumeChart } from "@/components/DailyPriceVolumeChart.tsx";
 import { DailyOHLCChart } from "@/components/DailyOHLCChart.tsx";
 import { DatePicker } from "@/components/ui/date-picker.tsx";
@@ -81,8 +82,10 @@ const VN30_STOCKS = [
   "DXG", "KDH"
 ];
 
-// LocalStorage key for saving trade filters
-const TRADES_FILTERS_STORAGE_KEY = 'trades_filters';
+// LocalStorage key for saving trade filters (will be made user-specific)
+const getTradesFiltersStorageKey = (userId: number | null) => {
+  return userId ? `trades_filters_${userId}` : 'trades_filters';
+};
 
 interface TradeFilters {
   code: string;
@@ -103,6 +106,7 @@ interface TradeFilters {
 
 const Trades = () => {
   const { t } = useI18n();
+  const { user } = useAuth();
   
   // Get today's date in yyyy-MM-dd format
   const getTodayDate = () => {
@@ -139,10 +143,12 @@ const Trades = () => {
     return getTodayDate(); // Fallback
   };
 
-  // Load filters from localStorage
+  // Load filters from localStorage (user-specific)
   const loadFiltersFromStorage = (): Partial<TradeFilters> => {
+    if (!user?.id) return {};
     try {
-      const stored = localStorage.getItem(TRADES_FILTERS_STORAGE_KEY);
+      const key = getTradesFiltersStorageKey(user.id);
+      const stored = localStorage.getItem(key);
       if (stored) {
         return JSON.parse(stored);
       }
@@ -152,10 +158,12 @@ const Trades = () => {
     return {};
   };
 
-  // Save filters to localStorage
+  // Save filters to localStorage (user-specific)
   const saveFiltersToStorage = (filters: Partial<TradeFilters>) => {
+    if (!user?.id) return;
     try {
-      localStorage.setItem(TRADES_FILTERS_STORAGE_KEY, JSON.stringify(filters));
+      const key = getTradesFiltersStorageKey(user.id);
+      localStorage.setItem(key, JSON.stringify(filters));
     } catch (error) {
       console.error('Error saving filters to localStorage:', error);
     }
@@ -456,8 +464,11 @@ const Trades = () => {
     setSortField("code");
     setSortDirection("asc");
     
-    // Clear localStorage
-    localStorage.removeItem(TRADES_FILTERS_STORAGE_KEY);
+    // Clear localStorage (user-specific)
+    if (user?.id) {
+      const key = getTradesFiltersStorageKey(user.id);
+      localStorage.removeItem(key);
+    }
     
     toast.success("Filters cleared");
     // Note: useEffect will automatically trigger fetchTrades when filter states change

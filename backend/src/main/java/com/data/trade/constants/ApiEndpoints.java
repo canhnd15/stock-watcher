@@ -23,17 +23,23 @@ public class ApiEndpoints {
     public static final String AUTH_REGISTER = "/api/auth/register";
     public static final String AUTH_LOGIN = "/api/auth/login";
     public static final String AUTH_ME = "/api/auth/me";
+    public static final String AUTH_VERIFY_EMAIL = "/api/auth/verify-email";
     
     // Auth endpoint paths (relative to base /api/auth)
     public static final String AUTH_REGISTER_PATH = "/register";
     public static final String AUTH_LOGIN_PATH = "/login";
     public static final String AUTH_ME_PATH = "/me";
+    public static final String AUTH_VERIFY_EMAIL_PATH = "/verify-email";
     
     // Admin endpoint paths (relative to base /api/admin)
     public static final String ADMIN_USERS_PATH = "/users";
     public static final String ADMIN_USERS_BY_ID_PATH = "/users/{userId}";
     public static final String ADMIN_USERS_ROLE_PATH = "/users/{userId}/role";
     public static final String ADMIN_USERS_STATUS_PATH = "/users/{userId}/status";
+    public static final String ADMIN_VIP_REQUESTS_PATH = "/vip-requests";
+    public static final String ADMIN_VIP_REQUESTS_BY_ID_PATH = "/vip-requests/{requestId}";
+    public static final String ADMIN_VIP_REQUESTS_APPROVE_PATH = "/vip-requests/{requestId}/approve";
+    public static final String ADMIN_VIP_REQUESTS_REJECT_PATH = "/vip-requests/{requestId}/reject";
     
     // Note: ADMIN_USERS_BY_ID_PATH is used for both GET and DELETE operations
     

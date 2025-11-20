@@ -5,8 +5,9 @@ import { useI18n } from '@/contexts/I18nContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import { Loader2, TrendingUp } from 'lucide-react';
+import { Loader2, TrendingUp, Mail } from 'lucide-react';
 
 const Register = () => {
   const [username, setUsername] = useState('');
@@ -35,8 +36,8 @@ const Register = () => {
     
     try {
       await register(username, email, password);
-      toast.success(t('auth.welcomeMessage'));
-      navigate('/');
+      toast.success('Registration successful! Please check your email to verify your account.');
+      // Don't navigate immediately - show email verification message
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('auth.registerFailed'));
     } finally {
@@ -113,6 +114,12 @@ const Register = () => {
               {loading ? t('auth.creatingAccount') : t('auth.register')}
             </Button>
           </form>
+          <Alert className="mt-4">
+            <Mail className="h-4 w-4" />
+            <AlertDescription>
+              After registration, please check your email and click the verification link to activate your account.
+            </AlertDescription>
+          </Alert>
           <p className="mt-6 text-center text-sm text-muted-foreground">
             {t('auth.alreadyHaveAccount')}{' '}
             <Link to="/login" className="text-primary font-medium hover:underline">

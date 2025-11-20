@@ -2,10 +2,14 @@ package com.data.trade.controller;
 
 import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.constants.RoleConstants;
+import com.data.trade.dto.VipRequestDTO;
+import com.data.trade.dto.VipRequestActionRequest;
 import com.data.trade.dto.auth.UserResponse;
 import com.data.trade.model.User;
 import com.data.trade.model.UserRole;
 import com.data.trade.repository.UserRepository;
+import com.data.trade.service.VipRequestService;
+import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +26,7 @@ import java.util.stream.Collectors;
 public class AdminController {
 
     private final UserRepository userRepository;
+    private final VipRequestService vipRequestService;
 
     @GetMapping(ApiEndpoints.ADMIN_USERS_PATH)
     public List<UserResponse> getAllUsers() {
@@ -71,9 +76,46 @@ public class AdminController {
                 .email(user.getEmail())
                 .role(user.getRole())
                 .enabled(user.getEnabled())
+                .emailVerified(user.getEmailVerified())
                 .createdAt(user.getCreatedAt())
                 .lastLoginAt(user.getLastLoginAt())
                 .build();
+    }
+
+    @GetMapping(ApiEndpoints.ADMIN_VIP_REQUESTS_PATH)
+    public List<VipRequestDTO> getAllVipRequests() {
+        return vipRequestService.getAllVipRequests();
+    }
+
+    @GetMapping(ApiEndpoints.ADMIN_VIP_REQUESTS_PATH + "/pending")
+    public List<VipRequestDTO> getPendingVipRequests() {
+        return vipRequestService.getPendingVipRequests();
+    }
+
+    @PostMapping(ApiEndpoints.ADMIN_VIP_REQUESTS_APPROVE_PATH)
+    public ResponseEntity<?> approveVipRequest(
+            @PathVariable Long requestId,
+            @Valid @RequestBody(required = false) VipRequestActionRequest request) {
+        try {
+            VipRequestActionRequest actionRequest = request != null ? request : new VipRequestActionRequest();
+            VipRequestDTO vipRequest = vipRequestService.approveVipRequest(requestId, actionRequest);
+            return ResponseEntity.ok(vipRequest);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping(ApiEndpoints.ADMIN_VIP_REQUESTS_REJECT_PATH)
+    public ResponseEntity<?> rejectVipRequest(
+            @PathVariable Long requestId,
+            @Valid @RequestBody(required = false) VipRequestActionRequest request) {
+        try {
+            VipRequestActionRequest actionRequest = request != null ? request : new VipRequestActionRequest();
+            VipRequestDTO vipRequest = vipRequestService.rejectVipRequest(requestId, actionRequest);
+            return ResponseEntity.ok(vipRequest);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @Data

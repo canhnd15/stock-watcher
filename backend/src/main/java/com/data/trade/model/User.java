@@ -47,6 +47,16 @@ public class User implements UserDetails {
     private Boolean enabled = true;
 
     @Column(nullable = false)
+    @Builder.Default
+    private Boolean emailVerified = false;
+
+    @Column(length = 100)
+    private String emailVerificationToken;
+
+    @Column
+    private OffsetDateTime emailVerificationTokenExpiry;
+
+    @Column(nullable = false)
     private OffsetDateTime createdAt;
 
     @Column
