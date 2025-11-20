@@ -822,30 +822,166 @@ const TrackedStocks = () => {
     }
   };
 
-  const handleSaveCodes = async () => {
+  // State for custom stock validation and input
+  const [validatedStocks, setValidatedStocks] = useState<Array<{
+    code: string;
+    marketPrice: number | null;
+    costBasis: string;
+    volume: string;
+    targetPrice: string;
+    targetPriceMode: "value" | "percent";
+    isValid: boolean;
+    error?: string;
+  }>>([]);
+  const [validatingStocks, setValidatingStocks] = useState(false);
+  const [showStockInputs, setShowStockInputs] = useState(false);
+  const [portfolioType, setPortfolioType] = useState<"tracked-stocks" | "short-term-tracked-stocks">("tracked-stocks");
+
+  const handleValidateAndPrepareStocks = async () => {
     const codes = stockInput
       .split(/[\s\n,]+/)
       .map(code => code.trim().toUpperCase())
       .filter(code => code.length > 0);
-    if (codes.length === 0) return;
+    
+    if (codes.length === 0) {
+      toast.error("Please enter at least one stock code");
+      return;
+    }
+
+    setValidatingStocks(true);
+    const validated: typeof validatedStocks = [];
+
+    try {
+      // Validate each stock by checking market price
+      for (const code of codes) {
+        try {
+          const response = await api.get(`/api/stocks/market-price/${code}`);
+          if (response.ok) {
+            const data: { code: string; marketPrice: number | null } = await response.json();
+            if (data.marketPrice !== null && data.marketPrice !== undefined) {
+              validated.push({
+                code,
+                marketPrice: data.marketPrice,
+                costBasis: data.marketPrice.toString(), // Pre-fill with market price
+                volume: "",
+                targetPrice: "",
+                targetPriceMode: "value",
+                isValid: true,
+              });
+            } else {
+              validated.push({
+                code,
+                marketPrice: null,
+                costBasis: "",
+                volume: "",
+                targetPrice: "",
+                targetPriceMode: "value",
+                isValid: false,
+                error: "Failed to fetch market price",
+              });
+            }
+          } else {
+            validated.push({
+              code,
+              marketPrice: null,
+              costBasis: "",
+              volume: "",
+              targetPrice: "",
+              targetPriceMode: "value",
+              isValid: false,
+              error: "Stock not found or invalid",
+            });
+          }
+        } catch (error) {
+          validated.push({
+            code,
+            marketPrice: null,
+            costBasis: "",
+            volume: "",
+            targetPrice: "",
+            targetPriceMode: "value",
+            isValid: false,
+            error: "Failed to validate stock",
+          });
+        }
+      }
+
+      const validStocks = validated.filter(s => s.isValid);
+      if (validStocks.length === 0) {
+        toast.error("No valid stocks found. Please check the stock codes.");
+        setValidatingStocks(false);
+        return;
+      }
+
+      setValidatedStocks(validated);
+      setShowStockInputs(true);
+      toast.success(`Validated ${validStocks.length} stock(s). Please enter details.`);
+    } catch (error) {
+      toast.error("Failed to validate stocks");
+    } finally {
+      setValidatingStocks(false);
+    }
+  };
+
+  const handleSaveCodes = async () => {
+    const validStocks = validatedStocks.filter(s => s.isValid);
+    if (validStocks.length === 0) {
+      toast.error("No valid stocks to save");
+      return;
+    }
+
+    const endpoint = portfolioType === "tracked-stocks" 
+      ? "/api/tracked-stocks" 
+      : "/api/short-term-tracked-stocks";
 
     let successCount = 0;
     
     try {
-      // Add stocks one by one
-      for (const code of codes) {
-        const response = await api.post("/api/tracked-stocks", { code });
+      // Add stocks one by one with their details
+      for (const stock of validStocks) {
+        const costBasis = stock.costBasis ? parseFloat(stock.costBasis) : null;
+        const volume = stock.volume ? parseInt(stock.volume, 10) : null;
+        
+        let targetPrice: number | null = null;
+        if (stock.targetPrice.trim() !== "") {
+          const inputValue = parseFloat(stock.targetPrice);
+          if (!isNaN(inputValue) && inputValue >= 0) {
+            if (stock.targetPriceMode === "percent") {
+              if (costBasis && costBasis > 0) {
+                targetPrice = costBasis * (1 + inputValue / 100);
+              }
+            } else {
+              targetPrice = inputValue;
+            }
+          }
+        }
+
+        const response = await api.post(endpoint, {
+          code: stock.code,
+          costBasis: costBasis,
+          volume: volume,
+          targetPrice: targetPrice,
+        });
+        
         if (response.ok) {
           successCount++;
         }
       }
       
+      // Reset state
       setStockInput("");
-      toast.success(`Added ${successCount} stock code(s)`);
+      setValidatedStocks([]);
+      setShowStockInputs(false);
+      setPortfolioType("tracked-stocks");
+      toast.success(`Added ${successCount} stock code(s) to ${portfolioType === "tracked-stocks" ? "Tracked Stocks" : "Short-Term Portfolio"}`);
       setCustomCodesModalOpen(false);
       
-      // Refresh the list
-      await loadTrackedStocks();
+      // Refresh the appropriate list
+      if (portfolioType === "tracked-stocks") {
+        await loadTrackedStocks();
+      } else {
+        await loadShortTermTrackedStocks();
+      }
     } catch (error) {
       toast.error("Failed to add some codes");
     }
@@ -1626,29 +1762,215 @@ const TrackedStocks = () => {
                 </Button>
               </div>
               
-              <Dialog open={customCodesModalOpen} onOpenChange={setCustomCodesModalOpen}>
+              <Dialog open={customCodesModalOpen} onOpenChange={(open) => {
+                setCustomCodesModalOpen(open);
+                if (!open) {
+                  // Reset state when modal closes
+                  setStockInput("");
+                  setValidatedStocks([]);
+                  setShowStockInputs(false);
+                  setPortfolioType("tracked-stocks");
+                }
+              }}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
                     Custom Codes
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[525px]">
+                <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Enter Custom Stock Codes</DialogTitle>
                     <DialogDescription>
-                      Add stock codes that are not in the VN30 list. Enter codes separated by comma, space, or newline.
+                      {showStockInputs 
+                        ? "Enter cost basis, volume, and target price for each validated stock."
+                        : "Add stock codes that are not in the VN30 list. Enter codes separated by comma, space, or newline."}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
-                    <Textarea
-                      placeholder="Example: FPT, VCB, HPG"
-                      value={stockInput}
-                      onChange={(e) => setStockInput(e.target.value)}
-                      className="min-h-32"
-                    />
-                    <Button onClick={handleSaveCodes} className="w-full">
-                      Save Custom Codes
-                    </Button>
+                    {!showStockInputs ? (
+                      <>
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">Save to Portfolio</label>
+                          <Select
+                            value={portfolioType}
+                            onValueChange={(value: "tracked-stocks" | "short-term-tracked-stocks") => {
+                              setPortfolioType(value);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="tracked-stocks">Tracked Stocks</SelectItem>
+                              <SelectItem value="short-term-tracked-stocks">Short-Term Tracked Stocks</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Textarea
+                          placeholder="Example: FPT, VCB, HPG"
+                          value={stockInput}
+                          onChange={(e) => setStockInput(e.target.value)}
+                          className="min-h-32"
+                          disabled={validatingStocks}
+                        />
+                        <Button 
+                          onClick={handleValidateAndPrepareStocks} 
+                          className="w-full"
+                          disabled={validatingStocks}
+                        >
+                          {validatingStocks ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Validating...
+                            </>
+                          ) : (
+                            "Validate & Continue"
+                          )}
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                          {validatedStocks.map((stock, index) => (
+                            <div key={stock.code} className="border rounded-lg p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold">{stock.code}</span>
+                                  {stock.isValid ? (
+                                    <Badge variant="outline" className="text-green-600 border-green-600">
+                                      Valid
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-red-600 border-red-600">
+                                      Invalid
+                                    </Badge>
+                                  )}
+                                </div>
+                                {stock.marketPrice && (
+                                  <span className="text-sm text-muted-foreground">
+                                    Market: {stock.marketPrice.toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {stock.error && (
+                                <p className="text-sm text-red-600">{stock.error}</p>
+                              )}
+
+                              {stock.isValid && (
+                                <>
+                                  <div>
+                                    <label className="text-sm font-medium mb-1 block">Cost Basis (VND)</label>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      placeholder="Purchase price"
+                                      value={stock.costBasis}
+                                      onChange={(e) => {
+                                        const updated = [...validatedStocks];
+                                        updated[index].costBasis = e.target.value;
+                                        setValidatedStocks(updated);
+                                      }}
+                                    />
+                                  </div>
+                                  
+                                  <div>
+                                    <label className="text-sm font-medium mb-1 block">Volume (shares)</label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="100"
+                                      placeholder="Number of shares"
+                                      value={stock.volume}
+                                      onChange={(e) => {
+                                        const updated = [...validatedStocks];
+                                        updated[index].volume = e.target.value;
+                                        setValidatedStocks(updated);
+                                      }}
+                                    />
+                                  </div>
+                                  
+                                  <div>
+                                    <label className="text-sm font-medium mb-1 block">Target Price</label>
+                                    <div className="flex gap-2">
+                                      <Select
+                                        value={stock.targetPriceMode}
+                                        onValueChange={(value: "value" | "percent") => {
+                                          const updated = [...validatedStocks];
+                                          updated[index].targetPriceMode = value;
+                                          setValidatedStocks(updated);
+                                        }}
+                                      >
+                                        <SelectTrigger className="w-24">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="value">Value</SelectItem>
+                                          <SelectItem value="percent">%</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        placeholder={stock.targetPriceMode === "percent" ? "Profit %" : "Target price"}
+                                        value={stock.targetPrice}
+                                        onChange={(e) => {
+                                          const updated = [...validatedStocks];
+                                          updated[index].targetPrice = e.target.value;
+                                          setValidatedStocks(updated);
+                                        }}
+                                        className="flex-1"
+                                      />
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <div>
+                            <label className="text-sm font-medium mb-2 block">Save to Portfolio</label>
+                            <Select
+                              value={portfolioType}
+                              onValueChange={(value: "tracked-stocks" | "short-term-tracked-stocks") => {
+                                setPortfolioType(value);
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="tracked-stocks">Tracked Stocks</SelectItem>
+                                <SelectItem value="short-term-tracked-stocks">Short-Term Tracked Stocks</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setShowStockInputs(false);
+                                setValidatedStocks([]);
+                              }}
+                              className="flex-1"
+                            >
+                              Back
+                            </Button>
+                            <Button 
+                              onClick={handleSaveCodes} 
+                              className="flex-1"
+                              disabled={validatedStocks.filter(s => s.isValid).length === 0}
+                            >
+                              Save Custom Codes
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </DialogContent>
               </Dialog>
