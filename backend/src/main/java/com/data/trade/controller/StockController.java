@@ -70,21 +70,31 @@ public class StockController {
     /**
      * Get current market price for a stock code
      */
-    @GetMapping("/market-price/{code}")
+    @GetMapping("/market-price/{code:.+}")
     @PreAuthorize(RoleConstants.HAS_ANY_ROLE_ALL)
     public ResponseEntity<MarketPriceResponse> getMarketPrice(@PathVariable String code) {
         try {
-            var response = finpathClient.fetchTradingViewBars(code.toUpperCase());
+            // Decode URL-encoded code (handles dots and special characters)
+            String decodedCode = java.net.URLDecoder.decode(code, java.nio.charset.StandardCharsets.UTF_8);
+            String normalizedCode = decodedCode.toUpperCase();
+            
+            var response = finpathClient.fetchTradingViewBars(normalizedCode);
             if (response != null) {
                 Double price = response.getMarketPrice();
                 if (price != null) {
-                    return ResponseEntity.ok(new MarketPriceResponse(code.toUpperCase(), price));
+                    return ResponseEntity.ok(new MarketPriceResponse(normalizedCode, price));
                 }
             }
-            return ResponseEntity.ok(new MarketPriceResponse(code.toUpperCase(), null));
+            return ResponseEntity.ok(new MarketPriceResponse(normalizedCode, null));
         } catch (Exception e) {
             log.debug("Failed to fetch market price for {}: {}", code, e.getMessage());
-            return ResponseEntity.ok(new MarketPriceResponse(code.toUpperCase(), null));
+            // Try to decode and normalize even on error
+            try {
+                String decodedCode = java.net.URLDecoder.decode(code, java.nio.charset.StandardCharsets.UTF_8);
+                return ResponseEntity.ok(new MarketPriceResponse(decodedCode.toUpperCase(), null));
+            } catch (Exception decodeError) {
+                return ResponseEntity.ok(new MarketPriceResponse(code.toUpperCase(), null));
+            }
         }
     }
 

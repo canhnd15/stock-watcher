@@ -838,6 +838,7 @@ const TrackedStocks = () => {
   const [portfolioType, setPortfolioType] = useState<"tracked-stocks" | "short-term-tracked-stocks">("tracked-stocks");
 
   const handleValidateAndPrepareStocks = async () => {
+    // Parse codes: split by comma, space, or newline, but preserve dots within codes
     const codes = stockInput
       .split(/[\s\n,]+/)
       .map(code => code.trim().toUpperCase())
@@ -855,7 +856,9 @@ const TrackedStocks = () => {
       // Validate each stock by checking market price
       for (const code of codes) {
         try {
-          const response = await api.get(`/api/stocks/market-price/${code}`);
+          // URL encode the code to handle special characters like dots
+          const encodedCode = encodeURIComponent(code);
+          const response = await api.get(`/api/stocks/market-price/${encodedCode}`);
           if (response.ok) {
             const data: { code: string; marketPrice: number | null } = await response.json();
             if (data.marketPrice !== null && data.marketPrice !== undefined) {

@@ -6,7 +6,9 @@ import com.data.trade.dto.IntradayPriceDTO;
 import com.data.trade.dto.TradePageResponse;
 import com.data.trade.model.Trade;
 import com.data.trade.repository.TradeRepository;
+import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -44,17 +46,17 @@ public class TradeService {
      * This is a helper method to build a sortable date expression from the tradeDate field.
      */
     private Expression<String> buildSortableDateExpression(
-            jakarta.persistence.criteria.Root<Trade> root,
-            jakarta.persistence.criteria.CriteriaBuilder cb) {
+            Root<Trade> root,
+            CriteriaBuilder cb) {
         // Extract parts: "DD/MM/YYYY" -> YYYYMMDD
         // Position 1-2: Day, Position 4-5: Month, Position 7-10: Year
-        jakarta.persistence.criteria.Expression<String> year = cb.function(
+        Expression<String> year = cb.function(
             "SUBSTRING", String.class, root.get("tradeDate"), cb.literal(7), cb.literal(4)
         );
-        jakarta.persistence.criteria.Expression<String> month = cb.function(
+        Expression<String> month = cb.function(
             "SUBSTRING", String.class, root.get("tradeDate"), cb.literal(4), cb.literal(2)
         );
-        jakarta.persistence.criteria.Expression<String> day = cb.function(
+        Expression<String> day = cb.function(
             "SUBSTRING", String.class, root.get("tradeDate"), cb.literal(1), cb.literal(2)
         );
         return cb.concat(year, cb.concat(month, day));

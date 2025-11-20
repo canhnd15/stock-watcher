@@ -143,6 +143,18 @@ const Trades = () => {
     return getTodayDate(); // Fallback
   };
 
+  // Helper function to get one month ago from today
+  const getOneMonthAgo = (): string => {
+    const today = new Date();
+    const oneMonthAgo = new Date(today);
+    oneMonthAgo.setMonth(today.getMonth() - 1);
+    
+    const year = oneMonthAgo.getFullYear();
+    const month = String(oneMonthAgo.getMonth() + 1).padStart(2, '0');
+    const day = String(oneMonthAgo.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Load filters from localStorage (user-specific)
   const loadFiltersFromStorage = (): Partial<TradeFilters> => {
     if (!user?.id) return {};
@@ -174,9 +186,10 @@ const Trades = () => {
   const defaultFromDate = savedFilters.fromDate || getTodayDate();
   // Always use today's date for toDate (not saved in localStorage)
   const defaultToDate = getTodayDate();
-  const defaultChartFromDate = savedFilters.chartFromDate || getNTradingDaysBack(5);
-  // Always use today's date for chartToDate (not saved in localStorage)
-  const defaultChartToDate = getTodayDate();
+  // Default chart date range: one month ago to today (unless user has saved a preference)
+  // If user has saved chart dates, use them; otherwise default to one month range
+  const defaultChartFromDate = savedFilters.chartFromDate || getOneMonthAgo();
+  const defaultChartToDate = savedFilters.chartToDate || getTodayDate();
 
   const [code, setCode] = useState(savedFilters.code || ""); // All by default (empty)
   const [codeOpen, setCodeOpen] = useState(false);
@@ -234,7 +247,7 @@ const Trades = () => {
     params.set("code", code.trim());
     
     // Use chart-specific date filters (independent from trade table filters)
-    const chartFrom = chartFromDate || getNTradingDaysBack(5);
+    const chartFrom = chartFromDate || getOneMonthAgo();
     const chartTo = chartToDate || getTodayDate();
     
     if (chartFrom) params.set("fromDate", chartFrom);
@@ -272,7 +285,7 @@ const Trades = () => {
     params.set("code", code.trim());
     
     // Use chart-specific date filters (independent from trade table filters)
-    const chartFrom = chartFromDate || getNTradingDaysBack(5);
+    const chartFrom = chartFromDate || getOneMonthAgo();
     const chartTo = chartToDate || getTodayDate();
     
     if (chartFrom) params.set("fromDate", chartFrom);
@@ -414,7 +427,8 @@ const Trades = () => {
 
 
   // Save filters to localStorage whenever they change (but not on initial mount)
-  // Note: toDate and chartToDate are not saved - they always default to today
+  // Note: toDate is not saved - it always defaults to today
+  // chartToDate IS saved so user's selected range is remembered
   useEffect(() => {
     if (!hasInitialLoad.current) return; // Skip saving on initial mount
     
@@ -432,22 +446,20 @@ const Trades = () => {
       sortField,
       sortDirection,
       chartFromDate,
-      // chartToDate is not saved - always uses today's date
+      chartToDate, // Save chartToDate so user's selection is remembered
     });
-  }, [code, type, minVolume, maxVolume, minPrice, maxPrice, fromDate, page, size, sortField, sortDirection, chartFromDate]);
+  }, [code, type, minVolume, maxVolume, minPrice, maxPrice, fromDate, page, size, sortField, sortDirection, chartFromDate, chartToDate]);
 
-  // Reset toDate and chartToDate to today when component mounts
-  // This ensures they always default to current date on page load/reload
+  // Reset toDate to today when component mounts (chartToDate is saved/restored from localStorage)
+  // This ensures toDate always defaults to current date on page load/reload
   useEffect(() => {
-    const today = getTodayDate();
-    setToDate(today);
-    setChartToDate(today);
+    setToDate(getTodayDate());
+    // Don't reset chartToDate - it's loaded from localStorage or defaults to today
   }, []);
 
   // Clear all filters and reset to defaults
   const clearFilters = () => {
     const today = getTodayDate();
-    const defaultChartFrom = getNTradingDaysBack(5);
     
     // Reset all filter states to defaults
     setCode("");
@@ -458,7 +470,8 @@ const Trades = () => {
     setMaxPrice("");
     setFromDate(today);
     setToDate(today);
-    setChartFromDate(defaultChartFrom);
+    // Reset chart dates to default one month range
+    setChartFromDate(getOneMonthAgo());
     setChartToDate(today);
     setPage(0);
     setSortField("code");
