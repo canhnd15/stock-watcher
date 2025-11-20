@@ -584,7 +584,7 @@ const Trades = () => {
               </Select>
             </div>
             
-            <div>
+            <div className="md:col-span-2">
               <label className="text-sm font-medium mb-1 block">{t('trades.volumeRange')}</label>
               <Select
                 value={`${minVolume || ''}|${maxVolume || ''}`}
@@ -654,16 +654,6 @@ const Trades = () => {
               />
             </div>
             
-            <div className="flex items-end">
-              <Button
-                onClick={clearFilters}
-                variant="outline"
-                className="w-full border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-              >
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Clear
-              </Button>
-            </div>
           </div>
         </div>
 
@@ -766,6 +756,31 @@ const Trades = () => {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           )}
+          <div className="flex justify-end items-center gap-2 p-2 border-b bg-muted/30">
+            <Button
+              onClick={clearFilters}
+              variant="outline"
+              size="sm"
+              className="h-8 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+              Clear Filter
+            </Button>
+            <Button
+              onClick={() => fetchTrades(page, size, sortField, sortDirection)}
+              variant="outline"
+              size="sm"
+              className="h-8 border-green-300 text-green-600 hover:bg-green-50 hover:text-green-700"
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Reload Data
+            </Button>
+          </div>
           <Table className={loading ? "opacity-50 pointer-events-none" : ""}>
             <TableHeader>
               <TableRow>
