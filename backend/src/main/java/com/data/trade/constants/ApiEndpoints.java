@@ -18,12 +18,6 @@ public class ApiEndpoints {
     public static final String API_SIGNALS = "/api/signals";
     public static final String API_CONFIG = "/api/config";
     public static final String API_INTERNAL = "/api/internal";
-
-    // Auth endpoints (full paths)
-    public static final String AUTH_REGISTER = "/api/auth/register";
-    public static final String AUTH_LOGIN = "/api/auth/login";
-    public static final String AUTH_ME = "/api/auth/me";
-    public static final String AUTH_VERIFY_EMAIL = "/api/auth/verify-email";
     
     // Auth endpoint paths (relative to base /api/auth)
     public static final String AUTH_REGISTER_PATH = "/register";
