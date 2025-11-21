@@ -24,7 +24,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table.tsx";
-import { Loader2, Plus, Trash2, RefreshCw, Pencil, MoreVertical } from "lucide-react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command.tsx";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover.tsx";
+import { Loader2, Plus, Trash2, RefreshCw, Pencil, MoreVertical, Check, ChevronsUpDown, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
@@ -33,6 +46,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.tsx";
+import { cn } from "@/lib/utils";
 
 interface SimulatedStock {
   code: string;
@@ -99,6 +113,10 @@ export function PortfolioSimulationModal({
   const [editTargetPrice, setEditTargetPrice] = useState("");
   const [editTargetPriceMode, setEditTargetPriceMode] = useState<"value" | "percent">("value");
   const [loadingMarketPrice, setLoadingMarketPrice] = useState(false);
+  const [stockCodeOpen, setStockCodeOpen] = useState(false);
+  const [stockCodeInput, setStockCodeInput] = useState("");
+  const [validatingStock, setValidatingStock] = useState(false);
+  const [stockValidationError, setStockValidationError] = useState<string | null>(null);
 
   const loadExistingStocks = useCallback(async () => {
     setLoading(true);
@@ -135,6 +153,7 @@ export function PortfolioSimulationModal({
       setSimulatedStocks([]);
       setResults(null);
       setSelectedCode("");
+      setStockCodeInput("");
       setCostBasis("");
       setVolume("");
       setTargetPrice("");
@@ -142,14 +161,67 @@ export function PortfolioSimulationModal({
       setEditingStock(null);
       setEditTargetPrice("");
       setEditTargetPriceMode("value");
+      setStockCodeOpen(false);
+      setStockValidationError(null);
     }
   }, [open, loadExistingStocks]);
 
+  // Validate stock code by checking if market price exists
+  const validateStockCode = async (code: string): Promise<boolean> => {
+    if (!code || code.trim() === "") {
+      return false;
+    }
+
+    const normalizedCode = code.trim().toUpperCase();
+    
+    // If it's in VN30 list, it's valid
+    if (vn30Codes.includes(normalizedCode)) {
+      return true;
+    }
+
+    // Otherwise, validate by checking market price
+    setValidatingStock(true);
+    setStockValidationError(null);
+    try {
+      const response = await api.get(`/api/stocks/market-price/${encodeURIComponent(normalizedCode)}`);
+      if (response.ok) {
+        const data: { code: string; marketPrice: number | null } = await response.json();
+        if (data.marketPrice !== null && data.marketPrice !== undefined) {
+          setStockValidationError(null);
+          return true;
+        } else {
+          setStockValidationError("Stock code not found or market price unavailable");
+          return false;
+        }
+      } else {
+        setStockValidationError("Failed to validate stock code");
+        return false;
+      }
+    } catch (error) {
+      console.error("Error validating stock code:", error);
+      setStockValidationError("Failed to validate stock code");
+      return false;
+    } finally {
+      setValidatingStock(false);
+    }
+  };
+
   // Fetch market price when stock code is selected
   const handleStockCodeChange = async (code: string) => {
-    setSelectedCode(code);
+    const normalizedCode = code.trim().toUpperCase();
+    setSelectedCode(normalizedCode);
+    setStockCodeInput(normalizedCode);
+    setStockValidationError(null);
     
-    if (!code) {
+    if (!normalizedCode) {
+      setCostBasis("");
+      return;
+    }
+
+    // Validate stock code first
+    const isValid = await validateStockCode(normalizedCode);
+    if (!isValid && !vn30Codes.includes(normalizedCode)) {
+      // Don't fetch market price if validation failed for non-VN30 stocks
       setCostBasis("");
       return;
     }
@@ -157,7 +229,7 @@ export function PortfolioSimulationModal({
     // Fetch market price and fill cost basis
     setLoadingMarketPrice(true);
     try {
-      const response = await api.get(`/api/stocks/market-price/${code}`);
+      const response = await api.get(`/api/stocks/market-price/${encodeURIComponent(normalizedCode)}`);
       if (response.ok) {
         const data: { code: string; marketPrice: number | null } = await response.json();
         if (data.marketPrice !== null && data.marketPrice !== undefined) {
@@ -175,13 +247,49 @@ export function PortfolioSimulationModal({
     }
   };
 
-  const handleAddStock = () => {
-    if (!selectedCode) {
-      toast.error("Please select a stock code");
+  // Handle stock code input change (for custom codes)
+  const handleStockCodeInputChange = async (value: string) => {
+    setStockCodeInput(value);
+    setStockValidationError(null);
+    
+    const normalizedValue = value.trim().toUpperCase();
+    
+    // If empty, clear selection
+    if (!normalizedValue) {
+      setSelectedCode("");
+      setCostBasis("");
       return;
     }
 
-    if (simulatedStocks.some((s) => s.code === selectedCode)) {
+    // If it's a VN30 code, select it immediately
+    if (vn30Codes.includes(normalizedValue)) {
+      handleStockCodeChange(normalizedValue);
+      return;
+    }
+
+    // For custom codes, validate when user stops typing (debounce)
+    // We'll validate on blur or when they try to add the stock
+    setSelectedCode(normalizedValue);
+  };
+
+  const handleAddStock = async () => {
+    const codeToAdd = stockCodeInput.trim().toUpperCase();
+    
+    if (!codeToAdd) {
+      toast.error("Please enter a stock code");
+      return;
+    }
+
+    // Validate stock code if it's not in VN30 list
+    if (!vn30Codes.includes(codeToAdd)) {
+      const isValid = await validateStockCode(codeToAdd);
+      if (!isValid) {
+        toast.error(stockValidationError || "Invalid stock code. Please enter a valid stock code.");
+        return;
+      }
+    }
+
+    if (simulatedStocks.some((s) => s.code === codeToAdd)) {
       toast.error("Stock already added");
       return;
     }
@@ -206,7 +314,7 @@ export function PortfolioSimulationModal({
     }
 
     const newStock: SimulatedStock = {
-      code: selectedCode,
+      code: codeToAdd,
       costBasis: costBasis ? parseFloat(costBasis) : undefined,
       volume: volume ? parseInt(volume, 10) : undefined,
       targetPrice: targetPriceValue,
@@ -214,10 +322,13 @@ export function PortfolioSimulationModal({
 
     setSimulatedStocks([...simulatedStocks, newStock]);
     setSelectedCode("");
+    setStockCodeInput("");
     setCostBasis("");
     setVolume("");
     setTargetPrice("");
     setTargetPriceMode("value");
+    setStockValidationError(null);
+    setStockCodeOpen(false);
   };
 
   const handleRemoveStock = (code: string) => {
@@ -349,7 +460,7 @@ export function PortfolioSimulationModal({
         <DialogHeader>
           <DialogTitle>Portfolio Simulation</DialogTitle>
           <DialogDescription>
-            Add stocks from VN30 list to simulate portfolio profit. Changes are temporary and not saved.
+            Add stocks from VN30 list or enter custom stock codes to simulate portfolio profit. Changes are temporary and not saved.
           </DialogDescription>
         </DialogHeader>
 
@@ -361,22 +472,89 @@ export function PortfolioSimulationModal({
               <div className="flex-1">
                 <label className="text-sm font-medium mb-1 block">Stock Code</label>
                 <div className="relative">
-                  <select
-                    value={selectedCode}
-                    onChange={(e) => handleStockCodeChange(e.target.value)}
-                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                  <option value="">Select a stock...</option>
-                  {vn30Codes
-                    .filter((code) => !simulatedStocks.some((s) => s.code === code))
-                    .map((code) => (
-                      <option key={code} value={code}>
-                        {code}
-                      </option>
-                    ))}
-                  </select>
-                  {loadingMarketPrice && (
-                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  <Popover open={stockCodeOpen} onOpenChange={setStockCodeOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={stockCodeOpen}
+                        className="w-full justify-between h-10"
+                        disabled={loadingMarketPrice || validatingStock}
+                      >
+                        {selectedCode || stockCodeInput || "Select or enter a stock code..."}
+                        <div className="flex items-center gap-2">
+                          {validatingStock && (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          )}
+                          {loadingMarketPrice && (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          )}
+                          {stockValidationError && (
+                            <AlertCircle className="h-4 w-4 text-destructive" />
+                          )}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </div>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                      <Command>
+                        <CommandInput
+                          placeholder="Search or type stock code..."
+                          value={stockCodeInput}
+                          onValueChange={handleStockCodeInputChange}
+                        />
+                        <CommandList>
+                          <CommandEmpty>
+                            {stockCodeInput && !vn30Codes.includes(stockCodeInput.trim().toUpperCase()) 
+                              ? "Type to enter custom stock code (will be validated)"
+                              : "No stock found."}
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {vn30Codes
+                              .filter((code) => 
+                                !simulatedStocks.some((s) => s.code === code) &&
+                                (!stockCodeInput || code.toLowerCase().includes(stockCodeInput.toLowerCase()))
+                              )
+                              .map((code) => (
+                                <CommandItem
+                                  key={code}
+                                  value={code}
+                                  onSelect={() => {
+                                    handleStockCodeChange(code);
+                                    setStockCodeOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      selectedCode === code ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {code}
+                                </CommandItem>
+                              ))}
+                            {stockCodeInput && 
+                             !vn30Codes.includes(stockCodeInput.trim().toUpperCase()) &&
+                             !simulatedStocks.some((s) => s.code === stockCodeInput.trim().toUpperCase()) && (
+                              <CommandItem
+                                value={stockCodeInput.trim().toUpperCase()}
+                                onSelect={() => {
+                                  handleStockCodeChange(stockCodeInput.trim().toUpperCase());
+                                  setStockCodeOpen(false);
+                                }}
+                                className="text-muted-foreground"
+                              >
+                                <AlertCircle className="mr-2 h-4 w-4" />
+                                {stockCodeInput.trim().toUpperCase()} (Custom - will validate)
+                              </CommandItem>
+                            )}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  {stockValidationError && (
+                    <p className="text-xs text-destructive mt-1">{stockValidationError}</p>
                   )}
                 </div>
               </div>
@@ -450,7 +628,7 @@ export function PortfolioSimulationModal({
                   />
                 </div>
               </div>
-              <Button onClick={handleAddStock} disabled={!selectedCode}>
+              <Button onClick={handleAddStock} disabled={!selectedCode && !stockCodeInput || validatingStock || !!stockValidationError}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add
               </Button>
@@ -762,7 +940,7 @@ export function PortfolioSimulationModal({
 
           {!loading && simulatedStocks.length === 0 && (
             <div className="text-center text-muted-foreground py-12">
-              <p>No stocks in portfolio. Add stocks from VN30 list above to start simulation.</p>
+              <p>No stocks in portfolio. Add stocks from VN30 list or enter custom stock codes above to start simulation.</p>
             </div>
           )}
         </div>
