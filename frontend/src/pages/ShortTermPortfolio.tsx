@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useI18n } from "@/contexts/I18nContext";
 import { Button } from "@/components/ui/button.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
@@ -87,6 +88,7 @@ interface TrackedStock {
 type SortField = "code" | "buyLowPrice" | "buyHighPrice" | "buyMaxVolume" | "sellLowPrice" | "sellHighPrice" | "sellMaxVolume";
 
 const ShortTermPortfolio = () => {
+  const { t } = useI18n();
   const [stockInput, setStockInput] = useState("");
   const [trackedStocks, setTrackedStocks] = useState<TrackedStock[]>([]);
   const [vn30Codes, setVn30Codes] = useState<string[]>([]);
@@ -142,7 +144,7 @@ const ShortTermPortfolio = () => {
     try {
       setLoadingStocks(true);
       const stocksResponse = await api.get("/api/short-term-tracked-stocks");
-      if (!stocksResponse.ok) throw new Error("Failed to load stocks");
+      if (!stocksResponse.ok) throw new Error(t('shortTerm.loadFailed'));
       const stocksData: TrackedStock[] = await stocksResponse.json();
       setTrackedStocks(stocksData);
       
@@ -168,7 +170,7 @@ const ShortTermPortfolio = () => {
         );
       }
     } catch (error) {
-      toast.error("Failed to load Short-Term Portfolio");
+      toast.error(t('shortTerm.loadFailed'));
     } finally {
       setLoadingStocks(false);
     }
@@ -180,14 +182,14 @@ const ShortTermPortfolio = () => {
     
     // Validate volume
     if (volumeNum !== null && (isNaN(volumeNum) || volumeNum < 0)) {
-      toast.error(`Invalid volume for ${code}`);
+      toast.error(t('shortTerm.invalidVolume', { code }));
       return;
     }
 
     // Find the stock to preserve costBasis
     const stock = trackedStocks.find(s => s.id === stockId);
     if (!stock) {
-      toast.error(`Stock not found for ${code}`);
+      toast.error(t('shortTerm.stockNotFound', { code }));
       return;
     }
 
@@ -201,7 +203,7 @@ const ShortTermPortfolio = () => {
       });
       
       if (!response.ok) {
-        throw new Error("Failed to save volume");
+        throw new Error(t('shortTerm.saveVolumeFailed', { code }));
       }
       
       // Update Short-Term Portfolio with new volume
@@ -214,7 +216,7 @@ const ShortTermPortfolio = () => {
       );
     } catch (error) {
       console.error("Error saving volume:", error);
-      toast.error(`Failed to save volume for ${code}`);
+      toast.error(t('shortTerm.saveVolumeFailed', { code }));
       // Revert volume value on error
       if (stock && stock.volume !== undefined) {
         setVolumeValues(prev => ({
@@ -241,7 +243,7 @@ const ShortTermPortfolio = () => {
       const response = await api.post('/api/short-term-tracked-stocks/refresh-market-price');
       
       if (!response.ok) {
-        throw new Error('Failed to refresh market prices');
+        throw new Error(t('shortTerm.refreshFailed'));
       }
       
       const data = await response.json();
@@ -260,12 +262,10 @@ const ShortTermPortfolio = () => {
         );
       }
       
-      toast.success(
-        `Market prices refreshed: ${data.successCount} successful, ${data.failedCount} failed`
-      );
+      toast.success(t('shortTerm.refreshSuccess', { successCount: data.successCount, failedCount: data.failedCount }));
     } catch (error: any) {
       console.error('Error refreshing market prices:', error);
-      toast.error(error?.message || 'Failed to refresh market prices');
+      toast.error(error?.message || t('shortTerm.refreshFailed'));
     } finally {
       setRefreshingMarketPrice(false);
     }
@@ -285,21 +285,21 @@ const ShortTermPortfolio = () => {
       if (!response.ok) {
         // Handle different error status codes
         if (response.status === 401) {
-          throw new Error('Unauthorized. Please log in again.');
+          throw new Error(t('shortTerm.unauthorized'));
         } else if (response.status === 403) {
-          throw new Error('Access denied. VIP or ADMIN role required.');
+          throw new Error(t('shortTerm.accessDenied'));
         }
         
         // Try to get error message from response
-        const errorData = await response.json().catch(() => ({ message: 'Failed to refresh signals' }));
-        throw new Error(errorData.message || `Failed to refresh signals (${response.status})`);
+        const errorData = await response.json().catch(() => ({ message: t('shortTerm.refreshSignalsFailed') }));
+        throw new Error(errorData.message || t('shortTerm.refreshSignalsFailed'));
       }
       
       const data = await response.json();
-      toast.success(data.message || 'Signals refreshed successfully');
+      toast.success(data.message || t('shortTerm.signalsRefreshed'));
     } catch (error: any) {
       console.error('Error refreshing signals:', error);
-      const errorMessage = error?.message || 'Failed to refresh signals';
+      const errorMessage = error?.message || t('shortTerm.refreshSignalsFailed');
       toast.error(errorMessage);
     } finally {
       setRefreshingSignals(false);
@@ -347,7 +347,7 @@ const ShortTermPortfolio = () => {
 
   const handleSaveSelectedCodes = () => {
     if (selectedCodes.size === 0) {
-      toast.error("Please select at least one stock code");
+      toast.error(t('shortTerm.selectAtLeastOne'));
       return;
     }
 
@@ -372,7 +372,7 @@ const ShortTermPortfolio = () => {
         const costBasis = costBasisValue ? parseFloat(costBasisValue) : undefined;
         
         if (costBasis !== undefined && (isNaN(costBasis) || costBasis < 0)) {
-          toast.error(`Invalid cost basis for ${code}. Please enter a valid positive number.`);
+          toast.error(t('shortTerm.invalidCostBasis', { code }));
           continue;
         }
 
@@ -442,7 +442,7 @@ const ShortTermPortfolio = () => {
     } catch (error) {
       // Revert on failure
       setTrackedStocks(prev => prev.map(s => s.id === id ? { ...s, active: !nextActive } : s));
-      toast.error(`Failed to update ${current.code}`);
+      toast.error(t('shortTerm.updateFailed', { code: current.code }));
     }
   };
 
@@ -462,7 +462,7 @@ const ShortTermPortfolio = () => {
     if (costBasisValue) {
       const parsed = parseFloat(costBasisValue);
       if (isNaN(parsed) || parsed < 0) {
-        toast.error("Invalid cost basis. Please enter a valid positive number.");
+        toast.error(t('shortTerm.invalidCostBasis', { code: editCode }));
         return;
       }
       costBasis = parsed;
@@ -482,14 +482,14 @@ const ShortTermPortfolio = () => {
       const response = await api.put(`/api/short-term-tracked-stocks/${editingStock.id}`, requestBody);
       if (!response.ok) throw new Error("Failed");
 
-      toast.success(`Updated ${editCode}`);
+      toast.success(t('shortTerm.updatedSuccess', { code: editCode }));
       setEditDialogOpen(false);
       setEditingStock(null);
       
       // Refresh the list
       await loadTrackedStocks();
     } catch (error: any) {
-      const errorMessage = error?.response?.data || error?.message || "Failed to update stock";
+      const errorMessage = error?.response?.data || error?.message || t('shortTerm.updateFailed', { code: editCode });
       toast.error(errorMessage);
     }
   };
@@ -499,11 +499,11 @@ const ShortTermPortfolio = () => {
       const response = await api.delete(`/api/short-term-tracked-stocks/${id}`);
       if (!response.ok) throw new Error("Failed");
       
-      toast.success(`Deleted ${code} from Short-Term Portfolio`);
+      toast.success(t('shortTerm.deleteSuccess', { code }));
       // Remove from local state
       setTrackedStocks(prev => prev.filter(s => s.id !== id));
     } catch (error) {
-      toast.error(`Failed to delete ${code}`);
+      toast.error(t('shortTerm.deleteFailed', { code }));
     }
   };
 
@@ -519,7 +519,7 @@ const ShortTermPortfolio = () => {
       setRoombarData(data);
     } catch (error) {
       console.error("Error loading roombar data:", error);
-      toast.error(`Failed to load statistics for ${code}`);
+      toast.error(t('shortTerm.loadStatsFailed', { code }));
       setRoombarData(null);
     } finally {
       setLoadingRoombars(false);
@@ -651,7 +651,7 @@ const ShortTermPortfolio = () => {
                 variant="default"
                 className="relative overflow-hidden animate-border-shine"
               >
-                <span className="relative z-10">Price Tracking Realtime</span>
+                <span className="relative z-10">{t('shortTerm.priceTracking')}</span>
               </Button>
             </div>
           </div>
@@ -660,9 +660,9 @@ const ShortTermPortfolio = () => {
         <div className="mb-8 space-y-4">
           <div className="rounded-lg border bg-card p-6">
             <h3 className="text-lg font-semibold mb-4">
-              Select Stocks For Tracking {selectedCodes.size > 0 && (
+              {t('shortTerm.selectStocks')} {selectedCodes.size > 0 && (
                 <span className="text-sm font-normal text-muted-foreground ml-2">
-                  ({selectedCodes.size} selected)
+                  ({selectedCodes.size} {t('shortTerm.selected')})
                 </span>
               )}
             </h3>
@@ -670,10 +670,10 @@ const ShortTermPortfolio = () => {
               {loadingVn30 ? (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Loading VN30 codes...</span>
+                  <span>{t('shortTerm.loadingVN30')}</span>
                 </div>
               ) : vn30Codes.length === 0 ? (
-                <div className="text-muted-foreground">No VN30 codes available</div>
+                <div className="text-muted-foreground">{t('shortTerm.noVN30Codes')}</div>
               ) : (
                 vn30Codes.map((code) => {
                   const isSelected = selectedCodes.has(code);
@@ -696,31 +696,31 @@ const ShortTermPortfolio = () => {
                 onClick={handleSaveSelectedCodes}
                 disabled={selectedCodes.size === 0}
               >
-                Save Selected Codes
+                {t('shortTerm.saveSelected')}
               </Button>
               
               <Dialog open={customCodesModalOpen} onOpenChange={setCustomCodesModalOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
-                    Custom Codes
+                    {t('shortTerm.customCodes')}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[525px]">
                   <DialogHeader>
-                    <DialogTitle>Enter Custom Stock Codes</DialogTitle>
+                    <DialogTitle>{t('shortTerm.enterCustomCodes')}</DialogTitle>
                     <DialogDescription>
-                      Add stock codes that are not in the VN30 list. Enter codes separated by comma, space, or newline.
+                      {t('shortTerm.customCodesDescription')}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     <Textarea
-                      placeholder="Example: FPT, VCB, HPG"
+                      placeholder={t('shortTerm.customCodesExample')}
                       value={stockInput}
                       onChange={(e) => setStockInput(e.target.value)}
                       className="min-h-32"
                     />
                     <Button onClick={handleSaveCodes} className="w-full">
-                      Save Custom Codes
+                      {t('shortTerm.saveCustomCodes')}
                     </Button>
                   </div>
                 </DialogContent>
@@ -733,9 +733,9 @@ const ShortTermPortfolio = () => {
         <Dialog open={costBasisDialogOpen} onOpenChange={setCostBasisDialogOpen}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>Enter Cost Basis for Selected Stocks</DialogTitle>
+              <DialogTitle>{t('shortTerm.enterCostBasis')}</DialogTitle>
               <DialogDescription>
-                Enter the cost basis (purchase price) for each stock. Leave empty if not applicable.
+                {t('shortTerm.costBasisDescription')}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[400px] overflow-y-auto">
@@ -746,7 +746,7 @@ const ShortTermPortfolio = () => {
                     type="number"
                     step="0.01"
                     min="0"
-                    placeholder="Cost basis (optional)"
+                    placeholder={t('shortTerm.costBasisOptional')}
                     value={costBasisValues[code] || ""}
                     onChange={(e) => {
                       setCostBasisValues(prev => ({
@@ -764,10 +764,10 @@ const ShortTermPortfolio = () => {
                 setCostBasisDialogOpen(false);
                 setCostBasisValues({});
               }}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button onClick={handleSaveWithCostBasis}>
-                Save
+                {t('common.save')}
               </Button>
             </div>
           </DialogContent>
@@ -777,29 +777,29 @@ const ShortTermPortfolio = () => {
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Edit Tracked Stock</DialogTitle>
+              <DialogTitle>{t('shortTerm.editStock')}</DialogTitle>
               <DialogDescription>
-                Update the stock code, active status, and cost basis.
+                {t('shortTerm.editStockDescription')}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div>
-                <label className="text-sm font-medium mb-1 block">Stock Code</label>
+                <label className="text-sm font-medium mb-1 block">{t('shortTerm.stock')}</label>
                 <Input
                   value={editCode}
                   onChange={(e) => setEditCode(e.target.value.toUpperCase())}
-                  placeholder="Stock code"
+                  placeholder={t('shortTerm.stock')}
                 />
               </div>
               <div>
-                <label className="text-sm font-medium mb-1 block">Cost Basis</label>
+                <label className="text-sm font-medium mb-1 block">{t('shortTerm.costBasis')}</label>
                 <Input
                   type="number"
                   step="0.01"
                   min="0"
                   value={editCostBasis}
                   onChange={(e) => setEditCostBasis(e.target.value)}
-                  placeholder="Cost basis (optional)"
+                  placeholder={t('shortTerm.costBasisOptional')}
                 />
               </div>
               <div className="flex items-center gap-2">
@@ -809,7 +809,7 @@ const ShortTermPortfolio = () => {
                   id="edit-active"
                 />
                 <label htmlFor="edit-active" className="text-sm font-medium cursor-pointer">
-                  Active
+                  {t('common.active')}
                 </label>
               </div>
             </div>
@@ -818,10 +818,10 @@ const ShortTermPortfolio = () => {
                 setEditDialogOpen(false);
                 setEditingStock(null);
               }}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button onClick={handleUpdateStock}>
-                Save Changes
+                {t('shortTerm.saveChanges')}
               </Button>
             </div>
           </DialogContent>
@@ -836,7 +836,7 @@ const ShortTermPortfolio = () => {
             className="border-2"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshingMarketPrice ? 'animate-spin' : ''}`} />
-            Refresh Market Price
+            {t('shortTerm.refreshMarketPrice')}
           </Button>
         </div>
 
@@ -851,7 +851,7 @@ const ShortTermPortfolio = () => {
                     className="h-8 px-2"
                     onClick={() => handleSort("code")}
                   >
-                    Stock
+                    {t('shortTerm.stock')}
                     {sortField === "code" ? (
                       sortDirection === "asc" ? (
                         <ArrowUp className="ml-2 h-4 w-4" />
@@ -863,9 +863,9 @@ const ShortTermPortfolio = () => {
                     )}
                   </Button>
                 </TableHead>
-                <TableHead>Cost Basis</TableHead>
-                <TableHead className="text-center">Market Price</TableHead>
-                <TableHead className="text-center w-32">Volume / Profit</TableHead>
+                <TableHead>{t('shortTerm.costBasis')}</TableHead>
+                <TableHead className="text-center">{t('shortTerm.marketPrice')}</TableHead>
+                <TableHead className="text-center w-32">{t('shortTerm.volumeProfit')}</TableHead>
                 <TableHead className="text-center bg-green-50 w-28">
                   <Button
                     variant="ghost"
@@ -873,7 +873,7 @@ const ShortTermPortfolio = () => {
                     className="h-8 px-2"
                     onClick={() => handleSort("buyLowPrice")}
                   >
-                    Low Price
+                    {t('shortTerm.lowPrice')}
                     {sortField === "buyLowPrice" ? (
                       sortDirection === "asc" ? (
                         <ArrowUp className="ml-2 h-4 w-4" />
@@ -892,7 +892,7 @@ const ShortTermPortfolio = () => {
                     className="h-8 px-2"
                     onClick={() => handleSort("buyHighPrice")}
                   >
-                    High Price
+                    {t('shortTerm.highPrice')}
                     {sortField === "buyHighPrice" ? (
                       sortDirection === "asc" ? (
                         <ArrowUp className="ml-2 h-4 w-4" />
@@ -911,7 +911,7 @@ const ShortTermPortfolio = () => {
                     className="h-8 px-2"
                     onClick={() => handleSort("buyMaxVolume")}
                   >
-                    Max Volume
+                    {t('shortTerm.maxVolume')}
                     {sortField === "buyMaxVolume" ? (
                       sortDirection === "asc" ? (
                         <ArrowUp className="ml-2 h-4 w-4" />
@@ -930,7 +930,7 @@ const ShortTermPortfolio = () => {
                     className="h-8 px-2"
                     onClick={() => handleSort("sellLowPrice")}
                   >
-                    Low Price
+                    {t('shortTerm.lowPrice')}
                     {sortField === "sellLowPrice" ? (
                       sortDirection === "asc" ? (
                         <ArrowUp className="ml-2 h-4 w-4" />
@@ -949,7 +949,7 @@ const ShortTermPortfolio = () => {
                     className="h-8 px-2"
                     onClick={() => handleSort("sellHighPrice")}
                   >
-                    High Price
+                    {t('shortTerm.highPrice')}
                     {sortField === "sellHighPrice" ? (
                       sortDirection === "asc" ? (
                         <ArrowUp className="ml-2 h-4 w-4" />
@@ -968,7 +968,7 @@ const ShortTermPortfolio = () => {
                     className="h-8 px-2"
                     onClick={() => handleSort("sellMaxVolume")}
                   >
-                    Max Volume
+                    {t('shortTerm.maxVolume')}
                     {sortField === "sellMaxVolume" ? (
                       sortDirection === "asc" ? (
                         <ArrowUp className="ml-2 h-4 w-4" />
@@ -980,7 +980,7 @@ const ShortTermPortfolio = () => {
                     )}
                   </Button>
                 </TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right">{t('shortTerm.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1284,12 +1284,12 @@ const ShortTermPortfolio = () => {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => toggleActive(stock.id)}>
                             <Check className={`mr-2 h-4 w-4 ${stock.active ? 'opacity-100' : 'opacity-0'}`} />
-                            {stock.active ? 'Deactivate' : 'Activate'}
+                            {stock.active ? t('admin.disable') : t('admin.enable')}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => handleEdit(stock)}>
                             <Pencil className="mr-2 h-4 w-4" />
-                            Edit
+                            {t('common.edit')}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <AlertDialog>
@@ -1299,21 +1299,20 @@ const ShortTermPortfolio = () => {
                                 className="text-red-600 focus:text-red-600"
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
+                                {t('common.delete')}
                               </DropdownMenuItem>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Short-Term Stock</AlertDialogTitle>
+                                <AlertDialogTitle>{t('common.delete')} {t('shortTerm.stock')}</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Are you sure you want to remove <strong>{stock.code}</strong> from Short-Term Portfolio?
-                                  This action cannot be undone.
+                                  {t('shortTerm.deleteConfirm', { code: stock.code })}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                                 <AlertDialogAction onClick={() => handleDelete(stock.id, stock.code)}>
-                                  Delete
+                                  {t('common.delete')}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -1329,8 +1328,8 @@ const ShortTermPortfolio = () => {
                 <TableRow>
                   <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     {trackedStocks.length === 0 
-                      ? "No Short-Term Portfolio yet. Add some codes above to get started."
-                      : "No results on this page."
+                      ? t('shortTerm.noStocksDescription')
+                      : t('common.noResults')
                     }
                   </TableCell>
                 </TableRow>

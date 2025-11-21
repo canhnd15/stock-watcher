@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useI18n } from "@/contexts/I18nContext";
 import { Button } from "@/components/ui/button.tsx";
 import { Switch } from "@/components/ui/switch.tsx";
 import { Input } from "@/components/ui/input.tsx";
@@ -38,6 +39,7 @@ const VN30_STOCKS = [
 ];
 
 const Config = () => {
+  const { t } = useI18n();
   const { token } = useAuth();
   const [vn30CronEnabled, setVn30CronEnabled] = useState(true);
   const [trackedStocksCronEnabled, setTrackedStocksCronEnabled] = useState(true);
@@ -69,7 +71,7 @@ const Config = () => {
         setTrackedStocksCronEnabled(trackedData.enabled);
         setSignalCalculationCronEnabled(signalData.enabled);
       })
-      .catch(() => toast.error("Failed to load configuration"))
+      .catch(() => toast.error(t('config.loadConfigFailed')))
       .finally(() => setLoading(false));
   };
 
@@ -93,10 +95,10 @@ const Config = () => {
       })
       .then((data) => {
         setVn30CronEnabled(data.enabled);
-        toast.success(`VN30 Cron Job ${data.enabled ? "enabled" : "disabled"}`);
+        toast.success(`${t('config.vn30Cron')} ${data.enabled ? t('config.enabled') : t('config.disabled')}`);
       })
       .catch(() => {
-        toast.error("Failed to update configuration");
+        toast.error(t('config.updateFailed'));
         // Revert on error
         setVn30CronEnabled(!checked);
       })
@@ -119,10 +121,10 @@ const Config = () => {
       })
       .then((data) => {
         setTrackedStocksCronEnabled(data.enabled);
-        toast.success(`Tracked Stocks Cron Job ${data.enabled ? "enabled" : "disabled"}`);
+        toast.success(`${t('config.trackedStocksCron')} ${data.enabled ? t('config.enabled') : t('config.disabled')}`);
       })
       .catch(() => {
-        toast.error("Failed to update configuration");
+        toast.error(t('config.updateFailed'));
         // Revert on error
         setTrackedStocksCronEnabled(!checked);
       })
@@ -145,10 +147,10 @@ const Config = () => {
       })
       .then((data) => {
         setSignalCalculationCronEnabled(data.enabled);
-        toast.success(`Signal Calculation Cron Job ${data.enabled ? "enabled" : "disabled"}`);
+        toast.success(`${t('config.signalCalculationCron')} ${data.enabled ? t('config.enabled') : t('config.disabled')}`);
       })
       .catch(() => {
-        toast.error("Failed to update configuration");
+        toast.error(t('config.updateFailed'));
         // Revert on error
         setSignalCalculationCronEnabled(!checked);
       })
@@ -184,9 +186,9 @@ const Config = () => {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(blobUrl);
-      toast.success(exportAllTrades ? "Exported all trades to Excel" : "Exported trades to Excel");
+      toast.success(exportAllTrades ? t('config.exportSuccess') : t('config.exportSuccessRange'));
     } catch {
-      toast.error("Failed to export trades");
+      toast.error(t('config.exportFailed'));
     } finally {
       setExporting(false);
     }
@@ -208,13 +210,13 @@ const Config = () => {
         throw new Error(errorText || 'Failed to import');
       }
       const text = await resp.text();
-      toast.success(text || 'Imported successfully');
+      toast.success(text || t('config.importSuccess'));
       setImportFile(null);
       // Reset file input
       const fileInput = document.getElementById('import-file-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
     } catch (error: any) {
-      toast.error(error.message || "Failed to import trades");
+      toast.error(error.message || t('config.importFailed'));
     } finally {
       setImporting(false);
     }
@@ -233,10 +235,10 @@ const Config = () => {
             return r.text();
           })
           .then((message) => {
-            toast.success(message || "Ingestion completed for all stocks");
+            toast.success(message || t('config.ingestAllSuccess'));
             setIngestCode("");
           })
-          .catch(() => toast.error("Failed to ingest all stocks"))
+          .catch(() => toast.error(t('config.ingestAllFailed')))
           .finally(() => setIngesting(false));
       } else {
         // Otherwise, call /ingest/{code} endpoint
@@ -244,10 +246,10 @@ const Config = () => {
         fetch(`/api/trades/ingest/${encodeURIComponent(c)}`, { method: "POST", headers })
           .then((r) => {
             if (!r.ok) throw new Error("Failed");
-            toast.success(`Ingestion completed for ${c}`);
+            toast.success(t('config.ingestSuccess', { code: c }));
             setIngestCode("");
           })
-          .catch(() => toast.error(`Failed to ingest ${c}`))
+          .catch(() => toast.error(t('config.ingestFailed', { code: c })))
           .finally(() => setIngesting(false));
       }
     }
@@ -259,7 +261,7 @@ const Config = () => {
       
       <main className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">Management</h2>
+          <h2 className="text-2xl font-bold">{t('config.title')}</h2>
           <Button
             variant="outline"
             size="sm"
@@ -267,16 +269,16 @@ const Config = () => {
             disabled={loading}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('common.search')}
           </Button>
         </div>
 
         <div className="grid gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Stock Data Ingestion</CardTitle>
+              <CardTitle>{t('config.stockDataIngestion')}</CardTitle>
               <CardDescription>
-                Manually ingest trade data for specific stocks or all VN30 stocks
+                {t('config.ingestDescription')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -289,15 +291,15 @@ const Config = () => {
                       aria-expanded={ingestCodeOpen}
                       className="w-64 justify-between"
                     >
-                      {ingestCode || "Select stock..."}
+                      {ingestCode || t('config.selectStock')}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-[250px] p-0">
                     <Command>
-                      <CommandInput placeholder="Search stock..." />
+                      <CommandInput placeholder={t('config.searchStock')} />
                       <CommandList>
-                        <CommandEmpty>No stock found.</CommandEmpty>
+                        <CommandEmpty>{t('common.noResults')}</CommandEmpty>
                         <CommandGroup>
                           <CommandItem
                             value="All"
@@ -312,7 +314,7 @@ const Config = () => {
                                 ingestCode === "All" ? "opacity-100" : "opacity-0"
                               )}
                             />
-                            All VN30 Stocks
+                            {t('config.allVN30Stocks')}
                           </CommandItem>
                           {VN30_STOCKS.map((stock) => (
                             <CommandItem
@@ -340,11 +342,11 @@ const Config = () => {
                 <Button onClick={handleIngest} disabled={!ingestCode || ingesting}>
                   {ingesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {!ingesting && <RefreshCw className="mr-2 h-4 w-4" />}
-                  Ingest Now
+                  {t('config.ingestNow')}
                 </Button>
                 {ingestCode && !ingesting && (
                   <p className="text-sm text-muted-foreground">
-                    {ingestCode === "All" ? "Ingest all VN30 stocks" : `Ingest ${ingestCode}`}
+                    {ingestCode === "All" ? t('config.ingestAll') : t('config.ingestStock', { code: ingestCode })}
                   </p>
                 )}
               </div>
@@ -353,9 +355,9 @@ const Config = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Data Import/Export</CardTitle>
+              <CardTitle>{t('config.exportImport')}</CardTitle>
               <CardDescription>
-                Import trades from Excel or export all trades to Excel
+                {t('config.exportImportDescription')}
               </CardDescription>
             </CardHeader>
             <CardContent>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useI18n } from "@/contexts/I18nContext";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import {
@@ -31,6 +32,7 @@ interface Suggestion {
 }
 
 const Suggestions = () => {
+  const { t } = useI18n();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,7 +43,7 @@ const Suggestions = () => {
       const response = await api.get('/api/suggestions');
       
       if (!response.ok) {
-        throw new Error('Failed to fetch suggestions');
+        throw new Error(t('suggestions.error'));
       }
       
       const data: Suggestion[] = await response.json();
@@ -54,7 +56,7 @@ const Suggestions = () => {
       setSuggestions(sorted);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
-      toast.error('Failed to load suggestions');
+      toast.error(t('suggestions.error'));
     } finally {
       setLoading(false);
     }
@@ -64,10 +66,10 @@ const Suggestions = () => {
     try {
       setRefreshing(true);
       await fetchSuggestions();
-      toast.success('Suggestions refreshed');
+      toast.success(t('suggestions.refreshed'));
     } catch (error) {
       console.error('Error refreshing suggestions:', error);
-      toast.error('Failed to refresh suggestions');
+      toast.error(t('suggestions.error'));
     } finally {
       setRefreshing(false);
     }
@@ -88,9 +90,9 @@ const Suggestions = () => {
   };
 
   const getConfidenceLabel = (confidence: number) => {
-    if (confidence >= 0.7) return "high";
-    if (confidence >= 0.5) return "medium";
-    return "low";
+    if (confidence >= 0.7) return t('suggestions.high');
+    if (confidence >= 0.5) return t('suggestions.medium');
+    return t('suggestions.low');
   };
 
   const getStrengthColor = (strength: string) => {
@@ -106,6 +108,30 @@ const Suggestions = () => {
     }
   };
 
+  const getStrengthLabel = (strength: string) => {
+    switch (strength) {
+      case "strong":
+        return t('suggestions.strong');
+      case "moderate":
+        return t('suggestions.moderate');
+      case "weak":
+        return t('suggestions.weak');
+      default:
+        return t('suggestions.neutral');
+    }
+  };
+
+  const getActionLabel = (action: string) => {
+    switch (action) {
+      case "buy":
+        return t('suggestions.buy');
+      case "sell":
+        return t('suggestions.sell');
+      default:
+        return t('suggestions.hold');
+    }
+  };
+
   const buyCount = suggestions.filter(s => s.action === "buy").length;
   const sellCount = suggestions.filter(s => s.action === "sell").length;
 
@@ -115,37 +141,37 @@ const Suggestions = () => {
       
       <main className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">Trading Suggestions</h2>
+          <h2 className="text-2xl font-bold">{t('suggestions.title')}</h2>
           <Button
             onClick={handleRefresh}
             disabled={refreshing || loading}
             variant="outline"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('suggestions.refresh')}
           </Button>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Buy Signals</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('suggestions.buy')} {t('signals.title')}</CardTitle>
               <TrendingUp className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-success">{buyCount}</div>
-              <CardDescription>Stocks showing buy potential</CardDescription>
+              <CardDescription>{t('suggestions.buyPotential')}</CardDescription>
             </CardContent>
           </Card>
           
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Sell Signals</CardTitle>
+              <CardTitle className="text-sm font-medium">{t('suggestions.sell')} {t('signals.title')}</CardTitle>
               <TrendingDown className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">{sellCount}</div>
-              <CardDescription>Stocks showing sell signals</CardDescription>
+              <CardDescription>{t('suggestions.sellSignals')}</CardDescription>
             </CardContent>
           </Card>
         </div>
@@ -154,15 +180,15 @@ const Suggestions = () => {
           <Card className="max-w-md mx-auto">
             <CardContent className="p-12 text-center">
               <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-              <p className="text-muted-foreground">Loading suggestions...</p>
+              <p className="text-muted-foreground">{t('suggestions.loading')}</p>
             </CardContent>
           </Card>
         ) : suggestions.length === 0 ? (
           <Card className="max-w-md mx-auto">
             <CardContent className="p-12 text-center">
-              <p className="text-muted-foreground">No suggestions available at this time.</p>
+              <p className="text-muted-foreground">{t('suggestions.noSuggestions')}</p>
               <p className="text-sm text-muted-foreground mt-2">
-                Suggestions require at least 5 days of trading data.
+                {t('suggestions.requireData')}
               </p>
             </CardContent>
           </Card>
@@ -171,12 +197,12 @@ const Suggestions = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Price Target</TableHead>
-                  <TableHead>Confidence</TableHead>
-                  <TableHead className="text-right">24h Volume</TableHead>
-                  <TableHead>Reason</TableHead>
+                  <TableHead>{t('suggestions.code')}</TableHead>
+                  <TableHead>{t('suggestions.action')}</TableHead>
+                  <TableHead>{t('suggestions.priceTarget')}</TableHead>
+                  <TableHead>{t('suggestions.confidence')}</TableHead>
+                  <TableHead className="text-right">{t('suggestions.volume24h')}</TableHead>
+                  <TableHead>{t('suggestions.reason')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -189,7 +215,7 @@ const Suggestions = () => {
                         className={suggestion.action === "buy" ? getStrengthColor(suggestion.strength) : 
                                    suggestion.action === "sell" ? "bg-red-600 hover:bg-red-700 text-white" : ""}
                       >
-                        {suggestion.action.toUpperCase()} {suggestion.strength !== "neutral" ? `(${suggestion.strength})` : ""}
+                        {getActionLabel(suggestion.action).toUpperCase()} {suggestion.strength !== "neutral" ? `(${getStrengthLabel(suggestion.strength)})` : ""}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -220,7 +246,7 @@ const Suggestions = () => {
         )}
         
         <p className="mt-4 text-sm text-muted-foreground text-center">
-          * Suggestions are based on 10-day multi-formula analysis (Volume-Price Momentum, MA Crossover, RSI, Trend Strength) and should not be considered financial advice
+          {t('suggestions.disclaimer')}
         </p>
       </main>
     </div>

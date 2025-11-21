@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useI18n } from "@/contexts/I18nContext";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
@@ -98,6 +99,7 @@ export function PortfolioSimulationModal({
   apiEndpoint,
   fetchStocksEndpoint,
 }: PortfolioSimulationModalProps) {
+  const { t } = useI18n();
   const [simulatedStocks, setSimulatedStocks] = useState<SimulatedStock[]>([]);
   const [selectedCode, setSelectedCode] = useState("");
   const [costBasis, setCostBasis] = useState("");
@@ -123,7 +125,7 @@ export function PortfolioSimulationModal({
     try {
       const response = await api.get(fetchStocksEndpoint);
       if (!response.ok) {
-        throw new Error("Failed to load existing stocks");
+        throw new Error(t('portfolio.loadFailed'));
       }
       const existingStocks: ExistingStock[] = await response.json();
       
@@ -138,7 +140,7 @@ export function PortfolioSimulationModal({
       setSimulatedStocks(simulated);
     } catch (error: any) {
       console.error("Error loading existing stocks:", error);
-      toast.error(error?.message || "Failed to load existing stocks");
+      toast.error(error?.message || t('portfolio.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -190,16 +192,16 @@ export function PortfolioSimulationModal({
           setStockValidationError(null);
           return true;
         } else {
-          setStockValidationError("Stock code not found or market price unavailable");
+          setStockValidationError(t('portfolio.stockNotFound'));
           return false;
         }
       } else {
-        setStockValidationError("Failed to validate stock code");
+        setStockValidationError(t('portfolio.validateFailed'));
         return false;
       }
     } catch (error) {
       console.error("Error validating stock code:", error);
-      setStockValidationError("Failed to validate stock code");
+      setStockValidationError(t('portfolio.validateFailed'));
       return false;
     } finally {
       setValidatingStock(false);
@@ -276,7 +278,7 @@ export function PortfolioSimulationModal({
     const codeToAdd = stockCodeInput.trim().toUpperCase();
     
     if (!codeToAdd) {
-      toast.error("Please enter a stock code");
+      toast.error(t('portfolio.pleaseEnterCode'));
       return;
     }
 
@@ -284,13 +286,13 @@ export function PortfolioSimulationModal({
     if (!vn30Codes.includes(codeToAdd)) {
       const isValid = await validateStockCode(codeToAdd);
       if (!isValid) {
-        toast.error(stockValidationError || "Invalid stock code. Please enter a valid stock code.");
+        toast.error(stockValidationError || t('portfolio.invalidCode'));
         return;
       }
     }
 
     if (simulatedStocks.some((s) => s.code === codeToAdd)) {
-      toast.error("Stock already added");
+      toast.error(t('portfolio.stockAlreadyAdded'));
       return;
     }
 
@@ -304,7 +306,7 @@ export function PortfolioSimulationModal({
           if (costBasisValue && costBasisValue > 0) {
             targetPriceValue = costBasisValue * (1 + inputValue / 100);
           } else {
-            toast.error("Cost basis is required to calculate target price from percentage");
+            toast.error(t('portfolio.costBasisRequired'));
             return;
           }
         } else {
@@ -363,7 +365,7 @@ export function PortfolioSimulationModal({
           if (costBasisValue && costBasisValue > 0) {
             targetPriceValue = costBasisValue * (1 + inputValue / 100);
           } else {
-            toast.error("Cost basis is required to calculate target price from percentage");
+            toast.error(t('portfolio.costBasisRequired'));
             return;
           }
         } else {
@@ -373,12 +375,12 @@ export function PortfolioSimulationModal({
     }
 
     if (costBasisValue !== undefined && (isNaN(costBasisValue) || costBasisValue < 0)) {
-      toast.error("Invalid cost basis");
+      toast.error(t('portfolio.invalidCostBasis'));
       return;
     }
 
     if (volumeValue !== undefined && (isNaN(volumeValue) || volumeValue < 0)) {
-      toast.error("Invalid volume");
+      toast.error(t('portfolio.invalidVolume'));
       return;
     }
 
@@ -412,7 +414,7 @@ export function PortfolioSimulationModal({
 
   const handleCalculate = async () => {
     if (simulatedStocks.length === 0) {
-      toast.error("Please add at least one stock");
+      toast.error(t('portfolio.pleaseAddStock'));
       return;
     }
 
@@ -429,15 +431,15 @@ export function PortfolioSimulationModal({
 
       const response = await api.post(apiEndpoint, requestBody);
       if (!response.ok) {
-        throw new Error("Failed to calculate portfolio");
+        throw new Error(t('portfolio.calculateFailed'));
       }
 
       const data: PortfolioSimulationResponse = await response.json();
       setResults(data);
-      toast.success("Portfolio calculated successfully");
+      toast.success(t('portfolio.calculateSuccess'));
     } catch (error: any) {
       console.error("Error calculating portfolio:", error);
-      toast.error(error?.message || "Failed to calculate portfolio");
+      toast.error(error?.message || t('portfolio.calculateFailed'));
     } finally {
       setCalculating(false);
     }
@@ -458,19 +460,19 @@ export function PortfolioSimulationModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Portfolio Simulation</DialogTitle>
+          <DialogTitle>{t('portfolio.title')}</DialogTitle>
           <DialogDescription>
-            Add stocks from VN30 list or enter custom stock codes to simulate portfolio profit. Changes are temporary and not saved.
+            {t('portfolio.description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Add Stock Section */}
           <div className="rounded-lg border bg-card p-4">
-            <h3 className="text-lg font-semibold mb-4">Add Stock</h3>
+            <h3 className="text-lg font-semibold mb-4">{t('portfolio.addStock')}</h3>
             <div className="flex gap-4 items-end">
               <div className="flex-1">
-                <label className="text-sm font-medium mb-1 block">Stock Code</label>
+                <label className="text-sm font-medium mb-1 block">{t('portfolio.stockCode')}</label>
                 <div className="relative">
                   <Popover open={stockCodeOpen} onOpenChange={setStockCodeOpen}>
                     <PopoverTrigger asChild>
@@ -481,7 +483,7 @@ export function PortfolioSimulationModal({
                         className="w-full justify-between h-10"
                         disabled={loadingMarketPrice || validatingStock}
                       >
-                        {selectedCode || stockCodeInput || "Select or enter a stock code..."}
+                        {selectedCode || stockCodeInput || t('portfolio.selectOrEnter')}
                         <div className="flex items-center gap-2">
                           {validatingStock && (
                             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -499,15 +501,15 @@ export function PortfolioSimulationModal({
                     <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
                       <Command>
                         <CommandInput
-                          placeholder="Search or type stock code..."
+                          placeholder={t('portfolio.searchOrType')}
                           value={stockCodeInput}
                           onValueChange={handleStockCodeInputChange}
                         />
                         <CommandList>
                           <CommandEmpty>
                             {stockCodeInput && !vn30Codes.includes(stockCodeInput.trim().toUpperCase()) 
-                              ? "Type to enter custom stock code (will be validated)"
-                              : "No stock found."}
+                              ? t('portfolio.typeCustomCode')
+                              : t('common.noResults')}
                           </CommandEmpty>
                           <CommandGroup>
                             {vn30Codes
@@ -545,7 +547,7 @@ export function PortfolioSimulationModal({
                                 className="text-muted-foreground"
                               >
                                 <AlertCircle className="mr-2 h-4 w-4" />
-                                {stockCodeInput.trim().toUpperCase()} (Custom - will validate)
+                                {stockCodeInput.trim().toUpperCase()}{t('portfolio.customWillValidate')}
                               </CommandItem>
                             )}
                           </CommandGroup>
@@ -559,24 +561,24 @@ export function PortfolioSimulationModal({
                 </div>
               </div>
               <div className="flex-1">
-                <label className="text-sm font-medium mb-1 block">Cost Basis (VND)</label>
+                <label className="text-sm font-medium mb-1 block">{t('portfolio.costBasis')}</label>
                 <Input
                   type="number"
                   step="0.01"
                   min="0"
-                  placeholder="Purchase price"
+                  placeholder={t('portfolio.costBasisPlaceholder')}
                   value={costBasis}
                   onChange={(e) => setCostBasis(e.target.value)}
                   disabled={loadingMarketPrice}
                 />
               </div>
               <div className="flex-1">
-                <label className="text-sm font-medium mb-1 block">Volume (shares)</label>
+                <label className="text-sm font-medium mb-1 block">{t('portfolio.volume')}</label>
                 <Input
                   type="number"
                   min="0"
                   step="100"
-                  placeholder="Number of shares"
+                  placeholder={t('portfolio.volumePlaceholder')}
                   value={volume}
                   onChange={(e) => setVolume(e.target.value)}
                   onKeyDown={(e) => {
@@ -606,7 +608,7 @@ export function PortfolioSimulationModal({
                 />
               </div>
               <div className="flex-1">
-                <label className="text-sm font-medium mb-1 block">Target Price</label>
+                <label className="text-sm font-medium mb-1 block">{t('portfolio.targetPrice')}</label>
                 <div className="flex gap-2">
                   <Select value={targetPriceMode} onValueChange={(value: "value" | "percent") => setTargetPriceMode(value)}>
                     <SelectTrigger className="w-20">
@@ -621,7 +623,7 @@ export function PortfolioSimulationModal({
                     type="number"
                     step="0.01"
                     min="0"
-                    placeholder={targetPriceMode === "percent" ? "%" : "Target price"}
+                    placeholder={targetPriceMode === "percent" ? "%" : t('portfolio.targetPricePlaceholder')}
                     value={targetPrice}
                     onChange={(e) => setTargetPrice(e.target.value)}
                     className="flex-1"
@@ -630,7 +632,7 @@ export function PortfolioSimulationModal({
               </div>
               <Button onClick={handleAddStock} disabled={!selectedCode && !stockCodeInput || validatingStock || !!stockValidationError}>
                 <Plus className="h-4 w-4 mr-2" />
-                Add
+                {t('portfolio.add')}
               </Button>
             </div>
           </div>
@@ -638,17 +640,17 @@ export function PortfolioSimulationModal({
           {/* Simulated Stocks List */}
           <div className="rounded-lg border bg-card">
             <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Simulated Stocks ({simulatedStocks.length})</h3>
+              <h3 className="text-lg font-semibold">{t('portfolio.simulatedStocks', { count: simulatedStocks.length })}</h3>
               <Button onClick={handleCalculate} disabled={calculating || simulatedStocks.length === 0}>
                 {calculating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Calculating...
+                    {t('portfolio.calculating')}
                   </>
                 ) : (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2" />
-                    Calculate Profit
+                    {t('portfolio.calculateProfit')}
                   </>
                 )}
               </Button>
@@ -656,17 +658,17 @@ export function PortfolioSimulationModal({
             <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Cost Basis</TableHead>
-                    <TableHead>Volume</TableHead>
-                    <TableHead>Target Price</TableHead>
-                    <TableHead>Target Profit</TableHead>
-                    <TableHead>Market Price</TableHead>
-                    <TableHead>Total Net Value</TableHead>
-                    <TableHead>Current Value</TableHead>
-                    <TableHead>Profit</TableHead>
-                    <TableHead className="w-20">Profit %</TableHead>
-                    <TableHead className="text-right w-12">Actions</TableHead>
+                    <TableHead>{t('portfolio.code')}</TableHead>
+                    <TableHead>{t('portfolio.costBasisCol')}</TableHead>
+                    <TableHead>{t('portfolio.volumeCol')}</TableHead>
+                    <TableHead>{t('portfolio.targetPriceCol')}</TableHead>
+                    <TableHead>{t('portfolio.targetProfit')}</TableHead>
+                    <TableHead>{t('portfolio.marketPrice')}</TableHead>
+                    <TableHead>{t('portfolio.totalNetValue')}</TableHead>
+                    <TableHead>{t('portfolio.currentValue')}</TableHead>
+                    <TableHead>{t('portfolio.profit')}</TableHead>
+                    <TableHead className="w-20">{t('portfolio.profitPercent')}</TableHead>
+                    <TableHead className="text-right w-12">{t('portfolio.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -674,7 +676,7 @@ export function PortfolioSimulationModal({
                     <TableRow>
                       <TableCell colSpan={11} className="text-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                        <p className="text-sm text-muted-foreground mt-2">Loading existing stocks...</p>
+                        <p className="text-sm text-muted-foreground mt-2">{t('portfolio.loadingStocks')}</p>
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -694,7 +696,7 @@ export function PortfolioSimulationModal({
                                 value={editCostBasis}
                                 onChange={(e) => setEditCostBasis(e.target.value)}
                                 className="w-24"
-                                placeholder="Cost basis"
+                                placeholder={t('portfolio.costBasisCol')}
                               />
                             ) : (
                               formatPrice(stock.costBasis)
@@ -733,7 +735,7 @@ export function PortfolioSimulationModal({
                                   setEditVolume(newValue.toString());
                                 }}
                                 className="w-24"
-                                placeholder="Volume"
+                                placeholder={t('portfolio.volumeCol')}
                               />
                             ) : (
                               stock.volume?.toLocaleString() || "N/A"
@@ -758,7 +760,7 @@ export function PortfolioSimulationModal({
                                   value={editTargetPrice}
                                   onChange={(e) => setEditTargetPrice(e.target.value)}
                                   className="w-20"
-                                  placeholder={editTargetPriceMode === "percent" ? "%" : "Price"}
+                                  placeholder={editTargetPriceMode === "percent" ? "%" : t('portfolio.targetPriceCol')}
                                 />
                               </div>
                             ) : (
@@ -829,14 +831,14 @@ export function PortfolioSimulationModal({
                                 size="sm"
                                 onClick={handleSaveEdit}
                               >
-                                Save
+                                {t('common.save')}
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={handleCancelEdit}
                               >
-                                Cancel
+                                {t('common.cancel')}
                               </Button>
                             </div>
                           ) : (
@@ -850,14 +852,14 @@ export function PortfolioSimulationModal({
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => handleEditStock(stock.code)}>
                                   <Pencil className="mr-2 h-4 w-4" />
-                                  Edit
+                                  {t('common.edit')}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => handleRemoveStock(stock.code)}
                                   className="text-red-600 focus:text-red-600"
                                 >
                                   <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
+                                  {t('common.delete')}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -895,7 +897,7 @@ export function PortfolioSimulationModal({
                     <tfoot>
                       <TableRow className="bg-muted/50 font-semibold border-t-2">
                         <TableCell colSpan={4} className="text-left">
-                          Total:
+                          {t('portfolio.total')}
                         </TableCell>
                         <TableCell className="text-center">
                           <span className={`text-sm font-semibold ${
@@ -940,7 +942,7 @@ export function PortfolioSimulationModal({
 
           {!loading && simulatedStocks.length === 0 && (
             <div className="text-center text-muted-foreground py-12">
-              <p>No stocks in portfolio. Add stocks from VN30 list or enter custom stock codes above to start simulation.</p>
+              <p>{t('portfolio.noStocks')}</p>
             </div>
           )}
         </div>

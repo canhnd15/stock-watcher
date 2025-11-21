@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useI18n } from "@/contexts/I18nContext";
 import { Button } from "@/components/ui/button.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
@@ -89,6 +90,7 @@ interface TrackedStock {
 type SortField = "code";
 
 const TrackedStocks = () => {
+  const { t } = useI18n();
   const [stockInput, setStockInput] = useState("");
   const [trackedStocks, setTrackedStocks] = useState<TrackedStock[]>([]);
   const [shortTermStocks, setShortTermStocks] = useState<TrackedStock[]>([]);
@@ -1717,9 +1719,9 @@ const TrackedStocks = () => {
         <div className="mb-8 space-y-4">
           <div className="rounded-lg border bg-card p-6">
             <h3 className="text-lg font-semibold mb-4">
-              Select Stocks For Tracking {selectedCodes.size > 0 && (
+              {t('shortTerm.selectStocks')} {selectedCodes.size > 0 && (
                 <span className="text-sm font-normal text-muted-foreground ml-2">
-                  ({selectedCodes.size} selected)
+                  ({selectedCodes.size} {t('shortTerm.selected')})
                 </span>
               )}
             </h3>
@@ -1727,10 +1729,10 @@ const TrackedStocks = () => {
               {loadingVn30 ? (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Loading VN30 codes...</span>
+                  <span>{t('shortTerm.loadingVN30')}</span>
                 </div>
               ) : vn30Codes.length === 0 ? (
-                <div className="text-muted-foreground">No VN30 codes available</div>
+                <div className="text-muted-foreground">{t('shortTerm.noVN30Codes')}</div>
               ) : (
                 vn30Codes.map((code) => {
                   const isSelected = selectedCodes.has(code);
@@ -1754,14 +1756,14 @@ const TrackedStocks = () => {
                   onClick={handleSaveSelectedCodes}
                   disabled={selectedCodes.size === 0}
                 >
-                  Save to Tracked Stocks
+                  {t('tracked.saveToTracked')}
                 </Button>
                 <Button 
                   onClick={handleSaveSelectedCodesToShortTerm}
                   disabled={selectedCodes.size === 0}
                   variant="outline"
                 >
-                  Save to Short-Term Portfolio
+                  {t('tracked.saveToShortTerm')}
                 </Button>
               </div>
               
@@ -1777,7 +1779,7 @@ const TrackedStocks = () => {
               }}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
-                    Custom Codes
+                    {t('shortTerm.customCodes')}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
@@ -1968,7 +1970,7 @@ const TrackedStocks = () => {
                               className="flex-1"
                               disabled={validatedStocks.filter(s => s.isValid).length === 0}
                             >
-                              Save Custom Codes
+                              {t('shortTerm.saveCustomCodes')}
                             </Button>
                           </div>
                         </div>
