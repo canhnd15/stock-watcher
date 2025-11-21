@@ -65,7 +65,7 @@ const Header = () => {
                 className="border-yellow-300 text-yellow-600 hover:bg-yellow-50 hover:text-yellow-700"
               >
                 <Crown className="h-4 w-4 mr-1.5" />
-                Request VIP
+                {t('vip.request')}
               </Button>
             )}
             <div className="flex items-center gap-2">
@@ -81,6 +81,7 @@ const Header = () => {
             <VipRequestModal 
               open={vipRequestModalOpen} 
               onOpenChange={setVipRequestModalOpen}
+              youtubeVideoId="YOUTUBE_VIDEO_ID"
             />
           )}
         </div>

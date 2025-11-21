@@ -31,8 +31,6 @@ public class TradingJobs {
     private final TradeRepository tradeRepository;
     private final TradeIngestionService ingestionService;
     private final ConfigService configService;
-    private final SignalCalculationService signalCalculationService;
-    private final TrackedStockNotificationService trackedStockNotificationService;
     private final TrackedStockStatsService trackedStockStatsService;
     private final BackendApiClient backendApiClient;
 
