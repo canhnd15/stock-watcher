@@ -1,71 +1,272 @@
 package com.data.trade.service;
 
+import com.data.trade.dto.PortfolioSimulationRequest;
+import com.data.trade.dto.PortfolioSimulationResponse;
+import com.data.trade.dto.RefreshMarketPriceResponse;
+import com.data.trade.dto.TrackedStockWithMarketPriceDTO;
 import com.data.trade.model.TrackedStock;
+import com.data.trade.model.User;
 import com.data.trade.repository.TrackedStockRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TrackedStockService {
 
     private final TrackedStockRepository trackedStockRepository;
+    private final FinpathClient finpathClient;
 
     @Value("${market.vn30.codes}")
     private List<String> vn30Codes;
 
-    public List<TrackedStock> getAllTrackedStocks() {
-        return trackedStockRepository.findAll();
+    /**
+     * Get all tracked stocks for a specific user
+     */
+    public List<TrackedStockWithMarketPriceDTO> getAllTrackedStocksForUser(Long userId) {
+        List<TrackedStock> stocks = trackedStockRepository.findAllByUserId(userId);
+        
+        return stocks.stream()
+                .map(stock -> {
+                    BigDecimal marketPrice = getMarketPrice(stock.getCode());
+                    return TrackedStockWithMarketPriceDTO.fromTrackedStock(stock, marketPrice);
+                })
+                .collect(Collectors.toList());
     }
 
-    public List<String> getVn30Codes() {
-        return vn30Codes;
-    }
-
-    public void upsertStocks(List<String> codes) {
-        for (String code : codes) {
-            String normalizedCode = code.trim().toUpperCase();
-            TrackedStock stock = trackedStockRepository.findAll().stream()
-                    .filter(x -> x.getCode().equalsIgnoreCase(normalizedCode))
-                    .findFirst()
-                    .orElse(TrackedStock.builder()
-                            .code(normalizedCode)
-                            .active(true)
-                            .build());
-            stock.setActive(true);
-            trackedStockRepository.save(stock);
+    /**
+     * Get market price for a stock code from TradingView API
+     */
+    private BigDecimal getMarketPrice(String code) {
+        try {
+            var response = finpathClient.fetchTradingViewBars(code);
+            if (response != null) {
+                Double price = response.getMarketPrice();
+                if (price != null) {
+                    return BigDecimal.valueOf(price);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Failed to fetch market price for {}: {}", code, e.getMessage());
         }
+        return null;
     }
 
-    public TrackedStock setActive(String code, boolean active) {
-        String normalizedCode = code.trim().toUpperCase();
-        TrackedStock stock = trackedStockRepository.findAll().stream()
-                .filter(x -> x.getCode().equalsIgnoreCase(normalizedCode))
-                .findFirst()
-                .orElse(TrackedStock.builder()
-                        .code(normalizedCode)
-                        .active(active)
-                        .build());
-        stock.setActive(active);
+    /**
+     * Refresh market prices for all tracked stocks of a user
+     */
+    public RefreshMarketPriceResponse refreshMarketPriceForUser(Long userId) {
+        List<TrackedStock> stocks = trackedStockRepository.findAllByUserId(userId);
+        
+        List<TrackedStockWithMarketPriceDTO> result = stocks.stream()
+                .map(stock -> {
+                    BigDecimal marketPrice = getMarketPrice(stock.getCode());
+                    return TrackedStockWithMarketPriceDTO.fromTrackedStock(stock, marketPrice);
+                })
+                .collect(Collectors.toList());
+        
+        int successCount = (int) result.stream()
+                .filter(dto -> dto.getMarketPrice() != null)
+                .count();
+        
+        return new RefreshMarketPriceResponse(
+                "Market prices refreshed successfully",
+                successCount,
+                result.size() - successCount,
+                result
+        );
+    }
+
+    /**
+     * Simulate portfolio profit calculation
+     */
+    public PortfolioSimulationResponse simulatePortfolio(PortfolioSimulationRequest request) {
+        List<PortfolioSimulationResponse.SimulatedStockResult> results = new ArrayList<>();
+        BigDecimal totalProfit = BigDecimal.ZERO;
+        BigDecimal totalCostBasis = BigDecimal.ZERO;
+        BigDecimal totalCurrentValue = BigDecimal.ZERO;
+
+        for (PortfolioSimulationRequest.SimulatedStock stock : request.getStocks()) {
+            String code = stock.getCode().toUpperCase();
+            BigDecimal costBasis = stock.getCostBasis();
+            Long volume = stock.getVolume();
+            BigDecimal targetPrice = stock.getTargetPrice();
+
+            // Get market price
+            BigDecimal marketPrice = getMarketPrice(code);
+
+            PortfolioSimulationResponse.SimulatedStockResult result;
+            if (marketPrice == null) {
+                result = PortfolioSimulationResponse.SimulatedStockResult.builder()
+                        .code(code)
+                        .costBasis(costBasis)
+                        .volume(volume)
+                        .targetPrice(targetPrice)
+                        .marketPrice(null)
+                        .profit(null)
+                        .profitPercent(null)
+                        .currentValue(null)
+                        .targetProfit(null)
+                        .error("Failed to fetch market price")
+                        .build();
+            } else {
+                // Calculate profit
+                BigDecimal currentValue = (volume != null && volume > 0) 
+                        ? marketPrice.multiply(BigDecimal.valueOf(volume))
+                        : BigDecimal.ZERO;
+                BigDecimal profit = (costBasis != null && volume != null && volume > 0)
+                        ? marketPrice.subtract(costBasis).multiply(BigDecimal.valueOf(volume))
+                        : null;
+                BigDecimal profitPercent = (costBasis != null && costBasis.compareTo(BigDecimal.ZERO) > 0)
+                        ? marketPrice.subtract(costBasis)
+                                .divide(costBasis, 4, RoundingMode.HALF_UP)
+                                .multiply(BigDecimal.valueOf(100))
+                        : null;
+                
+                // Calculate target profit: (targetPrice - costBasis) * volume
+                BigDecimal targetProfit = (targetPrice != null && costBasis != null && volume != null && volume > 0)
+                        ? targetPrice.subtract(costBasis).multiply(BigDecimal.valueOf(volume))
+                        : null;
+
+                result = PortfolioSimulationResponse.SimulatedStockResult.builder()
+                        .code(code)
+                        .costBasis(costBasis)
+                        .volume(volume)
+                        .targetPrice(targetPrice)
+                        .marketPrice(marketPrice)
+                        .profit(profit)
+                        .profitPercent(profitPercent)
+                        .currentValue(currentValue)
+                        .targetProfit(targetProfit)
+                        .error(null)
+                        .build();
+
+                // Accumulate totals
+                if (profit != null) {
+                    totalProfit = totalProfit.add(profit);
+                }
+                if (costBasis != null && volume != null && volume > 0) {
+                    totalCostBasis = totalCostBasis.add(costBasis.multiply(BigDecimal.valueOf(volume)));
+                }
+                if (currentValue != null) {
+                    totalCurrentValue = totalCurrentValue.add(currentValue);
+                }
+            }
+
+            results.add(result);
+        }
+
+        return PortfolioSimulationResponse.builder()
+                .stocks(results)
+                .totalProfit(totalProfit)
+                .totalCostBasis(totalCostBasis)
+                .totalCurrentValue(totalCurrentValue)
+                .build();
+    }
+
+    /**
+     * Add a new tracked stock for a user
+     */
+    @Transactional
+    public TrackedStock addTrackedStock(User user, String code, BigDecimal costBasis, Long volume, BigDecimal targetPrice) {
+        // Check if already exists
+        if (trackedStockRepository.existsByUserIdAndCode(user.getId(), code.toUpperCase())) {
+            throw new IllegalArgumentException("Stock already tracked");
+        }
+
+        TrackedStock trackedStock = TrackedStock.builder()
+                .user(user)
+                .code(code.toUpperCase())
+                .active(true)
+                .costBasis(costBasis)
+                .volume(volume)
+                .targetPrice(targetPrice)
+                .createdAt(OffsetDateTime.now())
+                .build();
+
+        return trackedStockRepository.save(trackedStock);
+    }
+
+    /**
+     * Delete a tracked stock by ID (with ownership verification)
+     */
+    @Transactional
+    public void deleteTrackedStock(Long id, Long userId) {
+        TrackedStock stock = trackedStockRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Tracked stock not found"));
+
+        // Verify ownership
+        if (!stock.getUser().getId().equals(userId)) {
+            throw new SecurityException("Access denied");
+        }
+
+        trackedStockRepository.delete(stock);
+    }
+
+    /**
+     * Toggle active status of a tracked stock (with ownership verification)
+     */
+    @Transactional
+    public TrackedStock toggleTrackedStock(Long id, Long userId) {
+        TrackedStock stock = trackedStockRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Tracked stock not found"));
+
+        // Verify ownership
+        if (!stock.getUser().getId().equals(userId)) {
+            throw new SecurityException("Access denied");
+        }
+
+        stock.setActive(!stock.getActive());
         return trackedStockRepository.save(stock);
     }
 
-    public boolean deleteStock(String code) {
-        String normalizedCode = code.trim().toUpperCase();
-        Optional<TrackedStock> stock = trackedStockRepository.findAll().stream()
-                .filter(x -> x.getCode().equalsIgnoreCase(normalizedCode))
-                .findFirst();
-        
-        if (stock.isPresent()) {
-            trackedStockRepository.delete(stock.get());
-            return true;
+    /**
+     * Update a tracked stock (with ownership verification)
+     */
+    @Transactional
+    public TrackedStock updateTrackedStock(Long id, Long userId, String code, Boolean active, 
+                                          BigDecimal costBasis, Long volume, BigDecimal targetPrice) {
+        TrackedStock stock = trackedStockRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Tracked stock not found"));
+
+        // Verify ownership
+        if (!stock.getUser().getId().equals(userId)) {
+            throw new SecurityException("Access denied");
         }
-        
-        return false;
+
+        // Update fields if provided
+        if (code != null) {
+            // Check if new code already exists (if changing code)
+            if (!stock.getCode().equals(code.toUpperCase())) {
+                if (trackedStockRepository.existsByUserIdAndCode(userId, code.toUpperCase())) {
+                    throw new IllegalArgumentException("Stock code already tracked");
+                }
+                stock.setCode(code.toUpperCase());
+            }
+        }
+        if (active != null) {
+            stock.setActive(active);
+        }
+        // Update costBasis - if sent as null in request, it will clear the value
+        stock.setCostBasis(costBasis);
+        // Update volume - if sent as null in request, it will clear the value
+        stock.setVolume(volume);
+        // Update targetPrice - if sent as null in request, it will clear the value
+        stock.setTargetPrice(targetPrice);
+
+        return trackedStockRepository.save(stock);
     }
+
 }
 
