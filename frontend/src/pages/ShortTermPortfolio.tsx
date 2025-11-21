@@ -469,7 +469,7 @@ const ShortTermPortfolio = () => {
     }
 
     try {
-      const requestBody: { code?: string; active?: boolean; costBasis?: number | null; volume?: number | null } = {};
+      const requestBody: { code?: string; active?: boolean; costBasis?: number | null; volume?: number | null; targetPrice?: number | null } = {};
       if (editCode !== editingStock.code) {
         requestBody.code = editCode.toUpperCase();
       }
@@ -478,6 +478,8 @@ const ShortTermPortfolio = () => {
       requestBody.costBasis = costBasisValue.trim() !== "" && costBasis !== undefined ? costBasis : null;
       // Always send volume to preserve it when updating costBasis
       requestBody.volume = editingStock.volume || null;
+      // Always send targetPrice to preserve it when updating other fields
+      requestBody.targetPrice = editingStock.targetPrice || null;
 
       const response = await api.put(`/api/short-term-tracked-stocks/${editingStock.id}`, requestBody);
       if (!response.ok) throw new Error("Failed");

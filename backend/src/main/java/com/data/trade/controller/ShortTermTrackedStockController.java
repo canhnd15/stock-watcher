@@ -290,6 +290,10 @@ public class ShortTermTrackedStockController {
             return ResponseEntity.status(403).body("Access denied");
         }
 
+        // Check if other fields are being updated (safety check to preserve targetPrice if not provided)
+        boolean otherFieldsBeingUpdated = request.getCode() != null || request.getActive() != null || 
+                                         request.getCostBasis() != null || request.getVolume() != null;
+
         // Update fields if provided
         if (request.getCode() != null) {
             // Check if new code already exists (if changing code)
@@ -303,12 +307,18 @@ public class ShortTermTrackedStockController {
         if (request.getActive() != null) {
             stock.setActive(request.getActive());
         }
-        // Update costBasis - if sent as null in request, it will clear the value
+        // Update costBasis - frontend always sends this (even if null to clear)
         stock.setCostBasis(request.getCostBasis());
-        // Update volume - if sent as null in request, it will clear the value
+        // Update volume - frontend always sends this (even if null to clear)
         stock.setVolume(request.getVolume());
-        // Update targetPrice - if sent as null in request, it will clear the value
-        stock.setTargetPrice(request.getTargetPrice());
+        
+        // Update targetPrice - frontend now always sends this to preserve it
+        // Safety check: if targetPrice is null and other fields are being updated, preserve existing value
+        // (This handles edge cases where API is called directly without targetPrice)
+        if (request.getTargetPrice() != null || !otherFieldsBeingUpdated) {
+            stock.setTargetPrice(request.getTargetPrice());
+        }
+        // Otherwise, preserve existing targetPrice value (safety check for direct API calls)
 
         ShortTermTrackedStock updated = shortTermTrackedStockRepository.save(stock);
         return ResponseEntity.ok(updated);

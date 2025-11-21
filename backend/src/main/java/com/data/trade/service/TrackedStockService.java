@@ -233,6 +233,8 @@ public class TrackedStockService {
 
     /**
      * Update a tracked stock (with ownership verification)
+     * Note: Frontend now always sends targetPrice in update requests to preserve it.
+     *       This method preserves targetPrice if null and other fields are being updated (safety check).
      */
     @Transactional
     public TrackedStock updateTrackedStock(Long id, Long userId, String code, Boolean active, 
@@ -244,6 +246,10 @@ public class TrackedStockService {
         if (!stock.getUser().getId().equals(userId)) {
             throw new SecurityException("Access denied");
         }
+
+        // Check if other fields are being updated (safety check to preserve targetPrice if not provided)
+        boolean otherFieldsBeingUpdated = code != null || active != null || 
+                                         costBasis != null || volume != null;
 
         // Update fields if provided
         if (code != null) {
@@ -258,12 +264,18 @@ public class TrackedStockService {
         if (active != null) {
             stock.setActive(active);
         }
-        // Update costBasis - if sent as null in request, it will clear the value
+        // Update costBasis - frontend always sends this (even if null to clear)
         stock.setCostBasis(costBasis);
-        // Update volume - if sent as null in request, it will clear the value
+        // Update volume - frontend always sends this (even if null to clear)
         stock.setVolume(volume);
-        // Update targetPrice - if sent as null in request, it will clear the value
-        stock.setTargetPrice(targetPrice);
+        
+        // Update targetPrice - frontend now always sends this to preserve it
+        // Safety check: if targetPrice is null and other fields are being updated, preserve existing value
+        // (This handles edge cases where API is called directly without targetPrice)
+        if (targetPrice != null || !otherFieldsBeingUpdated) {
+            stock.setTargetPrice(targetPrice);
+        }
+        // Otherwise, preserve existing targetPrice value (safety check for direct API calls)
 
         return trackedStockRepository.save(stock);
     }
