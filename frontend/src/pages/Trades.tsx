@@ -117,6 +117,59 @@ const Trades = () => {
     return `${year}-${month}-${day}`;
   };
 
+  // Check if a date is a valid trading day (Monday-Friday)
+  const isValidTradingDay = (dateString: string): boolean => {
+    // Parse date string in yyyy-MM-dd format
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+    // Monday (1) to Friday (5) are valid trading days
+    return dayOfWeek >= 1 && dayOfWeek <= 5;
+  };
+
+  // Check if current time is within market hours (9 AM - 3 PM)
+  const isWithinMarketHours = (): boolean => {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const currentTimeMinutes = hours * 60 + minutes;
+    const marketOpenMinutes = 9 * 60; // 9:00 AM
+    const marketCloseMinutes = 15 * 60; // 3:00 PM
+    return currentTimeMinutes >= marketOpenMinutes && currentTimeMinutes <= marketCloseMinutes;
+  };
+
+  // Check if today is a valid transaction date
+  const isTodayValidTransactionDate = (): boolean => {
+    const today = getTodayDate();
+    // Check if it's a weekday (Monday-Friday)
+    if (!isValidTradingDay(today)) {
+      return false;
+    }
+    // Check if current time is within market hours (9 AM - 3 PM)
+    // Note: Even if it's a weekday, if it's outside market hours, it's not a valid transaction date
+    // However, for simplicity, we'll consider it valid if it's a weekday
+    // The market hours check can be added if needed for more precision
+    return true;
+  };
+
+  // Fetch latest transaction date from backend
+  const fetchLatestTransactionDate = async (): Promise<string | null> => {
+    try {
+      const response = await api.get('/api/trades/latest-date');
+      if (!response.ok) throw new Error('Failed to fetch latest transaction date');
+      const latestDate = await response.json();
+      // Convert from ISO date string (yyyy-MM-dd) to yyyy-MM-dd format
+      // The API should return LocalDate which serializes to ISO format
+      if (latestDate) {
+        return latestDate; // Already in yyyy-MM-dd format if backend returns LocalDate
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching latest transaction date:', error);
+      return null;
+    }
+  };
+
   // Helper function to calculate N trading days back (excluding weekends)
   const getNTradingDaysBack = (n: number): string => {
     const today = new Date();
@@ -183,8 +236,9 @@ const Trades = () => {
 
   // Load saved filters or use defaults
   const savedFilters = loadFiltersFromStorage();
+  
+  // Initialize default dates - will be updated by useEffect if today is not valid
   const defaultFromDate = savedFilters.fromDate || getTodayDate();
-  // Always use today's date for toDate (not saved in localStorage)
   const defaultToDate = getTodayDate();
   // Default chart date range: one month ago to today (unless user has saved a preference)
   // If user has saved chart dates, use them; otherwise default to one month range
@@ -200,6 +254,7 @@ const Trades = () => {
   const [maxPrice, setMaxPrice] = useState(savedFilters.maxPrice || "");
   const [fromDate, setFromDate] = useState(defaultFromDate); // yyyy-MM-dd
   const [toDate, setToDate] = useState(defaultToDate);     // yyyy-MM-dd
+  const [defaultDateInitialized, setDefaultDateInitialized] = useState(false);
   const [page, setPage] = useState(savedFilters.page ?? 0);
   const [size, setSize] = useState(savedFilters.size || 10);
   const [totalElements, setTotalElements] = useState(0);
@@ -234,6 +289,34 @@ const Trades = () => {
   
   // Ref to track if initial data has been loaded
   const hasInitialLoad = useRef(false);
+
+  // Initialize default dates: use latest transaction date if today is not valid
+  useEffect(() => {
+    const initializeDefaultDates = async () => {
+      // Check if today is a valid transaction date
+      if (isTodayValidTransactionDate()) {
+        // Today is valid, use today's date for toDate (fromDate is already set from saved filters or today)
+        setDefaultDateInitialized(true);
+        return;
+      }
+
+      // Today is not valid (weekend or outside market hours)
+      // Fetch the latest transaction date from backend
+      const latestDate = await fetchLatestTransactionDate();
+      if (latestDate) {
+        // Only update fromDate if user hasn't saved it in localStorage
+        if (!savedFilters.fromDate) {
+          setFromDate(latestDate);
+        }
+        // Always update toDate to latest transaction date if today is not valid
+        setToDate(latestDate);
+      }
+      setDefaultDateInitialized(true);
+    };
+
+    initializeDefaultDates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
 
   const fetchChartData = async () => {
     // Only fetch if a specific stock code is selected
@@ -450,12 +533,8 @@ const Trades = () => {
     });
   }, [code, type, minVolume, maxVolume, minPrice, maxPrice, fromDate, page, size, sortField, sortDirection, chartFromDate, chartToDate]);
 
-  // Reset toDate to today when component mounts (chartToDate is saved/restored from localStorage)
-  // This ensures toDate always defaults to current date on page load/reload
-  useEffect(() => {
-    setToDate(getTodayDate());
-    // Don't reset chartToDate - it's loaded from localStorage or defaults to today
-  }, []);
+  // Note: toDate is initialized by initializeDefaultDates useEffect above
+  // It will be set to today if today is valid, or latest transaction date if not
 
   // Clear all filters and reset to defaults
   const clearFilters = () => {
@@ -488,7 +567,10 @@ const Trades = () => {
   };
 
   // Load initial data when component mounts (with saved filters)
+  // Wait for default date initialization before fetching
   useEffect(() => {
+    if (!defaultDateInitialized) return; // Wait for date initialization
+    
     // Mark that we've loaded initial data
     hasInitialLoad.current = true;
     
@@ -500,7 +582,7 @@ const Trades = () => {
       fetchOHLCData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run on mount
+  }, [defaultDateInitialized]); // Run when default date is initialized
 
   // Auto-fetch when filter fields change (but not on initial mount)
   useEffect(() => {

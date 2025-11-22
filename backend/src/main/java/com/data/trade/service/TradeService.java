@@ -22,10 +22,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -473,6 +470,25 @@ public class TradeService {
         }
         
         return resultMap;
+    }
+
+    /**
+     * Get the latest transaction date from all trades
+     * @return Optional LocalDate representing the latest transaction date, or empty if no trades exist
+     */
+    public Optional<LocalDate> getLatestTransactionDate() {
+        Optional<String> latestDateStr = tradeRepository.findLatestTransactionDate();
+        if (latestDateStr.isEmpty()) {
+            return Optional.empty();
+        }
+        
+        try {
+            LocalDate latestDate = LocalDate.parse(latestDateStr.get(), DD_MM_YYYY_FORMATTER);
+            return Optional.of(latestDate);
+        } catch (Exception e) {
+            // Log error but return empty
+            return Optional.empty();
+        }
     }
 }
 

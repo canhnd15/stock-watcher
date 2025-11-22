@@ -71,6 +71,23 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
     @Query("SELECT MAX(t.volume) FROM Trade t WHERE t.code = :code AND t.side = :side AND t.tradeDate = :tradeDate")
     Optional<Long> findMaxVolumeByCodeAndSideAndDate(@Param("code") String code, @Param("side") String side, @Param("tradeDate") String tradeDate);
 
+    /**
+     * Get the latest transaction date from all trades
+     * Returns the most recent trade_date in DD/MM/YYYY format
+     */
+    @Query(value = """
+        SELECT DISTINCT trade_date
+        FROM trades
+        ORDER BY 
+            CAST(
+                SUBSTRING(trade_date, 7, 4) || 
+                SUBSTRING(trade_date, 4, 2) || 
+                SUBSTRING(trade_date, 1, 2)
+            AS INTEGER) DESC
+        LIMIT 1
+        """, nativeQuery = true)
+    Optional<String> findLatestTransactionDate();
+
     // Aggregate daily statistics grouped by tradeDate
     // Gets latest price of each day (based on latest trade_time)
     // PostgreSQL compatible query

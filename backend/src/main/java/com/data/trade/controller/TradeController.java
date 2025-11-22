@@ -148,5 +148,12 @@ public class TradeController {
         List<DailyOHLCDTO> ohlc = tradeService.getDailyOHLC(code, fromDate, toDate);
         return ResponseEntity.ok(ohlc);
     }
+
+    @GetMapping(ApiEndpoints.TRADES_LATEST_DATE_PATH)
+    public ResponseEntity<LocalDate> getLatestTransactionDate() {
+        return tradeService.getLatestTransactionDate()
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 }
 

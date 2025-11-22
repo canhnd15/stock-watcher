@@ -46,6 +46,7 @@ public class ApiEndpoints {
     public static final String TRADES_IMPORT_PATH = "/import";
     public static final String TRADES_DAILY_STATS_PATH = "/daily-stats";
     public static final String TRADES_DAILY_OHLC_PATH = "/daily-ohlc";
+    public static final String TRADES_LATEST_DATE_PATH = "/latest-date";
     
     // Tracked Stocks endpoint paths (relative to base /api/tracked-stocks)
     public static final String TRACKED_STOCKS_STATS_PATH = "/stats";
