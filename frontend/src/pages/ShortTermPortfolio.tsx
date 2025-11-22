@@ -96,6 +96,9 @@ const ShortTermPortfolio = () => {
   const [customCodesModalOpen, setCustomCodesModalOpen] = useState(false);
   const [costBasisDialogOpen, setCostBasisDialogOpen] = useState(false);
   const [costBasisValues, setCostBasisValues] = useState<Record<string, string>>({});
+  const [volumeValuesModal, setVolumeValuesModal] = useState<Record<string, string>>({});
+  const [targetPriceValuesModal, setTargetPriceValuesModal] = useState<Record<string, string>>({});
+  const [targetPriceModeModal, setTargetPriceModeModal] = useState<Record<string, "value" | "percent">>({});
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingStock, setEditingStock] = useState<TrackedStock | null>(null);
   const [editCode, setEditCode] = useState("");
@@ -351,13 +354,22 @@ const ShortTermPortfolio = () => {
       return;
     }
 
-    // Initialize cost basis values for selected codes
+    // Initialize cost basis, volume, and target price values for selected codes
     const codes = Array.from(selectedCodes);
-    const initialValues: Record<string, string> = {};
+    const initialCostBasis: Record<string, string> = {};
+    const initialVolume: Record<string, string> = {};
+    const initialTargetPrice: Record<string, string> = {};
+    const initialTargetPriceMode: Record<string, "value" | "percent"> = {};
     codes.forEach(code => {
-      initialValues[code] = "";
+      initialCostBasis[code] = "";
+      initialVolume[code] = "";
+      initialTargetPrice[code] = "";
+      initialTargetPriceMode[code] = "value";
     });
-    setCostBasisValues(initialValues);
+    setCostBasisValues(initialCostBasis);
+    setVolumeValuesModal(initialVolume);
+    setTargetPriceValuesModal(initialTargetPrice);
+    setTargetPriceModeModal(initialTargetPriceMode);
     setCostBasisDialogOpen(true);
   };
 
@@ -366,7 +378,7 @@ const ShortTermPortfolio = () => {
     let successCount = 0;
     
     try {
-      // Add stocks one by one with cost basis
+      // Add stocks one by one with cost basis, volume, and target price
       for (const code of codes) {
         const costBasisValue = costBasisValues[code]?.trim();
         const costBasis = costBasisValue ? parseFloat(costBasisValue) : undefined;
@@ -376,9 +388,45 @@ const ShortTermPortfolio = () => {
           continue;
         }
 
-        const requestBody: { code: string; costBasis?: number } = { code };
+        const volumeValue = volumeValuesModal[code]?.trim();
+        const volume = volumeValue ? parseInt(volumeValue, 10) : undefined;
+        
+        if (volume !== undefined && (isNaN(volume) || volume < 0)) {
+          toast.error(`Invalid volume for ${code}. Please enter a valid positive number.`);
+          continue;
+        }
+
+        let targetPrice: number | undefined = undefined;
+        const targetPriceValue = targetPriceValuesModal[code]?.trim();
+        if (targetPriceValue) {
+          const inputValue = parseFloat(targetPriceValue);
+          if (!isNaN(inputValue) && inputValue >= 0) {
+            const mode = targetPriceModeModal[code] || "value";
+            if (mode === "percent") {
+              if (costBasis && costBasis > 0) {
+                targetPrice = costBasis * (1 + inputValue / 100);
+              } else {
+                toast.error(`Cannot calculate target price from percentage for ${code}: cost basis is required.`);
+                continue;
+              }
+            } else {
+              targetPrice = inputValue;
+            }
+          } else {
+            toast.error(`Invalid target price for ${code}. Please enter a valid positive number.`);
+            continue;
+          }
+        }
+
+        const requestBody: { code: string; costBasis?: number; volume?: number; targetPrice?: number } = { code };
         if (costBasis !== undefined && !isNaN(costBasis)) {
           requestBody.costBasis = costBasis;
+        }
+        if (volume !== undefined && !isNaN(volume)) {
+          requestBody.volume = volume;
+        }
+        if (targetPrice !== undefined && !isNaN(targetPrice)) {
+          requestBody.targetPrice = targetPrice;
         }
 
         const response = await api.post("/api/short-term-tracked-stocks", requestBody);
@@ -389,6 +437,9 @@ const ShortTermPortfolio = () => {
       
       setSelectedCodes(new Set());
       setCostBasisValues({});
+      setVolumeValuesModal({});
+      setTargetPriceValuesModal({});
+      setTargetPriceModeModal({});
       setCostBasisDialogOpen(false);
       toast.success(`Added ${successCount} stock code(s)`);
       
@@ -733,31 +784,87 @@ const ShortTermPortfolio = () => {
 
         {/* Cost Basis Input Dialog */}
         <Dialog open={costBasisDialogOpen} onOpenChange={setCostBasisDialogOpen}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[700px]">
             <DialogHeader>
-              <DialogTitle>Enter Cost Basis for Selected Stocks</DialogTitle>
+              <DialogTitle>Enter Details for Selected Stocks</DialogTitle>
               <DialogDescription>
-                Enter the cost basis (purchase price) for each stock. Leave empty if not applicable.
+                Enter the cost basis (purchase price), volume, and target price for each stock. Leave empty if not applicable.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4 max-h-[400px] overflow-y-auto">
+            <div className="space-y-6 py-4 max-h-[500px] overflow-y-auto">
               {Array.from(selectedCodes).map((code) => (
-                <div key={code} className="flex items-center gap-4">
-                  <label className="text-sm font-medium w-20">{code}</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Cost basis (optional)"
-                    value={costBasisValues[code] || ""}
-                    onChange={(e) => {
-                      setCostBasisValues(prev => ({
-                        ...prev,
-                        [code]: e.target.value
-                      }));
-                    }}
-                    className="flex-1"
-                  />
+                <div key={code} className="space-y-3 border-b pb-4 last:border-0">
+                  <label className="text-sm font-semibold">{code}</label>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Cost Basis (VND)</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Cost basis (optional)"
+                        value={costBasisValues[code] || ""}
+                        onChange={(e) => {
+                          setCostBasisValues(prev => ({
+                            ...prev,
+                            [code]: e.target.value
+                          }));
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Volume</label>
+                      <Input
+                        type="number"
+                        step="1"
+                        min="0"
+                        placeholder="Volume (optional)"
+                        value={volumeValuesModal[code] || ""}
+                        onChange={(e) => {
+                          setVolumeValuesModal(prev => ({
+                            ...prev,
+                            [code]: e.target.value
+                          }));
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Target Price</label>
+                      <div className="flex gap-2">
+                        <Select
+                          value={targetPriceModeModal[code] || "value"}
+                          onValueChange={(value: "value" | "percent") => {
+                            setTargetPriceModeModal(prev => ({
+                              ...prev,
+                              [code]: value
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="value">Value</SelectItem>
+                            <SelectItem value="percent">%</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder={targetPriceModeModal[code] === "percent" ? "Profit %" : "Target price (optional)"}
+                          value={targetPriceValuesModal[code] || ""}
+                          onChange={(e) => {
+                            setTargetPriceValuesModal(prev => ({
+                              ...prev,
+                              [code]: e.target.value
+                            }));
+                          }}
+                          className="flex-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -765,6 +872,9 @@ const ShortTermPortfolio = () => {
               <Button variant="outline" onClick={() => {
                 setCostBasisDialogOpen(false);
                 setCostBasisValues({});
+                setVolumeValuesModal({});
+                setTargetPriceValuesModal({});
+                setTargetPriceModeModal({});
               }}>
                 Cancel
               </Button>
