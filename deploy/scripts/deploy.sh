@@ -51,6 +51,7 @@ DB_USERNAME="${DB_USERNAME:-postgre}"
 DB_PASSWORD="${DB_PASSWORD:-admin}"
 JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk}"
 NODE_VERSION="${NODE_VERSION:-18}"
+SERVER_HOST="${SERVER_HOST:-localhost}"
 
 check_prerequisites() {
     print_info "Checking prerequisites..."
@@ -221,7 +222,7 @@ spring.jpa.hibernate.ddl-auto=update
 spring.jpa.show-sql=false
 spring.jpa.properties.hibernate.jdbc.time_zone=Asia/Ho_Chi_Minh
 
-spring.web.cors.allowed-origins=${CORS_ORIGINS:-http://localhost:8089,http://localhost:4200}
+spring.web.cors.allowed-origins=${CORS_ORIGINS:-http://${SERVER_HOST}:8089,http://${SERVER_HOST},http://localhost:8089,http://localhost:4200}
 spring.web.cors.allowed-methods=GET,POST,PUT,DELETE,OPTIONS
 spring.web.cors.allowed-headers=*
 spring.web.cors.allow-credentials=true
@@ -375,9 +376,20 @@ setup_frontend_server() {
         cat > "${DEPLOY_DIR}/nginx.conf" << EOF
 server {
     listen 80;
-    server_name localhost;
+    server_name ${SERVER_HOST} localhost;
     root ${DEPLOY_DIR}/frontend;
     index index.html;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json;
 
     location / {
         try_files \$uri \$uri/ /index.html;
@@ -389,7 +401,12 @@ server {
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
     }
 
     location /ws {
@@ -398,12 +415,22 @@ server {
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
     }
 }
 EOF
         print_info "Nginx configuration created at ${DEPLOY_DIR}/nginx.conf"
+        print_info "Server name: ${SERVER_HOST}"
         print_warn "Please configure nginx to use this config file"
-        print_info "Example: sudo cp ${DEPLOY_DIR}/nginx.conf /etc/nginx/sites-available/stock-watcher"
+        print_info "Example commands:"
+        print_info "  sudo cp ${DEPLOY_DIR}/nginx.conf /etc/nginx/sites-available/stock-watcher"
+        print_info "  sudo ln -s /etc/nginx/sites-available/stock-watcher /etc/nginx/sites-enabled/"
+        print_info "  sudo nginx -t"
+        print_info "  sudo systemctl reload nginx"
     else
         print_warn "Nginx not found. Frontend files are in ${DEPLOY_DIR}/frontend/"
         print_info "You can serve them using: cd ${DEPLOY_DIR}/frontend && python3 -m http.server 8089"

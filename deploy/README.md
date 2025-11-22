@@ -9,6 +9,7 @@ deploy/
 ├── scripts/          # Deployment scripts
 │   ├── deploy.sh          # Main deployment script (Linux/Mac)
 │   ├── deploy.ps1         # Main deployment script (Windows)
+│   ├── deploy-remote.sh   # Remote deployment script (SSH-based)
 │   ├── start-services.sh  # Quick start script (Linux/Mac)
 │   ├── start-services.ps1 # Quick start script (Windows)
 │   ├── stop-services.sh   # Quick stop script (Linux/Mac)
@@ -21,13 +22,14 @@ deploy/
 │   └── README.md          # Windows deployment guide
 └── docs/             # Deployment documentation
     ├── DEPLOYMENT.md      # Full deployment guide (Linux/Mac)
+    ├── REMOTE_DEPLOYMENT.md # Remote server deployment guide
     ├── WINDOWS_DEPLOYMENT.md # Full deployment guide (Windows)
     └── QUICK_START.md     # Quick start guide
 ```
 
 ## Quick Start
 
-### Linux/Mac
+### Local Deployment (Linux/Mac)
 
 1. **Make scripts executable**:
    ```bash
@@ -44,6 +46,29 @@ deploy/
    ```bash
    ./deploy/scripts/deploy.sh
    ```
+
+### Remote Deployment
+
+1. **Configure remote server settings**:
+   ```bash
+   export REMOTE_HOST=184.174.33.158
+   export REMOTE_USER=root
+   export REMOTE_PATH=/opt/stock-watcher
+   ```
+
+2. **Set up SSH access** (passwordless login recommended):
+   ```bash
+   ssh-copy-id -p 22 ${REMOTE_USER}@${REMOTE_HOST}
+   ```
+
+3. **Run remote deployment**:
+   ```bash
+   ./deploy/scripts/deploy-remote.sh
+   ```
+
+   This will build locally and deploy to the remote server automatically.
+
+   See `docs/REMOTE_DEPLOYMENT.md` for detailed instructions.
 
 ### Windows
 
@@ -80,6 +105,9 @@ When you run the deployment script, it will create a `runtime/` directory at the
 ### Linux/Mac
 - See `docs/QUICK_START.md` for quick reference
 - See `docs/DEPLOYMENT.md` for detailed deployment instructions
+
+### Remote Server
+- See `docs/REMOTE_DEPLOYMENT.md` for remote server deployment guide
 
 ### Windows
 - See `windows/README.md` for Windows-specific quick start
