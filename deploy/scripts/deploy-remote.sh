@@ -82,8 +82,9 @@ check_prerequisites() {
 # Test SSH connection
 test_ssh_connection() {
     print_info "Testing SSH connection to ${REMOTE_USER}@${REMOTE_HOST}..."
+    print_warn "You may be prompted for your password"
     
-    if ssh -p ${REMOTE_PORT} -o ConnectTimeout=10 -o BatchMode=yes ${REMOTE_USER}@${REMOTE_HOST} "echo 'Connection successful'" &> /dev/null; then
+    if ssh -p ${REMOTE_PORT} -o ConnectTimeout=10 ${REMOTE_USER}@${REMOTE_HOST} "echo 'Connection successful'" &> /dev/null; then
         print_info "SSH connection successful"
         return 0
     else
@@ -250,6 +251,9 @@ EOF
 # Main execution
 main() {
     print_info "Starting remote deployment to ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
+    print_info ""
+    print_warn "Note: You will be prompted for your SSH password multiple times during deployment"
+    print_warn "      To avoid this, set up SSH key authentication (see REMOTE_DEPLOYMENT.md)"
     print_info ""
     
     check_prerequisites
