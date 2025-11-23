@@ -152,6 +152,15 @@ const Trades = () => {
     return true;
   };
 
+  // Validate date string format (yyyy-MM-dd)
+  const isValidDateFormat = (dateString: string | null | undefined): boolean => {
+    if (!dateString || typeof dateString !== 'string') return false;
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateString)) return false;
+    const date = new Date(dateString + 'T00:00:00');
+    return !isNaN(date.getTime()) && date.toISOString().startsWith(dateString);
+  };
+
   // Fetch latest transaction date from backend
   const fetchLatestTransactionDate = async (): Promise<string | null> => {
     try {
@@ -161,7 +170,14 @@ const Trades = () => {
       // Convert from ISO date string (yyyy-MM-dd) to yyyy-MM-dd format
       // The API should return LocalDate which serializes to ISO format
       if (latestDate) {
-        return latestDate; // Already in yyyy-MM-dd format if backend returns LocalDate
+        const dateString = String(latestDate);
+        // Validate the date format
+        if (isValidDateFormat(dateString)) {
+          return dateString;
+        } else {
+          console.error('Invalid date format received from backend:', dateString);
+          return null;
+        }
       }
       return null;
     } catch (error) {
@@ -237,13 +253,20 @@ const Trades = () => {
   // Load saved filters or use defaults
   const savedFilters = loadFiltersFromStorage();
   
-  // Initialize default dates - will be updated by useEffect if today is not valid
-  const defaultFromDate = savedFilters.fromDate || getTodayDate();
-  const defaultToDate = getTodayDate();
+  // Validate and initialize default dates - will be updated by useEffect if today is not valid
+  const todayDate = getTodayDate();
+  const defaultFromDate = (savedFilters.fromDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.fromDate)) 
+    ? savedFilters.fromDate 
+    : todayDate;
+  const defaultToDate = todayDate;
   // Default chart date range: one month ago to today (unless user has saved a preference)
   // If user has saved chart dates, use them; otherwise default to one month range
-  const defaultChartFromDate = savedFilters.chartFromDate || getOneMonthAgo();
-  const defaultChartToDate = savedFilters.chartToDate || getTodayDate();
+  const defaultChartFromDate = (savedFilters.chartFromDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.chartFromDate))
+    ? savedFilters.chartFromDate
+    : getOneMonthAgo();
+  const defaultChartToDate = (savedFilters.chartToDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.chartToDate))
+    ? savedFilters.chartToDate
+    : todayDate;
 
   const [code, setCode] = useState(savedFilters.code || ""); // All by default (empty)
   const [codeOpen, setCodeOpen] = useState(false);
@@ -293,9 +316,20 @@ const Trades = () => {
   // Initialize default dates: use latest transaction date if today is not valid
   useEffect(() => {
     const initializeDefaultDates = async () => {
+      // Ensure dates are valid before proceeding
+      const today = getTodayDate();
+      if (!isValidDateFormat(today)) {
+        console.error('Invalid today date format:', today);
+        setDefaultDateInitialized(true);
+        return;
+      }
+
       // Check if today is a valid transaction date
       if (isTodayValidTransactionDate()) {
-        // Today is valid, use today's date for toDate (fromDate is already set from saved filters or today)
+        // Today is valid, ensure toDate is set to today
+        if (isValidDateFormat(today)) {
+          setToDate(today);
+        }
         setDefaultDateInitialized(true);
         return;
       }
@@ -303,13 +337,19 @@ const Trades = () => {
       // Today is not valid (weekend or outside market hours)
       // Fetch the latest transaction date from backend
       const latestDate = await fetchLatestTransactionDate();
-      if (latestDate) {
+      if (latestDate && isValidDateFormat(latestDate)) {
         // Only update fromDate if user hasn't saved it in localStorage
         if (!savedFilters.fromDate) {
           setFromDate(latestDate);
         }
         // Always update toDate to latest transaction date if today is not valid
         setToDate(latestDate);
+      } else {
+        // If we can't get latest date, fall back to today
+        console.warn('Could not fetch latest transaction date, using today');
+        if (isValidDateFormat(today)) {
+          setToDate(today);
+        }
       }
       setDefaultDateInitialized(true);
     };
@@ -745,7 +785,7 @@ const Trades = () => {
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.fromDate')}</label>
               <DatePicker
-                value={fromDate}
+                value={fromDate && isValidDateFormat(fromDate) ? fromDate : getTodayDate()}
                 onChange={setFromDate}
                 placeholder="Select from date"
               />
@@ -754,7 +794,7 @@ const Trades = () => {
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.toDate')}</label>
               <DatePicker
-                value={toDate}
+                value={toDate && isValidDateFormat(toDate) ? toDate : getTodayDate()}
                 onChange={setToDate}
                 placeholder="Select to date"
               />
@@ -1047,7 +1087,7 @@ const Trades = () => {
                   <div>
                     <label className="text-sm font-medium mb-1 block">From Date</label>
                     <DatePicker
-                      value={chartFromDate}
+                      value={chartFromDate && isValidDateFormat(chartFromDate) ? chartFromDate : getOneMonthAgo()}
                       onChange={setChartFromDate}
                       placeholder="Select from date"
                     />
@@ -1055,7 +1095,7 @@ const Trades = () => {
                   <div>
                     <label className="text-sm font-medium mb-1 block">To Date</label>
                     <DatePicker
-                      value={chartToDate}
+                      value={chartToDate && isValidDateFormat(chartToDate) ? chartToDate : getTodayDate()}
                       onChange={setChartToDate}
                       placeholder="Select to date"
                     />

@@ -22,7 +22,23 @@ export function DatePicker({
   disabled,
 }: DatePickerProps) {
   // Convert ISO string (yyyy-MM-dd) to Date object
-  const date = value ? new Date(value + "T00:00:00") : undefined;
+  // Validate the date before creating Date object to avoid "Invalid time value" error
+  let date: Date | undefined = undefined;
+  if (value && typeof value === 'string' && value.trim() !== '') {
+    try {
+      const dateString = value.trim();
+      // Check if it matches yyyy-MM-dd format
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        const parsedDate = new Date(dateString + "T00:00:00");
+        // Check if the date is valid
+        if (!isNaN(parsedDate.getTime())) {
+          date = parsedDate;
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing date value:', value, error);
+    }
+  }
 
   // Format date for display: DD/MM/YYYY
   const displayValue = date ? format(date, "dd/MM/yyyy") : "";
