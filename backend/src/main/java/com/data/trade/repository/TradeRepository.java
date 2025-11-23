@@ -76,14 +76,17 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
      * Returns the most recent trade_date in DD/MM/YYYY format
      */
     @Query(value = """
-        SELECT DISTINCT trade_date
-        FROM trades
-        ORDER BY 
-            CAST(
-                SUBSTRING(trade_date, 7, 4) || 
-                SUBSTRING(trade_date, 4, 2) || 
-                SUBSTRING(trade_date, 1, 2)
-            AS INTEGER) DESC
+        SELECT trade_date
+        FROM (
+            SELECT DISTINCT trade_date,
+                CAST(
+                    SUBSTRING(trade_date, 7, 4) || 
+                    SUBSTRING(trade_date, 4, 2) || 
+                    SUBSTRING(trade_date, 1, 2)
+                AS INTEGER) as date_int
+            FROM trades
+        ) AS distinct_dates
+        ORDER BY date_int DESC
         LIMIT 1
         """, nativeQuery = true)
     Optional<String> findLatestTransactionDate();
