@@ -21,8 +21,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // Register STOMP endpoint
-        // CORS not needed when using Nginx reverse proxy (same-origin)
+        // Allow all origins when using Nginx reverse proxy (Nginx handles security)
         registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns("*")  // Allow all origins (Nginx handles security)
                 .withSockJS(); // Enable SockJS fallback for browsers without WebSocket support
     }
 }
