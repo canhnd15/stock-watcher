@@ -9,7 +9,7 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.data</groupId>
-	<artifactId>trade-jobs</artifactId>
+	<artifactId>cron-jobs</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>trade-jobs</name>
 	<description>Scheduled jobs service for Stock Watcher</description>
