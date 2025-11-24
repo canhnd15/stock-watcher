@@ -37,7 +37,8 @@ const Register = () => {
     try {
       await register(username, email, password);
       toast.success('Registration successful! Please check your email to verify your account.');
-      // Don't navigate immediately - show email verification message
+      // Redirect to login page after successful registration
+      navigate('/login');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('auth.registerFailed'));
     } finally {
