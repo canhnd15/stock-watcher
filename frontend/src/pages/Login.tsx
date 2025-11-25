@@ -37,7 +37,7 @@ const Login = () => {
         <CardHeader className="space-y-3">
           <div className="flex items-center justify-center gap-2">
             <TrendingUp className="h-8 w-8 text-primary" />
-            <CardTitle className="text-3xl text-center">Trade Tracker</CardTitle>
+            <CardTitle className="text-3xl text-center">Stock Watcher</CardTitle>
           </div>
           <CardDescription className="text-center">
             {t('auth.signInToAccess')}

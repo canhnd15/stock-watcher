@@ -1,10 +1,13 @@
 package com.data.trade.controller;
 
+import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.dto.RecommendationResult;
 import com.data.trade.service.CombinedRecommendationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,7 +20,7 @@ import java.util.stream.Collectors;
  * Uses combined 4-formula approach based on 10 days of data
  */
 @RestController
-@RequestMapping("/api/suggestions")
+@RequestMapping(ApiEndpoints.API_SUGGESTIONS)
 @RequiredArgsConstructor
 @Slf4j
 public class SuggestionsController {
@@ -30,7 +33,7 @@ public class SuggestionsController {
     /**
      * Get recommendation for a specific stock
      */
-    @GetMapping("/{code}")
+    @GetMapping(ApiEndpoints.SUGGESTIONS_BY_CODE_PATH)
     public ResponseEntity<RecommendationResult> getSuggestion(@PathVariable String code) {
         try {
             RecommendationResult result = recommendationService.calculateRecommendation(code);
@@ -44,11 +47,14 @@ public class SuggestionsController {
     /**
      * Get suggestions for all VN30 stocks
      * Returns only stocks with actionable signals (not neutral)
+     * Results are cached for 5 minutes to improve performance
      */
     @GetMapping
+    @Cacheable(value = "allSuggestions", key = "#includeNeutral")
     public ResponseEntity<List<RecommendationResult>> getAllSuggestions(
             @RequestParam(required = false, defaultValue = "false") boolean includeNeutral) {
         try {
+            log.debug("Fetching all suggestions (cache miss), includeNeutral: {}", includeNeutral);
             List<RecommendationResult> suggestions = new ArrayList<>();
 
             for (String code : vn30Codes) {
@@ -75,7 +81,7 @@ public class SuggestionsController {
     /**
      * Get top N suggestions (buy or sell signals only)
      */
-    @GetMapping("/top")
+    @GetMapping(ApiEndpoints.SUGGESTIONS_TOP_PATH)
     public ResponseEntity<List<RecommendationResult>> getTopSuggestions(
             @RequestParam(required = false, defaultValue = "10") int limit) {
         try {
@@ -104,6 +110,17 @@ public class SuggestionsController {
             log.error("Failed to get top suggestions: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    /**
+     * Refresh cache - evicts all cached suggestions
+     * Allows manual cache refresh when needed
+     */
+    @PostMapping("/refresh")
+    @CacheEvict(value = {"recommendations", "allSuggestions"}, allEntries = true)
+    public ResponseEntity<Void> refreshCache() {
+        log.info("Cache evicted for suggestions - recommendations and allSuggestions");
+        return ResponseEntity.ok().build();
     }
 }
 

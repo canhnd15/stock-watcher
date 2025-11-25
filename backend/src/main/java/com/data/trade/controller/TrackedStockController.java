@@ -1,137 +1,157 @@
 package com.data.trade.controller;
 
+import com.data.trade.constants.ApiEndpoints;
+import com.data.trade.constants.RoleConstants;
+import com.data.trade.dto.PortfolioSimulationRequest;
+import com.data.trade.dto.PortfolioSimulationResponse;
+import com.data.trade.dto.RefreshMarketPriceResponse;
 import com.data.trade.dto.TrackedStockStatsDTO;
+import com.data.trade.dto.TrackedStockWithMarketPriceDTO;
 import com.data.trade.model.TrackedStock;
 import com.data.trade.model.User;
-import com.data.trade.repository.TrackedStockRepository;
+import com.data.trade.service.TrackedStockService;
 import com.data.trade.service.TrackedStockStatsService;
+import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/tracked-stocks")
+@RequestMapping(ApiEndpoints.API_TRACKED_STOCKS)
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:8089", "http://localhost:4200"})
-@PreAuthorize("hasAnyRole('VIP', 'ADMIN')")
+@PreAuthorize(RoleConstants.HAS_ANY_ROLE_VIP_ADMIN)
+@Slf4j
 public class TrackedStockController {
 
-    private final TrackedStockRepository trackedStockRepository;
+    private final TrackedStockService trackedStockService;
     private final TrackedStockStatsService trackedStockStatsService;
 
     @GetMapping
-    public List<TrackedStock> getAllTrackedStocks(@AuthenticationPrincipal User currentUser) {
-        return trackedStockRepository.findAllByUserId(currentUser.getId());
+    public List<TrackedStockWithMarketPriceDTO> getAllTrackedStocks(@AuthenticationPrincipal User currentUser) {
+        return trackedStockService.getAllTrackedStocksForUser(currentUser.getId());
     }
 
-    @GetMapping("/stats")
+    @GetMapping(ApiEndpoints.TRACKED_STOCKS_STATS_PATH)
     public Map<String, TrackedStockStatsDTO> getTrackedStockStats(@AuthenticationPrincipal User currentUser) {
         return trackedStockStatsService.getStatsForUser(currentUser.getId());
+    }
+
+    @PostMapping("/refresh-market-price")
+    public ResponseEntity<?> refreshMarketPrice(@AuthenticationPrincipal User currentUser) {
+        try {
+            RefreshMarketPriceResponse response = trackedStockService.refreshMarketPriceForUser(currentUser.getId());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to refresh market prices", e);
+            return ResponseEntity.status(500).body("Failed to refresh market prices: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Simulate portfolio profit calculation
+     * Accepts a list of stocks with cost basis and volume, returns profit calculations
+     */
+    @PostMapping("/simulate-portfolio")
+    public ResponseEntity<PortfolioSimulationResponse> simulatePortfolio(
+            @Valid @RequestBody PortfolioSimulationRequest request) {
+        try {
+            PortfolioSimulationResponse response = trackedStockService.simulatePortfolio(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to simulate portfolio", e);
+            return ResponseEntity.status(500).build();
+        }
     }
 
     @PostMapping
     public ResponseEntity<?> addTrackedStock(
             @RequestBody AddTrackedStockRequest request,
             @AuthenticationPrincipal User currentUser) {
-        
-        // Check if already exists
-        if (trackedStockRepository.existsByUserIdAndCode(currentUser.getId(), request.getCode().toUpperCase())) {
-            return ResponseEntity.badRequest().body("Stock already tracked");
+        try {
+            TrackedStock saved = trackedStockService.addTrackedStock(
+                    currentUser,
+                    request.getCode(),
+                    request.getCostBasis(),
+                    request.getVolume(),
+                    request.getTargetPrice()
+            );
+            return ResponseEntity.ok(saved);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            log.error("Failed to add tracked stock", e);
+            return ResponseEntity.status(500).body("Failed to add tracked stock: " + e.getMessage());
         }
-
-        TrackedStock trackedStock = TrackedStock.builder()
-                .user(currentUser)
-                .code(request.getCode().toUpperCase())
-                .active(true)
-                .costBasis(request.getCostBasis())
-                .createdAt(OffsetDateTime.now())
-                .build();
-
-        TrackedStock saved = trackedStockRepository.save(trackedStock);
-        return ResponseEntity.ok(saved);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping(ApiEndpoints.TRACKED_STOCKS_BY_ID_PATH)
     public ResponseEntity<?> deleteTrackedStock(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser) {
-        
-        TrackedStock stock = trackedStockRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Tracked stock not found"));
-
-        // Verify ownership
-        if (!stock.getUser().getId().equals(currentUser.getId())) {
-            return ResponseEntity.status(403).body("Access denied");
+        try {
+            trackedStockService.deleteTrackedStock(id, currentUser.getId());
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(404).body(e.getMessage());
+        } catch (Exception e) {
+            log.error("Failed to delete tracked stock", e);
+            return ResponseEntity.status(500).body("Failed to delete tracked stock: " + e.getMessage());
         }
-
-        trackedStockRepository.delete(stock);
-        return ResponseEntity.ok().build();
     }
 
-    @PutMapping("/{id}/toggle")
+    @PutMapping(ApiEndpoints.TRACKED_STOCKS_TOGGLE_PATH)
     public ResponseEntity<?> toggleTrackedStock(
             @PathVariable Long id,
             @AuthenticationPrincipal User currentUser) {
-        
-        TrackedStock stock = trackedStockRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Tracked stock not found"));
-
-        // Verify ownership
-        if (!stock.getUser().getId().equals(currentUser.getId())) {
-            return ResponseEntity.status(403).body("Access denied");
+        try {
+            TrackedStock updated = trackedStockService.toggleTrackedStock(id, currentUser.getId());
+            return ResponseEntity.ok(updated);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(404).body(e.getMessage());
+        } catch (Exception e) {
+            log.error("Failed to toggle tracked stock", e);
+            return ResponseEntity.status(500).body("Failed to toggle tracked stock: " + e.getMessage());
         }
-
-        stock.setActive(!stock.getActive());
-        TrackedStock updated = trackedStockRepository.save(stock);
-        return ResponseEntity.ok(updated);
     }
 
-    @PutMapping("/{id}")
+    @PutMapping(ApiEndpoints.TRACKED_STOCKS_BY_ID_PATH)
     public ResponseEntity<?> updateTrackedStock(
             @PathVariable Long id,
             @RequestBody UpdateTrackedStockRequest request,
             @AuthenticationPrincipal User currentUser) {
-        
-        TrackedStock stock = trackedStockRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Tracked stock not found"));
-
-        // Verify ownership
-        if (!stock.getUser().getId().equals(currentUser.getId())) {
-            return ResponseEntity.status(403).body("Access denied");
+        try {
+            TrackedStock updated = trackedStockService.updateTrackedStock(
+                    id,
+                    currentUser.getId(),
+                    request.getCode(),
+                    request.getActive(),
+                    request.getCostBasis(),
+                    request.getVolume(),
+                    request.getTargetPrice()
+            );
+            return ResponseEntity.ok(updated);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(404).body(e.getMessage());
+        } catch (Exception e) {
+            log.error("Failed to update tracked stock", e);
+            return ResponseEntity.status(500).body("Failed to update tracked stock: " + e.getMessage());
         }
-
-        // Update fields if provided
-        if (request.getCode() != null) {
-            // Check if new code already exists (if changing code)
-            if (!stock.getCode().equals(request.getCode().toUpperCase())) {
-                if (trackedStockRepository.existsByUserIdAndCode(currentUser.getId(), request.getCode().toUpperCase())) {
-                    return ResponseEntity.badRequest().body("Stock code already tracked");
-                }
-                stock.setCode(request.getCode().toUpperCase());
-            }
-        }
-        if (request.getActive() != null) {
-            stock.setActive(request.getActive());
-        }
-        // Update costBasis - if sent as null in request, it will clear the value
-        stock.setCostBasis(request.getCostBasis());
-
-        TrackedStock updated = trackedStockRepository.save(stock);
-        return ResponseEntity.ok(updated);
     }
 
     @Data
     static class AddTrackedStockRequest {
         private String code;
         private BigDecimal costBasis;
+        private Long volume;
+        private BigDecimal targetPrice;
     }
 
     @Data
@@ -139,6 +159,8 @@ public class TrackedStockController {
         private String code;
         private Boolean active;
         private BigDecimal costBasis;
+        private Long volume;
+        private BigDecimal targetPrice;
     }
 }
 

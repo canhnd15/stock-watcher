@@ -30,6 +30,7 @@ const translations = {
     'common.all': 'Tất cả',
     'common.active': 'Hoạt động',
     'common.inactive': 'Không hoạt động',
+    'common.optional': 'Tùy chọn',
     'common.page': 'Trang',
     'common.of': 'của',
     'common.results': 'kết quả',
@@ -38,6 +39,7 @@ const translations = {
     // Navigation
     'nav.trades': 'Giao dịch',
     'nav.trackedStocks': 'Cổ phiếu theo dõi',
+    'nav.shortTermPortfolio': 'Portfolio ngắn hạn',
     'nav.suggestions': 'Gợi ý',
     'nav.signals': 'Tín hiệu',
     'nav.userManagement': 'Quản lý người dùng',
@@ -63,7 +65,7 @@ const translations = {
     'auth.enterUsername': 'Nhập tên đăng nhập',
     'auth.enterPassword': 'Nhập mật khẩu',
     'auth.loggingIn': 'Đang đăng nhập...',
-    'auth.joinTradeTracker': 'Tham gia Trade Tracker để bắt đầu theo dõi cổ phiếu',
+    'auth.joinTradeTracker': 'Tham gia Stock Watcher để bắt đầu theo dõi cổ phiếu',
     'auth.chooseUsername': 'Chọn tên đăng nhập',
     'auth.passwordMinLength': 'Tạo mật khẩu (tối thiểu 6 ký tự)',
     'auth.confirmPasswordPlaceholder': 'Xác nhận mật khẩu',
@@ -72,7 +74,7 @@ const translations = {
     'auth.creatingAccount': 'Đang tạo tài khoản...',
     'auth.registerHere': 'Đăng ký tại đây',
     'auth.loginHere': 'Đăng nhập tại đây',
-    'auth.welcomeMessage': 'Đăng ký thành công! Chào mừng đến với Trade Tracker.',
+    'auth.welcomeMessage': 'Đăng ký thành công! Chào mừng đến với Stock Watcher.',
     
     // Trades
     'trades.title': 'Giao dịch',
@@ -193,6 +195,21 @@ const translations = {
     'unauthorized.message': 'Bạn không có quyền truy cập trang này',
     'unauthorized.contact': 'Vui lòng liên hệ quản trị viên để nâng cấp tài khoản',
     'unauthorized.goHome': 'Về trang chủ',
+    
+    // VIP Request
+    'vip.request': 'Yêu cầu VIP',
+    'vip.requestTitle': 'Yêu cầu nâng cấp tài khoản VIP',
+    'vip.requestDescription': 'Gửi yêu cầu để nâng cấp tài khoản của bạn lên VIP và truy cập các tính năng cao cấp',
+    'vip.requestSent': 'Yêu cầu đã được gửi thành công. Quản trị viên sẽ xem xét yêu cầu của bạn.',
+    'vip.requestFailed': 'Gửi yêu cầu thất bại',
+    'vip.alreadyRequested': 'Bạn đã gửi yêu cầu VIP',
+    'vip.alreadyVIP': 'Bạn đã là thành viên VIP',
+    'vip.sendRequest': 'Gửi yêu cầu',
+    'vip.sending': 'Đang gửi...',
+    'vip.watchVideo': 'Xem video giới thiệu tính năng VIP',
+    'vip.reason': 'Lý do',
+    'vip.reasonPlaceholder': 'Cho chúng tôi biết lý do bạn muốn có quyền truy cập VIP...',
+    'vip.characters': 'ký tự',
   },
   en: {
     // Common
@@ -212,6 +229,7 @@ const translations = {
     'common.all': 'All',
     'common.active': 'Active',
     'common.inactive': 'Inactive',
+    'common.optional': 'Optional',
     'common.page': 'Page',
     'common.of': 'of',
     'common.results': 'results',
@@ -220,6 +238,7 @@ const translations = {
     // Navigation
     'nav.trades': 'Trades',
     'nav.trackedStocks': 'Tracked Stocks',
+    'nav.shortTermPortfolio': 'Short-Term Portfolio',
     'nav.suggestions': 'Suggestions',
     'nav.signals': 'Signals',
     'nav.userManagement': 'User Management',
@@ -245,7 +264,7 @@ const translations = {
     'auth.enterUsername': 'Enter your username',
     'auth.enterPassword': 'Enter your password',
     'auth.loggingIn': 'Logging in...',
-    'auth.joinTradeTracker': 'Join Trade Tracker to start monitoring stocks',
+    'auth.joinTradeTracker': 'Join Stock Watcher to start monitoring stocks',
     'auth.chooseUsername': 'Choose a username',
     'auth.passwordMinLength': 'Create a password (min 6 characters)',
     'auth.confirmPasswordPlaceholder': 'Confirm your password',
@@ -254,7 +273,7 @@ const translations = {
     'auth.creatingAccount': 'Creating account...',
     'auth.registerHere': 'Register here',
     'auth.loginHere': 'Login here',
-    'auth.welcomeMessage': 'Registration successful! Welcome to Trade Tracker.',
+    'auth.welcomeMessage': 'Registration successful! Welcome to Stock Watcher.',
     
     // Trades
     'trades.title': 'Trades',
@@ -375,6 +394,21 @@ const translations = {
     'unauthorized.message': 'You don\'t have permission to access this page',
     'unauthorized.contact': 'Please contact your administrator to upgrade your account',
     'unauthorized.goHome': 'Go to Dashboard',
+    
+    // VIP Request
+    'vip.request': 'VIP Request',
+    'vip.requestTitle': 'Request VIP Account Upgrade',
+    'vip.requestDescription': 'Submit a request to upgrade your account to VIP and access premium features',
+    'vip.requestSent': 'VIP request submitted successfully. An admin will review your request.',
+    'vip.requestFailed': 'Failed to send request',
+    'vip.alreadyRequested': 'You have already requested VIP access',
+    'vip.alreadyVIP': 'You are already a VIP member',
+    'vip.sendRequest': 'Send Request',
+    'vip.sending': 'Sending...',
+    'vip.watchVideo': 'Watch VIP Features Video',
+    'vip.reason': 'Reason',
+    'vip.reasonPlaceholder': 'Tell us why you\'d like VIP access...',
+    'vip.characters': 'characters',
   },
 };
 

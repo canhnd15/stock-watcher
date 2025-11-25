@@ -4,6 +4,7 @@ import com.data.trade.dto.*;
 import com.data.trade.repository.TradeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -33,9 +34,11 @@ public class CombinedRecommendationService {
 
     /**
      * Calculate combined recommendation for a stock based on 10 days of data
+     * Results are cached for 5 minutes per stock code to improve performance
      */
+    @Cacheable(value = "recommendations", key = "#stockCode")
     public RecommendationResult calculateRecommendation(String stockCode) {
-        log.debug("Calculating recommendation for stock: {}", stockCode);
+        log.debug("Calculating recommendation for stock: {} (cache miss)", stockCode);
 
         // Fetch 10 days of data
         List<DailyStats> dailyStats = fetch10DaysData(stockCode);

@@ -9,6 +9,7 @@ import com.data.trade.model.UserRole;
 import com.data.trade.repository.UserRepository;
 import com.data.trade.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -17,10 +18,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.OffsetDateTime;
+import java.util.Base64;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     private final UserRepository userRepository;
@@ -38,6 +42,10 @@ public class AuthService {
             throw new RuntimeException("Email already exists");
         }
 
+        // Generate email verification token
+        String verificationToken = generateVerificationToken();
+        OffsetDateTime tokenExpiry = OffsetDateTime.now().plusDays(7); // Token valid for 7 days
+
         // Create user
         User user = User.builder()
                 .username(request.getUsername())
@@ -45,12 +53,45 @@ public class AuthService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(UserRole.NORMAL) // Default role
                 .enabled(true)
+                .emailVerified(false) // Email not verified yet
+                .emailVerificationToken(verificationToken)
+                .emailVerificationTokenExpiry(tokenExpiry)
                 .createdAt(OffsetDateTime.now())
                 .build();
 
         user = userRepository.save(user);
 
+        // TODO: Send verification email
+        // For now, we'll just log it. In production, you would send an actual email
+        log.info("Email verification token for {}: {}", user.getEmail(), verificationToken);
+        log.info("Verification link: /api/auth/verify-email?token={}", verificationToken);
+
         return mapToUserResponse(user);
+    }
+
+    @Transactional
+    public void verifyEmail(String token) {
+        User user = userRepository.findByEmailVerificationToken(token)
+                .orElseThrow(() -> new RuntimeException("Invalid verification token"));
+
+        if (user.getEmailVerificationTokenExpiry() != null 
+            && user.getEmailVerificationTokenExpiry().isBefore(OffsetDateTime.now())) {
+            throw new RuntimeException("Verification token has expired");
+        }
+
+        user.setEmailVerified(true);
+        user.setEmailVerificationToken(null);
+        user.setEmailVerificationTokenExpiry(null);
+        userRepository.save(user);
+
+        log.info("Email verified for user: {}", user.getUsername());
+    }
+
+    private String generateVerificationToken() {
+        SecureRandom random = new SecureRandom();
+        byte[] bytes = new byte[32];
+        random.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     @Transactional
@@ -96,6 +137,7 @@ public class AuthService {
                 .email(user.getEmail())
                 .role(user.getRole())
                 .enabled(user.getEnabled())
+                .emailVerified(user.getEmailVerified())
                 .createdAt(user.getCreatedAt())
                 .lastLoginAt(user.getLastLoginAt())
                 .build();

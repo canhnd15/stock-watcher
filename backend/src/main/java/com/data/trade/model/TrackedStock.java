@@ -40,6 +40,12 @@ public class TrackedStock {
     @Column(nullable = true, precision = 19, scale = 2)
     private BigDecimal costBasis;
 
+    @Column(nullable = true)
+    private Long volume; // Volume for profit calculation
+
+    @Column(nullable = true, precision = 19, scale = 2)
+    private BigDecimal targetPrice; // Target price for profit calculation
+
     @Column(nullable = false)
     private OffsetDateTime createdAt;
 

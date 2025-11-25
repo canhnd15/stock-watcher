@@ -16,8 +16,10 @@ public class TradePageResponse {
     private Long totalVolume;
     private Long buyVolume;
     private Long sellVolume;
+    private Long unknownVolume;
     private int totalRecords;
     private Long buyCount;
     private Long sellCount;
+    private Long unknownCount;
 }
 

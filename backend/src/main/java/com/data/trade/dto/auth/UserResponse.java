@@ -18,6 +18,7 @@ public class UserResponse {
     private String email;
     private UserRole role;
     private Boolean enabled;
+    private Boolean emailVerified;
     private OffsetDateTime createdAt;
     private OffsetDateTime lastLoginAt;
 }

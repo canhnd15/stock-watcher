@@ -39,9 +39,33 @@ stock-watcher/
 - Maven 3.8+
 - Node.js 18+
 - PostgreSQL 15+
-- Docker (optional)
+- Docker & Docker Compose (for Docker deployment)
 
-### 1. Start Database
+### Option 1: Docker Compose Deployment (Recommended)
+
+```bash
+# 1. Create environment file
+cp .env.docker.example .env
+# Edit .env with your configuration (especially DB_PASSWORD and JWT_SECRET)
+
+# 2. Deploy all services
+./deploy-docker.sh deploy
+
+# Or manually:
+docker compose build
+docker compose up -d
+
+# Services will be available at:
+# - Frontend: http://localhost:8089
+# - Backend API: http://localhost:8899
+# - PostgreSQL: localhost:5433
+```
+
+See [DOCKER_README.md](deploy/docs/DOCKER_README.md) for quick reference or [deploy/docs/DOCKER_DEPLOYMENT.md](deploy/docs/DOCKER_DEPLOYMENT.md) for detailed Ubuntu deployment guide.
+
+### Option 2: Manual Development Setup
+
+#### 1. Start Database
 
 ```bash
 docker-compose up -d postgres
@@ -55,15 +79,15 @@ Or manually:
 # Password: admin
 ```
 
-### 2. Start Backend Service
+#### 2. Start Backend Service
 
 ```bash
 cd backend
 mvn spring-boot:run
-# Backend runs on http://localhost:8080
+# Backend runs on http://localhost:8899
 ```
 
-### 3. Start Cron-Jobs Service
+#### 3. Start Cron-Jobs Service
 
 ```bash
 cd cron-jobs
@@ -71,7 +95,7 @@ mvn spring-boot:run
 # Cron-jobs runs on http://localhost:8898 (no REST APIs exposed)
 ```
 
-### 4. Start Frontend
+#### 4. Start Frontend
 
 ```bash
 cd frontend
@@ -224,6 +248,12 @@ cd cron-jobs && mvn test
 
 ## 📚 Documentation
 
+### Deployment
+- [Docker Quick Start](deploy/docs/DOCKER_README.md) - Quick Docker Compose reference
+- [Docker Deployment Guide](deploy/docs/DOCKER_DEPLOYMENT.md) - Complete Ubuntu server deployment guide
+- [Remote Deployment](deploy/docs/REMOTE_DEPLOYMENT.md) - Traditional deployment without Docker
+
+### Application
 - [User Management Setup](document/USER_MANAGEMENT_SETUP.md) - User authentication and roles
 - Backend: See `backend/README.md`
 - Cron-Jobs: See `cron-jobs/README.md`
@@ -235,9 +265,9 @@ This project is private/internal.
 
 ## 🎯 Next Steps
 
-1. Configure shared message broker (Redis/RabbitMQ) for WebSocket messages
-2. Add health checks and monitoring
-3. Add Docker containers for all services
+1. ✅ Docker containers for all services (DONE)
+2. Configure shared message broker (Redis/RabbitMQ) for WebSocket messages
+3. Add health checks and monitoring
 4. Implement CI/CD pipelines
 5. Add integration tests
 

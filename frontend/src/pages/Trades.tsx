@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import {
@@ -39,12 +39,13 @@ import {
 import { Badge } from "@/components/ui/badge.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw } from "lucide-react";
+import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, HelpCircle, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useWebSocket, SignalNotification } from "@/hooks/useWebSocket.ts";
 import { api } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { DailyPriceVolumeChart } from "@/components/DailyPriceVolumeChart.tsx";
+import { DailyOHLCChart } from "@/components/DailyOHLCChart.tsx";
 import { DatePicker } from "@/components/ui/date-picker.tsx";
 
 interface Trade {
@@ -52,7 +53,7 @@ interface Trade {
   tradeTime: string; // Format: "HH:mm:ss"
   tradeDate: string; // Format: "DD/MM/YYYY"
   code: string;
-  side: "buy" | "sell";
+  side: "buy" | "sell" | "unknown";
   price: number;
   volume: number;
 }
@@ -65,6 +66,14 @@ interface DailyChartData {
   totalVolume: number; // in shares
 }
 
+interface DailyOHLCData {
+  date: string; // "DD/MM/YYYY"
+  openPrice: number;
+  highPrice: number;
+  lowPrice: number;
+  closePrice: number;
+}
+
 // VN30 Stock Codes
 const VN30_STOCKS = [
   "ACB", "BCM", "CTG", "DGC", "FPT", "BFG", "HDB", "HPG", "MWG",
@@ -73,8 +82,31 @@ const VN30_STOCKS = [
   "DXG", "KDH"
 ];
 
+// LocalStorage key for saving trade filters (will be made user-specific)
+const getTradesFiltersStorageKey = (userId: number | null) => {
+  return userId ? `trades_filters_${userId}` : 'trades_filters';
+};
+
+interface TradeFilters {
+  code: string;
+  type: string;
+  minVolume: string;
+  maxVolume: string;
+  minPrice: string;
+  maxPrice: string;
+  fromDate: string;
+  toDate: string;
+  page: number;
+  size: number;
+  sortField: "code" | "time" | "price" | "volume";
+  sortDirection: "asc" | "desc";
+  chartFromDate: string;
+  chartToDate: string;
+}
+
 const Trades = () => {
   const { t } = useI18n();
+  const { user } = useAuth();
   
   // Get today's date in yyyy-MM-dd format
   const getTodayDate = () => {
@@ -83,6 +115,75 @@ const Trades = () => {
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  };
+
+  // Check if a date is a valid trading day (Monday-Friday)
+  const isValidTradingDay = (dateString: string): boolean => {
+    // Parse date string in yyyy-MM-dd format
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+    // Monday (1) to Friday (5) are valid trading days
+    return dayOfWeek >= 1 && dayOfWeek <= 5;
+  };
+
+  // Check if current time is within market hours (9 AM - 3 PM)
+  const isWithinMarketHours = (): boolean => {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const currentTimeMinutes = hours * 60 + minutes;
+    const marketOpenMinutes = 9 * 60; // 9:00 AM
+    const marketCloseMinutes = 15 * 60; // 3:00 PM
+    return currentTimeMinutes >= marketOpenMinutes && currentTimeMinutes <= marketCloseMinutes;
+  };
+
+  // Check if today is a valid transaction date
+  const isTodayValidTransactionDate = (): boolean => {
+    const today = getTodayDate();
+    // Check if it's a weekday (Monday-Friday)
+    if (!isValidTradingDay(today)) {
+      return false;
+    }
+    // Check if current time is within market hours (9 AM - 3 PM)
+    // Note: Even if it's a weekday, if it's outside market hours, it's not a valid transaction date
+    // However, for simplicity, we'll consider it valid if it's a weekday
+    // The market hours check can be added if needed for more precision
+    return true;
+  };
+
+  // Validate date string format (yyyy-MM-dd)
+  const isValidDateFormat = (dateString: string | null | undefined): boolean => {
+    if (!dateString || typeof dateString !== 'string') return false;
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateString)) return false;
+    const date = new Date(dateString + 'T00:00:00');
+    return !isNaN(date.getTime()) && date.toISOString().startsWith(dateString);
+  };
+
+  // Fetch latest transaction date from backend
+  const fetchLatestTransactionDate = async (): Promise<string | null> => {
+    try {
+      const response = await api.get('/api/trades/latest-date');
+      if (!response.ok) throw new Error('Failed to fetch latest transaction date');
+      const latestDate = await response.json();
+      // Convert from ISO date string (yyyy-MM-dd) to yyyy-MM-dd format
+      // The API should return LocalDate which serializes to ISO format
+      if (latestDate) {
+        const dateString = String(latestDate);
+        // Validate the date format
+        if (isValidDateFormat(dateString)) {
+          return dateString;
+        } else {
+          console.error('Invalid date format received from backend:', dateString);
+          return null;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching latest transaction date:', error);
+      return null;
+    }
   };
 
   // Helper function to calculate N trading days back (excluding weekends)
@@ -111,65 +212,151 @@ const Trades = () => {
     return getTodayDate(); // Fallback
   };
 
-  const [code, setCode] = useState(""); // All by default (empty)
+  // Helper function to get one month ago from today
+  const getOneMonthAgo = (): string => {
+    const today = new Date();
+    const oneMonthAgo = new Date(today);
+    oneMonthAgo.setMonth(today.getMonth() - 1);
+    
+    const year = oneMonthAgo.getFullYear();
+    const month = String(oneMonthAgo.getMonth() + 1).padStart(2, '0');
+    const day = String(oneMonthAgo.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Load filters from localStorage (user-specific)
+  const loadFiltersFromStorage = (): Partial<TradeFilters> => {
+    if (!user?.id) return {};
+    try {
+      const key = getTradesFiltersStorageKey(user.id);
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Error loading filters from localStorage:', error);
+    }
+    return {};
+  };
+
+  // Save filters to localStorage (user-specific)
+  const saveFiltersToStorage = (filters: Partial<TradeFilters>) => {
+    if (!user?.id) return;
+    try {
+      const key = getTradesFiltersStorageKey(user.id);
+      localStorage.setItem(key, JSON.stringify(filters));
+    } catch (error) {
+      console.error('Error saving filters to localStorage:', error);
+    }
+  };
+
+  // Load saved filters or use defaults
+  const savedFilters = loadFiltersFromStorage();
+  
+  // Validate and initialize default dates - will be updated by useEffect if today is not valid
+  const todayDate = getTodayDate();
+  const defaultFromDate = (savedFilters.fromDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.fromDate)) 
+    ? savedFilters.fromDate 
+    : todayDate;
+  const defaultToDate = todayDate;
+  // Default chart date range: one month ago to today (unless user has saved a preference)
+  // If user has saved chart dates, use them; otherwise default to one month range
+  const defaultChartFromDate = (savedFilters.chartFromDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.chartFromDate))
+    ? savedFilters.chartFromDate
+    : getOneMonthAgo();
+  const defaultChartToDate = (savedFilters.chartToDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.chartToDate))
+    ? savedFilters.chartToDate
+    : todayDate;
+
+  const [code, setCode] = useState(savedFilters.code || ""); // All by default (empty)
   const [codeOpen, setCodeOpen] = useState(false);
-  const [type, setType] = useState("All");
-  const [minVolume, setMinVolume] = useState("");
-  const [maxVolume, setMaxVolume] = useState("");
-  const [fromDate, setFromDate] = useState(getTodayDate()); // yyyy-MM-dd - default to today
-  const [toDate, setToDate] = useState(getTodayDate());     // yyyy-MM-dd - default to today
-  const [page, setPage] = useState(0);
-  const [size, setSize] = useState(10);
+  const [type, setType] = useState(savedFilters.type || "All");
+  const [minVolume, setMinVolume] = useState(savedFilters.minVolume || "");
+  const [maxVolume, setMaxVolume] = useState(savedFilters.maxVolume || "");
+  const [minPrice, setMinPrice] = useState(savedFilters.minPrice || "");
+  const [maxPrice, setMaxPrice] = useState(savedFilters.maxPrice || "");
+  const [fromDate, setFromDate] = useState(defaultFromDate); // yyyy-MM-dd
+  const [toDate, setToDate] = useState(defaultToDate);     // yyyy-MM-dd
+  const [defaultDateInitialized, setDefaultDateInitialized] = useState(false);
+  const [page, setPage] = useState(savedFilters.page ?? 0);
+  const [size, setSize] = useState(savedFilters.size || 10);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   
   const [filteredTrades, setFilteredTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
-  const [sortField, setSortField] = useState<"code" | "time" | "price" | "volume">("code");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [sortField, setSortField] = useState<"code" | "time" | "price" | "volume">(savedFilters.sortField || "code");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(savedFilters.sortDirection || "asc");
   
   // Volume statistics
   const [totalVolume, setTotalVolume] = useState(0);
   const [buyVolume, setBuyVolume] = useState(0);
   const [sellVolume, setSellVolume] = useState(0);
+  const [unknownVolume, setUnknownVolume] = useState(0);
   
   // Transaction counts
   const [buyCount, setBuyCount] = useState(0);
   const [sellCount, setSellCount] = useState(0);
+  const [unknownCount, setUnknownCount] = useState(0);
   
   // Chart data
   const [chartData, setChartData] = useState<DailyChartData[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
   // Chart-specific date filters (independent from trade table filters)
-  const [chartFromDate, setChartFromDate] = useState(getNTradingDaysBack(5));
-  const [chartToDate, setChartToDate] = useState(getTodayDate());
+  const [chartFromDate, setChartFromDate] = useState(defaultChartFromDate);
+  const [chartToDate, setChartToDate] = useState(defaultChartToDate);
   
-  // WebSocket for signals
-  const { isConnected, signals, clearSignals } = useWebSocket();
-  const [refreshingSignals, setRefreshingSignals] = useState(false);
+  // OHLC Chart data
+  const [ohlcData, setOhlcData] = useState<DailyOHLCData[]>([]);
+  const [ohlcLoading, setOhlcLoading] = useState(false);
+  
+  // Ref to track if initial data has been loaded
+  const hasInitialLoad = useRef(false);
 
-  const handleRefreshSignals = async () => {
-    try {
-      setRefreshingSignals(true);
-      
-      // Clear old signals first
-      clearSignals();
-      
-      const response = await api.post('/api/signals/refresh');
-      
-      if (!response.ok) {
-        throw new Error('Failed to refresh signals');
+  // Initialize default dates: use latest transaction date if today is not valid
+  useEffect(() => {
+    const initializeDefaultDates = async () => {
+      // Ensure dates are valid before proceeding
+      const today = getTodayDate();
+      if (!isValidDateFormat(today)) {
+        console.error('Invalid today date format:', today);
+        setDefaultDateInitialized(true);
+        return;
       }
-      
-      const data = await response.json();
-      toast.success(data.message || 'Signals refreshed successfully');
-    } catch (error) {
-      console.error('Error refreshing signals:', error);
-      toast.error('Failed to refresh signals');
-    } finally {
-      setRefreshingSignals(false);
-    }
-  };
+
+      // Check if today is a valid transaction date
+      if (isTodayValidTransactionDate()) {
+        // Today is valid, ensure toDate is set to today
+        if (isValidDateFormat(today)) {
+          setToDate(today);
+        }
+        setDefaultDateInitialized(true);
+        return;
+      }
+
+      // Today is not valid (weekend or outside market hours)
+      // Fetch the latest transaction date from backend
+      const latestDate = await fetchLatestTransactionDate();
+      if (latestDate && isValidDateFormat(latestDate)) {
+        // Only update fromDate if user hasn't saved it in localStorage
+        if (!savedFilters.fromDate) {
+          setFromDate(latestDate);
+        }
+        // Always update toDate to latest transaction date if today is not valid
+        setToDate(latestDate);
+      } else {
+        // If we can't get latest date, fall back to today
+        console.warn('Could not fetch latest transaction date, using today');
+        if (isValidDateFormat(today)) {
+          setToDate(today);
+        }
+      }
+      setDefaultDateInitialized(true);
+    };
+
+    initializeDefaultDates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
 
   const fetchChartData = async () => {
     // Only fetch if a specific stock code is selected
@@ -183,7 +370,7 @@ const Trades = () => {
     params.set("code", code.trim());
     
     // Use chart-specific date filters (independent from trade table filters)
-    const chartFrom = chartFromDate || getNTradingDaysBack(5);
+    const chartFrom = chartFromDate || getOneMonthAgo();
     const chartTo = chartToDate || getTodayDate();
     
     if (chartFrom) params.set("fromDate", chartFrom);
@@ -209,12 +396,52 @@ const Trades = () => {
     }
   };
 
+  const fetchOHLCData = async () => {
+    // Only fetch if a specific stock code is selected
+    if (!code || code.trim() === "") {
+      setOhlcData([]);
+      return;
+    }
+
+    setOhlcLoading(true);
+    const params = new URLSearchParams();
+    params.set("code", code.trim());
+    
+    // Use chart-specific date filters (independent from trade table filters)
+    const chartFrom = chartFromDate || getOneMonthAgo();
+    const chartTo = chartToDate || getTodayDate();
+    
+    if (chartFrom) params.set("fromDate", chartFrom);
+    if (chartTo) params.set("toDate", chartTo);
+
+    try {
+      const response = await api.get(`/api/trades/daily-ohlc?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to load OHLC data");
+      const data = await response.json();
+      setOhlcData(data.map((item: any) => ({
+        date: item.date,
+        openPrice: Number(item.openPrice) || 0,
+        highPrice: Number(item.highPrice) || 0,
+        lowPrice: Number(item.lowPrice) || 0,
+        closePrice: Number(item.closePrice) || 0,
+      })));
+    } catch (error) {
+      console.error("Error loading OHLC data:", error);
+      toast.error("Failed to load OHLC data");
+      setOhlcData([]);
+    } finally {
+      setOhlcLoading(false);
+    }
+  };
+
   const fetchTrades = (nextPage = page, nextSize = size, sortFieldParam = sortField, sortDirectionParam = sortDirection) => {
     const params = new URLSearchParams();
     if (code) params.set("code", code.trim());
     if (type && type !== "All") params.set("type", type.toLowerCase());
     if (minVolume) params.set("minVolume", String(parseInt(minVolume)));
     if (maxVolume) params.set("maxVolume", String(parseInt(maxVolume)));
+    if (minPrice) params.set("minPrice", String(parseFloat(minPrice)));
+    if (maxPrice) params.set("maxPrice", String(parseFloat(maxPrice)));
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
     params.set("page", String(nextPage));
@@ -246,12 +473,13 @@ const Trades = () => {
         const tradesPage = response?.trades ?? response ?? {};
 
         const items = (tradesPage?.content || []).map((t: any) => {
+          const side = (t.side ?? "").toLowerCase();
           return {
             id: String(t.id ?? `${t.code}-${t.tradeDate}-${t.tradeTime}`),
             tradeTime: t.tradeTime ?? "", // Format: "HH:mm:ss"
             tradeDate: t.tradeDate ?? "", // Format: "DD/MM/YYYY"
             code: t.code ?? "",
-            side: (t.side ?? "").toLowerCase() === "buy" ? "buy" : "sell",
+            side: side === "buy" ? "buy" : side === "sell" ? "sell" : "unknown",
             price: Number(t.price ?? 0),
             volume: Number(t.volume ?? 0),
           };
@@ -267,16 +495,20 @@ const Trades = () => {
         // Calculate volume statistics from trades
         const buyTrades = items.filter(t => t.side === 'buy');
         const sellTrades = items.filter(t => t.side === 'sell');
+        const unknownTrades = items.filter(t => t.side === 'unknown');
         
         const buyVol = buyTrades.reduce((sum, t) => sum + t.volume, 0);
         const sellVol = sellTrades.reduce((sum, t) => sum + t.volume, 0);
+        const unknownVol = unknownTrades.reduce((sum, t) => sum + t.volume, 0);
         
         // If backend provided stats, prefer them; else compute from page items
-        setTotalVolume(Number(response?.totalVolume ?? (buyVol + sellVol)));
+        setTotalVolume(Number(response?.totalVolume ?? (buyVol + sellVol + unknownVol)));
         setBuyVolume(Number(response?.buyVolume ?? buyVol));
         setSellVolume(Number(response?.sellVolume ?? sellVol));
+        setUnknownVolume(Number(response?.unknownVolume ?? unknownVol));
         setBuyCount(Number(response?.buyCount ?? buyTrades.length));
         setSellCount(Number(response?.sellCount ?? sellTrades.length));
+        setUnknownCount(Number(response?.unknownCount ?? unknownTrades.length));
       })
       .catch(() => toast.error(t('error.loadFailed')))
       .finally(() => setLoading(false));
@@ -317,16 +549,99 @@ const Trades = () => {
   };
 
 
-  // Auto-fetch when filter fields change
+  // Save filters to localStorage whenever they change (but not on initial mount)
+  // Note: toDate is not saved - it always defaults to today
+  // chartToDate IS saved so user's selected range is remembered
   useEffect(() => {
+    if (!hasInitialLoad.current) return; // Skip saving on initial mount
+    
+    saveFiltersToStorage({
+      code,
+      type,
+      minVolume,
+      maxVolume,
+      minPrice,
+      maxPrice,
+      fromDate,
+      // toDate is not saved - always uses today's date
+      page,
+      size,
+      sortField,
+      sortDirection,
+      chartFromDate,
+      chartToDate, // Save chartToDate so user's selection is remembered
+    });
+  }, [code, type, minVolume, maxVolume, minPrice, maxPrice, fromDate, page, size, sortField, sortDirection, chartFromDate, chartToDate]);
+
+  // Note: toDate is initialized by initializeDefaultDates useEffect above
+  // It will be set to today if today is valid, or latest transaction date if not
+
+  // Clear all filters and reset to defaults
+  const clearFilters = () => {
+    const today = getTodayDate();
+    
+    // Reset all filter states to defaults
+    setCode("");
+    setType("All");
+    setMinVolume("");
+    setMaxVolume("");
+    setMinPrice("");
+    setMaxPrice("");
+    setFromDate(today);
+    setToDate(today);
+    // Reset chart dates to default one month range
+    setChartFromDate(getOneMonthAgo());
+    setChartToDate(today);
+    setPage(0);
+    setSortField("code");
+    setSortDirection("asc");
+    
+    // Clear localStorage (user-specific)
+    if (user?.id) {
+      const key = getTradesFiltersStorageKey(user.id);
+      localStorage.removeItem(key);
+    }
+    
+    toast.success("Filters cleared");
+    // Note: useEffect will automatically trigger fetchTrades when filter states change
+  };
+
+  // Load initial data when component mounts (with saved filters)
+  // Wait for default date initialization before fetching
+  useEffect(() => {
+    if (!defaultDateInitialized) return; // Wait for date initialization
+    
+    // Mark that we've loaded initial data
+    hasInitialLoad.current = true;
+    
+    // Fetch trades with saved filters
+    fetchTrades(page, size, sortField, sortDirection);
+    // Fetch chart data if code is selected
+    if (code && code.trim() !== "") {
+      fetchChartData();
+      fetchOHLCData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultDateInitialized]); // Run when default date is initialized
+
+  // Auto-fetch when filter fields change (but not on initial mount)
+  useEffect(() => {
+    if (!hasInitialLoad.current) return; // Skip on initial mount
+
     setPage(0);
     fetchTrades(0, size);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, type, minVolume, maxVolume, fromDate, toDate]); // Fetch when any filter changes
+  }, [code, type, minVolume, maxVolume, minPrice, maxPrice, fromDate, toDate]); // Fetch when any filter changes
 
-  // Fetch chart data when code or chart-specific date range changes
+  // Fetch chart data when code or chart-specific date range changes (but not on initial mount)
   useEffect(() => {
-    fetchChartData();
+    if (!hasInitialLoad.current) return; // Skip on initial mount
+    
+    // Only fetch if code is selected
+    if (code && code.trim() !== "") {
+      fetchChartData();
+      fetchOHLCData();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, chartFromDate, chartToDate]); // Fetch chart data when chart-specific filters change
 
@@ -336,7 +651,7 @@ const Trades = () => {
       
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.code')}</label>
               <Popover open={codeOpen} onOpenChange={setCodeOpen}>
@@ -410,6 +725,7 @@ const Trades = () => {
                   <SelectItem value="All">{t('common.all')}</SelectItem>
                   <SelectItem value="Buy">{t('trades.buy')}</SelectItem>
                   <SelectItem value="Sell">{t('trades.sell')}</SelectItem>
+                  <SelectItem value="Unknown">Unknown</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -441,9 +757,35 @@ const Trades = () => {
             </div>
             
             <div>
+              <label className="text-sm font-medium mb-1 block">Price Range</label>
+              <Select
+                value={`${minPrice || ''}|${maxPrice || ''}`}
+                onValueChange={(v) => {
+                  const [minP, maxP] = v.split("|");
+                  setMinPrice(minP);
+                  setMaxPrice(maxP);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="|">{t('common.all')}</SelectItem>
+                  <SelectItem value="|10000">{"<=10,000"}</SelectItem>
+                  <SelectItem value="10000|20000">{"10,000 - 20,000"}</SelectItem>
+                  <SelectItem value="20000|50000">{"20,000 - 50,000"}</SelectItem>
+                  <SelectItem value="50000|100000">{"50,000 - 100,000"}</SelectItem>
+                  <SelectItem value="100000|200000">{"100,000 - 200,000"}</SelectItem>
+                  <SelectItem value="200000|500000">{"200,000 - 500,000"}</SelectItem>
+                  <SelectItem value="500000|">{">= 500,000"}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.fromDate')}</label>
               <DatePicker
-                value={fromDate}
+                value={fromDate && isValidDateFormat(fromDate) ? fromDate : getTodayDate()}
                 onChange={setFromDate}
                 placeholder="Select from date"
               />
@@ -452,16 +794,17 @@ const Trades = () => {
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.toDate')}</label>
               <DatePicker
-                value={toDate}
+                value={toDate && isValidDateFormat(toDate) ? toDate : getTodayDate()}
                 onChange={setToDate}
                 placeholder="Select to date"
               />
             </div>
+            
           </div>
         </div>
 
         {/* Volume Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Card className={loading ? "opacity-50 pointer-events-none" : ""}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -472,7 +815,7 @@ const Trades = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{loading ? "..." : totalVolume.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-1 font-bold">{loading ? "..." : `${(buyCount + sellCount).toLocaleString()} ${t('trades.transactions')}`}</p>
+              <p className="text-xs text-muted-foreground mt-1 font-bold">{loading ? "..." : `${(buyCount + sellCount + unknownCount).toLocaleString()} ${t('trades.transactions')}`}</p>
               <p className="text-xs text-muted-foreground mt-1">{t('trades.allMatchingTrades')}</p>
             </CardContent>
           </Card>
@@ -526,6 +869,31 @@ const Trades = () => {
               </div>
             </CardContent>
           </Card>
+
+          <Card className={loading ? "opacity-50 pointer-events-none" : ""}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <HelpCircle className="h-4 w-4 text-gray-500" />
+                Unknown Volume
+                {loading && <Loader2 className="h-4 w-4 animate-spin ml-auto" />}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-600">{loading ? "..." : unknownVolume.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground mt-1 font-bold">{loading ? "..." : `${unknownCount.toLocaleString()} ${t('trades.transactions')}`}</p>
+              <div className="flex items-center gap-2 mt-2">
+                <div className="h-2 bg-gray-200 rounded-full flex-1 overflow-hidden">
+                  <div 
+                    className="h-full bg-gray-500 rounded-full transition-all" 
+                    style={{ width: `${totalVolume > 0 ? (unknownVolume / totalVolume * 100) : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">
+                  {totalVolume > 0 ? ((unknownVolume / totalVolume * 100).toFixed(1)) : 0}%
+                </span>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="rounded-lg border bg-card relative">
@@ -534,6 +902,31 @@ const Trades = () => {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           )}
+          <div className="flex justify-end items-center gap-2 p-2 border-b bg-muted/30">
+            <Button
+              onClick={clearFilters}
+              variant="outline"
+              size="sm"
+              className="h-8 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+              Clear Filter
+            </Button>
+            <Button
+              onClick={() => fetchTrades(page, size, sortField, sortDirection)}
+              variant="outline"
+              size="sm"
+              className="h-8 border-green-300 text-green-600 hover:bg-green-50 hover:text-green-700"
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Reload Data
+            </Button>
+          </div>
           <Table className={loading ? "opacity-50 pointer-events-none" : ""}>
             <TableHeader>
               <TableRow>
@@ -626,10 +1019,12 @@ const Trades = () => {
                       className={`inline-flex items-center justify-center w-8 h-6 rounded text-xs font-bold ${
                         trade.side === "buy" 
                           ? "bg-green-600 text-white" 
-                          : "bg-red-600 text-white"
+                          : trade.side === "sell"
+                          ? "bg-red-600 text-white"
+                          : "bg-gray-500 text-white"
                       }`}
                     >
-                      {trade.side === "buy" ? "B" : "S"}
+                      {trade.side === "buy" ? "B" : trade.side === "sell" ? "S" : "U"}
                     </span>
                   </TableCell>
                   <TableCell className="text-right font-mono">
@@ -692,7 +1087,7 @@ const Trades = () => {
                   <div>
                     <label className="text-sm font-medium mb-1 block">From Date</label>
                     <DatePicker
-                      value={chartFromDate}
+                      value={chartFromDate && isValidDateFormat(chartFromDate) ? chartFromDate : getOneMonthAgo()}
                       onChange={setChartFromDate}
                       placeholder="Select from date"
                     />
@@ -700,7 +1095,7 @@ const Trades = () => {
                   <div>
                     <label className="text-sm font-medium mb-1 block">To Date</label>
                     <DatePicker
-                      value={chartToDate}
+                      value={chartToDate && isValidDateFormat(chartToDate) ? chartToDate : getTodayDate()}
                       onChange={setChartToDate}
                       placeholder="Select to date"
                     />
@@ -712,159 +1107,21 @@ const Trades = () => {
               data={chartData} 
               code={code}
               loading={chartLoading}
+              onRefresh={fetchChartData}
             />
+            
+            {/* Daily OHLC Chart - Below Price & Volume Chart */}
+            <div className="mt-6">
+              <DailyOHLCChart 
+                data={ohlcData} 
+                code={code}
+                loading={ohlcLoading}
+                onRefresh={fetchOHLCData}
+              />
+            </div>
           </div>
         )}
 
-        {/* Signals Section */}
-        <div className="mt-12 pt-8 border-t">
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <Activity className="h-6 w-6 text-primary" />
-                <div>
-                  <h2 className="text-2xl font-bold">{t('signals.realTimeSignals')}</h2>
-                  <p className="text-sm text-muted-foreground">{t('signals.liveSignalsDescription')}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                {/* Refresh Button */}
-                <Button
-                  variant="outline"
-                  onClick={handleRefreshSignals}
-                  disabled={refreshingSignals || !isConnected}
-                  className="border-2"
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${refreshingSignals ? 'animate-spin' : ''}`} />
-                  {t('signals.refresh')}
-                </Button>
-                
-                {/* Connection Status */}
-                <Card className={`${isConnected ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'} transition-colors`}>
-                  <CardContent className="p-3 flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                    <span className={`text-sm font-semibold ${isConnected ? 'text-green-700' : 'text-red-700'}`}>
-                      {isConnected ? t('signals.active') : t('signals.disconnected')}
-                    </span>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-
-            {/* Clear Button */}
-            {signals.length > 0 && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={clearSignals}
-                className="mb-4"
-              >
-                <X className="h-4 w-4 mr-2" />
-                {t('signals.clear', { count: signals.length })}
-              </Button>
-            )}
-          </div>
-
-          {/* Signals Table */}
-          {signals.length > 0 ? (
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[100px]">{t('trades.code')}</TableHead>
-                      <TableHead className="w-[100px]">{t('signals.title')}</TableHead>
-                      <TableHead className="w-[80px]">{t('signals.score')}</TableHead>
-                      <TableHead className="w-[150px]">{t('signals.time')}</TableHead>
-                      <TableHead className="text-right">{t('signals.buyVolume')}</TableHead>
-                      <TableHead className="text-right">{t('signals.sellVolume')}</TableHead>
-                      <TableHead className="text-right">{t('signals.price')}</TableHead>
-                      <TableHead className="text-right">{t('signals.change')}</TableHead>
-                      <TableHead>{t('signals.reason')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {signals.map((signal, index) => (
-                      <TableRow 
-                        key={`${signal.code}-${signal.timestamp}-${index}`}
-                        className={`${signal.signalType === 'BUY' ? 'bg-green-50/50' : 'bg-red-50/50'} animate-in fade-in duration-300`}
-                      >
-                        <TableCell className="font-bold">{signal.code}</TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={signal.signalType === 'BUY' ? 'default' : 'destructive'}
-                            className={`${signal.signalType === 'BUY' ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                          >
-                            {signal.signalType === 'BUY' ? (
-                              <TrendingUp className="h-3 w-3 mr-1" />
-                            ) : (
-                              <TrendingDown className="h-3 w-3 mr-1" />
-                            )}
-                            {signal.signalType}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            ⭐ {signal.score}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {new Date(signal.timestamp).toLocaleString('en-US', {
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-sm text-green-700">
-                          {signal.buyVolume.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-sm text-red-700">
-                          {signal.sellVolume.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right font-mono font-semibold">
-                          {signal.lastPrice.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge 
-                            variant={signal.priceChange > 0 ? 'default' : 'destructive'}
-                            className={`${signal.priceChange > 0 ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
-                          >
-                            {signal.priceChange > 0 ? '+' : ''}{signal.priceChange.toFixed(2)}%
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground max-w-md truncate">
-                          {signal.reason}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          ) : (
-            /* No Signals Message */
-            <Card className="max-w-md mx-auto">
-              <CardContent className="p-12 text-center">
-                <div className="text-6xl mb-4 opacity-50">📊</div>
-                <h3 className="text-lg font-semibold mb-2">
-                  {isConnected ? t('signals.listening') : t('signals.connecting')}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {t('signals.signalsDetected')}
-                </p>
-                {isConnected && (
-                  <div className="mt-6 text-xs text-muted-foreground space-y-1">
-                    <p>{t('signals.multiFactorAnalysis')}</p>
-                    <p>{t('signals.analyzingLast30Minutes')}</p>
-                    <p>{t('signals.minimumScoreThreshold')}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
       </main>
     </div>
   );

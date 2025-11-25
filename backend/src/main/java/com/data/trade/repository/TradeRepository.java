@@ -71,6 +71,26 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
     @Query("SELECT MAX(t.volume) FROM Trade t WHERE t.code = :code AND t.side = :side AND t.tradeDate = :tradeDate")
     Optional<Long> findMaxVolumeByCodeAndSideAndDate(@Param("code") String code, @Param("side") String side, @Param("tradeDate") String tradeDate);
 
+    /**
+     * Get the latest transaction date from all trades
+     * Returns the most recent trade_date in DD/MM/YYYY format
+     */
+    @Query(value = """
+        SELECT trade_date
+        FROM (
+            SELECT DISTINCT trade_date,
+                CAST(
+                    SUBSTRING(trade_date, 7, 4) || 
+                    SUBSTRING(trade_date, 4, 2) || 
+                    SUBSTRING(trade_date, 1, 2)
+                AS INTEGER) as date_int
+            FROM trades
+        ) AS distinct_dates
+        ORDER BY date_int DESC
+        LIMIT 1
+        """, nativeQuery = true)
+    Optional<String> findLatestTransactionDate();
+
     // Aggregate daily statistics grouped by tradeDate
     // Gets latest price of each day (based on latest trade_time)
     // PostgreSQL compatible query
@@ -227,4 +247,138 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
             AS INTEGER) DESC
         """, nativeQuery = true)
     List<Object[]> findLast10DaysStats(@Param("stockCode") String stockCode);
+
+    /**
+     * Get daily OHLC (Open, High, Low, Close) data for a stock
+     * Returns: code, trade_date, open_price, high_price, low_price, close_price
+     */
+    @Query(value = """
+        WITH daily_aggregates AS (
+            SELECT 
+                t.code,
+                t.trade_date,
+                MIN(CAST(t.price AS DECIMAL)) AS low_price,
+                MAX(CAST(t.price AS DECIMAL)) AS high_price
+            FROM trades t
+            WHERE UPPER(t.code) = UPPER(:code)
+              AND (:fromDateStr IS NULL OR 
+                   CAST(
+                     SUBSTRING(t.trade_date, 7, 4) || 
+                     SUBSTRING(t.trade_date, 4, 2) || 
+                     SUBSTRING(t.trade_date, 1, 2)
+                   AS INTEGER) >= CAST(:fromDateStr AS INTEGER))
+              AND (:toDateStr IS NULL OR 
+                   CAST(
+                     SUBSTRING(t.trade_date, 7, 4) || 
+                     SUBSTRING(t.trade_date, 4, 2) || 
+                     SUBSTRING(t.trade_date, 1, 2)
+                   AS INTEGER) <= CAST(:toDateStr AS INTEGER))
+            GROUP BY t.code, t.trade_date
+        ),
+        first_prices AS (
+            SELECT 
+                t.trade_date,
+                CAST(t.price AS DECIMAL) AS open_price,
+                ROW_NUMBER() OVER (PARTITION BY t.trade_date ORDER BY t.trade_time ASC) as rn
+            FROM trades t
+            WHERE UPPER(t.code) = UPPER(:code)
+              AND (:fromDateStr IS NULL OR 
+                   CAST(
+                     SUBSTRING(t.trade_date, 7, 4) || 
+                     SUBSTRING(t.trade_date, 4, 2) || 
+                     SUBSTRING(t.trade_date, 1, 2)
+                   AS INTEGER) >= CAST(:fromDateStr AS INTEGER))
+              AND (:toDateStr IS NULL OR 
+                   CAST(
+                     SUBSTRING(t.trade_date, 7, 4) || 
+                     SUBSTRING(t.trade_date, 4, 2) || 
+                     SUBSTRING(t.trade_date, 1, 2)
+                   AS INTEGER) <= CAST(:toDateStr AS INTEGER))
+        ),
+        first_prices_filtered AS (
+            SELECT trade_date, open_price
+            FROM first_prices
+            WHERE rn = 1
+        ),
+        last_prices AS (
+            SELECT 
+                t.trade_date,
+                CAST(t.price AS DECIMAL) AS close_price,
+                ROW_NUMBER() OVER (PARTITION BY t.trade_date ORDER BY t.trade_time DESC) as rn
+            FROM trades t
+            WHERE UPPER(t.code) = UPPER(:code)
+              AND (:fromDateStr IS NULL OR 
+                   CAST(
+                     SUBSTRING(t.trade_date, 7, 4) || 
+                     SUBSTRING(t.trade_date, 4, 2) || 
+                     SUBSTRING(t.trade_date, 1, 2)
+                   AS INTEGER) >= CAST(:fromDateStr AS INTEGER))
+              AND (:toDateStr IS NULL OR 
+                   CAST(
+                     SUBSTRING(t.trade_date, 7, 4) || 
+                     SUBSTRING(t.trade_date, 4, 2) || 
+                     SUBSTRING(t.trade_date, 1, 2)
+                   AS INTEGER) <= CAST(:toDateStr AS INTEGER))
+        ),
+        last_prices_filtered AS (
+            SELECT trade_date, close_price
+            FROM last_prices
+            WHERE rn = 1
+        )
+        SELECT 
+            da.code,
+            da.trade_date,
+            COALESCE(fp.open_price, 0) AS open_price,
+            da.high_price,
+            da.low_price,
+            COALESCE(lp.close_price, 0) AS close_price
+        FROM daily_aggregates da
+        LEFT JOIN first_prices_filtered fp ON da.trade_date = fp.trade_date
+        LEFT JOIN last_prices_filtered lp ON da.trade_date = lp.trade_date
+        ORDER BY 
+            CAST(
+                SUBSTRING(da.trade_date, 7, 4) || 
+                SUBSTRING(da.trade_date, 4, 2) || 
+                SUBSTRING(da.trade_date, 1, 2)
+            AS INTEGER) ASC
+        """, nativeQuery = true)
+    List<Object[]> findDailyOHLC(
+            @Param("code") String code,
+            @Param("fromDateStr") String fromDateStr,
+            @Param("toDateStr") String toDateStr
+    );
+
+    /**
+     * Get intraday price data for a stock on a specific date
+     * Groups trades into 10-minute intervals and calculates average, min, max prices and total volume
+     * Returns: time_interval (HH:mm), avg_price, min_price, max_price, total_volume
+     * Trading session: 09:15:00 - 15:00:00
+     * Groups by rounding down minutes to nearest 10 (e.g., 09:23 -> 09:20, 09:47 -> 09:40)
+     */
+    @Query(value = """
+        SELECT 
+            SUBSTRING(t.trade_time, 1, 2) || ':' || 
+            CASE 
+                WHEN (CAST(SUBSTRING(t.trade_time, 4, 2) AS INTEGER) / 10) * 10 < 10 THEN
+                    '0' || CAST((CAST(SUBSTRING(t.trade_time, 4, 2) AS INTEGER) / 10) * 10 AS TEXT)
+                ELSE
+                    CAST((CAST(SUBSTRING(t.trade_time, 4, 2) AS INTEGER) / 10) * 10 AS TEXT)
+            END AS time_interval,
+            AVG(CAST(t.price AS DECIMAL)) AS avg_price,
+            MIN(CAST(t.price AS DECIMAL)) AS min_price,
+            MAX(CAST(t.price AS DECIMAL)) AS max_price,
+            SUM(t.volume) AS total_volume
+        FROM trades t
+        WHERE UPPER(t.code) = UPPER(:code)
+          AND t.trade_date = :tradeDate
+          AND t.trade_time >= '09:15:00'
+          AND t.trade_time <= '15:00:00'
+        GROUP BY SUBSTRING(t.trade_time, 1, 2), 
+                 (CAST(SUBSTRING(t.trade_time, 4, 2) AS INTEGER) / 10) * 10
+        ORDER BY 1
+        """, nativeQuery = true)
+    List<Object[]> findIntradayPriceData(
+            @Param("code") String code,
+            @Param("tradeDate") String tradeDate
+    );
 }

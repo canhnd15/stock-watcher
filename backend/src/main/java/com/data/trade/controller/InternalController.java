@@ -1,6 +1,8 @@
 package com.data.trade.controller;
 
+import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.service.SignalCalculationService;
+import com.data.trade.service.TrackedStockNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -14,19 +16,19 @@ import java.util.Map;
  * These endpoints are public (no authentication) to allow internal service calls
  */
 @RestController
-@RequestMapping("/api/internal")
+@RequestMapping(ApiEndpoints.API_INTERNAL)
 @RequiredArgsConstructor
 @Slf4j
 public class InternalController {
 
     private final SignalCalculationService signalCalculationService;
-    private final com.data.trade.service.TrackedStockNotificationService trackedStockNotificationService;
+    private final TrackedStockNotificationService trackedStockNotificationService;
 
     /**
      * Internal endpoint for cron-jobs service to trigger signal calculation
      * Signals will be broadcasted via backend's WebSocket to all connected clients
      */
-    @PostMapping("/signals/refresh")
+    @PostMapping(ApiEndpoints.INTERNAL_SIGNALS_REFRESH_PATH)
     public ResponseEntity<Map<String, String>> refreshSignals() {
         log.info("Signal refresh triggered by cron-jobs service via internal API");
         
@@ -54,7 +56,7 @@ public class InternalController {
      * Internal endpoint for cron-jobs service to trigger tracked stock notifications check
      * Only sends notifications for tracked stocks with BIG signals (score >= 6)
      */
-    @PostMapping("/signals/check-tracked")
+    @PostMapping(ApiEndpoints.INTERNAL_SIGNALS_CHECK_TRACKED_PATH)
     public ResponseEntity<Map<String, String>> checkTrackedStocks() {
         log.info("Tracked stock notifications check triggered by cron-jobs service via internal API");
         

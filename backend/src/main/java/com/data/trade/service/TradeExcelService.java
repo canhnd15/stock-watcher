@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 @Service
@@ -125,7 +126,7 @@ public class TradeExcelService {
                         }
                         // Last resort: convert using Java Date but ensure we're at midnight in Vietnam timezone
                         // Get Excel date as Java Date (this may have timezone issues)
-                        java.util.Date excelDate = c.getDateCellValue();
+                        Date excelDate = c.getDateCellValue();
                         // Convert to LocalDate using Vietnam timezone to prevent day shifts
                         LocalDate date = excelDate.toInstant()
                                 .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
@@ -133,7 +134,7 @@ public class TradeExcelService {
                         yield date.format(fmt);
                     } catch (Exception e) {
                         // Final fallback: use Vietnam timezone
-                        java.util.Date excelDate = c.getDateCellValue();
+                        Date excelDate = c.getDateCellValue();
                         LocalDate date = excelDate.toInstant()
                                 .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
                                 .toLocalDate();

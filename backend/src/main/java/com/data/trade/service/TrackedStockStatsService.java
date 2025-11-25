@@ -146,5 +146,24 @@ public class TrackedStockStatsService {
 
         return statsMap;
     }
+
+    /**
+     * Get statistics for a list of stock codes
+     */
+    public Map<String, TrackedStockStatsDTO> getStatsForCodes(List<String> codes) {
+        String tradeDate = getCurrentTradeDate();
+        Map<String, TrackedStockStatsDTO> statsMap = new HashMap<>();
+
+        for (String code : codes) {
+            try {
+                TrackedStockStatsDTO stats = calculateStatsForCode(code, tradeDate);
+                statsMap.put(code, stats);
+            } catch (Exception e) {
+                log.error("Failed to calculate stats for {}: {}", code, e.getMessage());
+            }
+        }
+
+        return statsMap;
+    }
 }
 

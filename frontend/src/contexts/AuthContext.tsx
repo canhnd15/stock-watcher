@@ -6,6 +6,7 @@ interface User {
   email: string;
   role: 'NORMAL' | 'VIP' | 'ADMIN';
   enabled: boolean;
+  emailVerified?: boolean;
 }
 
 interface AuthContextType {

@@ -1,9 +1,14 @@
 package com.data.trade.service;
 
+import com.data.trade.dto.DailyOHLCDTO;
 import com.data.trade.dto.DailyTradeStatsDTO;
+import com.data.trade.dto.IntradayPriceDTO;
 import com.data.trade.dto.TradePageResponse;
 import com.data.trade.model.Trade;
 import com.data.trade.repository.TradeRepository;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -17,8 +22,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,18 +42,18 @@ public class TradeService {
      * Converts DD/MM/YYYY format date string to YYYYMMDD format for lexicographic comparison.
      * This is a helper method to build a sortable date expression from the tradeDate field.
      */
-    private jakarta.persistence.criteria.Expression<String> buildSortableDateExpression(
-            jakarta.persistence.criteria.Root<Trade> root,
-            jakarta.persistence.criteria.CriteriaBuilder cb) {
+    private Expression<String> buildSortableDateExpression(
+            Root<Trade> root,
+            CriteriaBuilder cb) {
         // Extract parts: "DD/MM/YYYY" -> YYYYMMDD
         // Position 1-2: Day, Position 4-5: Month, Position 7-10: Year
-        jakarta.persistence.criteria.Expression<String> year = cb.function(
+        Expression<String> year = cb.function(
             "SUBSTRING", String.class, root.get("tradeDate"), cb.literal(7), cb.literal(4)
         );
-        jakarta.persistence.criteria.Expression<String> month = cb.function(
+        Expression<String> month = cb.function(
             "SUBSTRING", String.class, root.get("tradeDate"), cb.literal(4), cb.literal(2)
         );
-        jakarta.persistence.criteria.Expression<String> day = cb.function(
+        Expression<String> day = cb.function(
             "SUBSTRING", String.class, root.get("tradeDate"), cb.literal(1), cb.literal(2)
         );
         return cb.concat(year, cb.concat(month, day));
@@ -75,6 +79,11 @@ public class TradeService {
                 .filter(t -> "sell".equalsIgnoreCase(t.getSide()))
                 .mapToLong(Trade::getVolume)
                 .sum();
+        
+        long unknownVolume = allMatchingTrades.stream()
+                .filter(t -> !"buy".equalsIgnoreCase(t.getSide()) && !"sell".equalsIgnoreCase(t.getSide()))
+                .mapToLong(Trade::getVolume)
+                .sum();
 
         long buyCount = allMatchingTrades.stream()
                 .filter(t -> "buy".equalsIgnoreCase(t.getSide()))
@@ -84,14 +93,20 @@ public class TradeService {
                 .filter(t -> "sell".equalsIgnoreCase(t.getSide()))
                 .count();
         
+        long unknownCount = allMatchingTrades.stream()
+                .filter(t -> !"buy".equalsIgnoreCase(t.getSide()) && !"sell".equalsIgnoreCase(t.getSide()))
+                .count();
+        
         return TradePageResponse.builder()
                 .trades(tradesPage)
                 .totalVolume(totalVolume)
                 .buyVolume(buyVolume)
                 .sellVolume(sellVolume)
+                .unknownVolume(unknownVolume)
                 .totalRecords(allMatchingTrades.size())
                 .buyCount(buyCount)
                 .sellCount(sellCount)
+                .unknownCount(unknownCount)
                 .build();
     }
 
@@ -128,7 +143,8 @@ public class TradeService {
             specs.add((root, q, cb) -> cb.equal(cb.upper(root.get("code")), code.toUpperCase()));
         }
         if (type != null && !type.isBlank()) {
-            specs.add((root, q, cb) -> cb.equal(root.get("side"), type));
+            // Use case-insensitive comparison for side filter
+            specs.add((root, q, cb) -> cb.equal(cb.lower(root.get("side")), type.toLowerCase()));
         }
         if (minVolume != null) {
             specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), minVolume));
@@ -194,7 +210,8 @@ public class TradeService {
             specs.add((root, q, cb) -> cb.equal(cb.upper(root.get("code")), code.toUpperCase()));
         }
         if (type != null && !type.isBlank()) {
-            specs.add((root, q, cb) -> cb.equal(root.get("side"), type));
+            // Use case-insensitive comparison for side filter
+            specs.add((root, q, cb) -> cb.equal(cb.lower(root.get("side")), type.toLowerCase()));
         }
         if (minVolume != null) {
             specs.add((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("volume"), minVolume));
@@ -304,6 +321,174 @@ public class TradeService {
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    public List<DailyOHLCDTO> getDailyOHLC(String code, LocalDate fromDate, LocalDate toDate) {
+        // Convert LocalDate to YYYYMMDD string format for comparison
+        String fromDateStr = (fromDate != null) ? fromDate.format(YYYYMMDD_FORMATTER) : null;
+        String toDateStr = (toDate != null) ? toDate.format(YYYYMMDD_FORMATTER) : null;
+        
+        // Normalize code
+        String normalizedCode = (code != null && !code.isBlank()) ? code.trim().toUpperCase() : null;
+        
+        if (normalizedCode == null) {
+            return new ArrayList<>();
+        }
+        
+        // Get OHLC data from repository
+        List<Object[]> results = tradeRepository.findDailyOHLC(normalizedCode, fromDateStr, toDateStr);
+        
+        // Transform to DTOs
+        // Query returns: code, trade_date, open_price, high_price, low_price, close_price
+        return results.stream()
+                .map(row -> {
+                    String stockCode = (String) row[0]; // code
+                    String date = (String) row[1]; // trade_date (DD/MM/YYYY)
+                    BigDecimal openPrice = row[2] != null ? 
+                        ((BigDecimal) row[2]).setScale(2, RoundingMode.HALF_UP) : null;
+                    BigDecimal highPrice = row[3] != null ? 
+                        ((BigDecimal) row[3]).setScale(2, RoundingMode.HALF_UP) : null;
+                    BigDecimal lowPrice = row[4] != null ? 
+                        ((BigDecimal) row[4]).setScale(2, RoundingMode.HALF_UP) : null;
+                    BigDecimal closePrice = row[5] != null ? 
+                        ((BigDecimal) row[5]).setScale(2, RoundingMode.HALF_UP) : null;
+                    
+                    return DailyOHLCDTO.builder()
+                            .code(stockCode)
+                            .date(date)
+                            .openPrice(openPrice)
+                            .highPrice(highPrice)
+                            .lowPrice(lowPrice)
+                            .closePrice(closePrice)
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
+    public List<IntradayPriceDTO> getIntradayPriceData(String code, LocalDate tradeDate) {
+        // Normalize code
+        String normalizedCode = (code != null && !code.isBlank()) ? code.trim().toUpperCase() : null;
+        
+        if (normalizedCode == null) {
+            return new ArrayList<>();
+        }
+        
+        // Use today's date if not provided
+        LocalDate targetDate = (tradeDate != null) ? tradeDate : LocalDate.now();
+        String tradeDateStr = targetDate.format(DD_MM_YYYY_FORMATTER);
+        
+        // Get intraday price data from repository
+        List<Object[]> results = tradeRepository.findIntradayPriceData(normalizedCode, tradeDateStr);
+        
+        // Transform to DTOs
+        // Query returns: time_interval (HH:mm), avg_price, min_price, max_price, total_volume
+        return results.stream()
+                .map(row -> {
+                    String timeInterval = (String) row[0]; // time_interval (HH:mm)
+                    BigDecimal avgPrice = row[1] != null ? 
+                        ((BigDecimal) row[1]).setScale(2, RoundingMode.HALF_UP) : null;
+                    BigDecimal minPrice = row[2] != null ? 
+                        ((BigDecimal) row[2]).setScale(2, RoundingMode.HALF_UP) : null;
+                    BigDecimal maxPrice = row[3] != null ? 
+                        ((BigDecimal) row[3]).setScale(2, RoundingMode.HALF_UP) : null;
+                    Long totalVolume = row[4] != null ? ((Number) row[4]).longValue() : 0L;
+                    
+                    return IntradayPriceDTO.builder()
+                            .time(timeInterval)
+                            .averagePrice(avgPrice)
+                            .highestPrice(maxPrice)
+                            .lowestPrice(minPrice)
+                            .totalVolume(totalVolume)
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get intraday price data for multiple stock codes in batch
+     * @param codes List of stock codes
+     * @param tradeDate Optional trade date (if null, uses current date)
+     * @return Map of stock code to list of intraday price data
+     */
+    public Map<String, List<IntradayPriceDTO>> getIntradayPriceDataBatch(
+            List<String> codes, 
+            LocalDate tradeDate) {
+        if (codes == null || codes.isEmpty()) {
+            return new HashMap<>();
+        }
+        
+        // Use today's date if not provided
+        LocalDate targetDate = (tradeDate != null) ? tradeDate : LocalDate.now();
+        String tradeDateStr = targetDate.format(DD_MM_YYYY_FORMATTER);
+        
+        // Normalize codes and filter out null/blank codes
+        List<String> normalizedCodes = codes.stream()
+                .filter(code -> code != null && !code.isBlank())
+                .map(code -> code.trim().toUpperCase())
+                .distinct()
+                .collect(Collectors.toList());
+        
+        if (normalizedCodes.isEmpty()) {
+            return new HashMap<>();
+        }
+        
+        // Get intraday price data for all codes
+        Map<String, List<IntradayPriceDTO>> resultMap = new HashMap<>();
+        
+        for (String code : normalizedCodes) {
+            try {
+                List<Object[]> results = tradeRepository.findIntradayPriceData(code, tradeDateStr);
+                
+                // Transform to DTOs
+                List<IntradayPriceDTO> priceData = results.stream()
+                        .map(row -> {
+                            String timeInterval = (String) row[0]; // time_interval (HH:mm)
+                            BigDecimal avgPrice = row[1] != null ? 
+                                ((BigDecimal) row[1]).setScale(2, RoundingMode.HALF_UP) : null;
+                            BigDecimal minPrice = row[2] != null ? 
+                                ((BigDecimal) row[2]).setScale(2, RoundingMode.HALF_UP) : null;
+                            BigDecimal maxPrice = row[3] != null ? 
+                                ((BigDecimal) row[3]).setScale(2, RoundingMode.HALF_UP) : null;
+                            Long totalVolume = row[4] != null ? ((Number) row[4]).longValue() : 0L;
+                            
+                            return IntradayPriceDTO.builder()
+                                    .time(timeInterval)
+                                    .averagePrice(avgPrice)
+                                    .highestPrice(maxPrice)
+                                    .lowestPrice(minPrice)
+                                    .totalVolume(totalVolume)
+                                    .build();
+                        })
+                        .collect(Collectors.toList());
+                
+                resultMap.put(code, priceData);
+            } catch (Exception e) {
+                // Log error but continue with other codes
+                // Return empty list for this code
+                resultMap.put(code, new ArrayList<>());
+            }
+        }
+        
+        return resultMap;
+    }
+
+    /**
+     * Get the latest transaction date from all trades
+     * @return Optional LocalDate representing the latest transaction date, or empty if no trades exist
+     */
+    public Optional<LocalDate> getLatestTransactionDate() {
+        Optional<String> latestDateStr = tradeRepository.findLatestTransactionDate();
+        if (latestDateStr.isEmpty()) {
+            return Optional.empty();
+        }
+        
+        try {
+            LocalDate latestDate = LocalDate.parse(latestDateStr.get(), DD_MM_YYYY_FORMATTER);
+            return Optional.of(latestDate);
+        } catch (Exception e) {
+            // Log error but return empty
+            return Optional.empty();
+        }
     }
 }
 

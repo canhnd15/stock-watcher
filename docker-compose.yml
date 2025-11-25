@@ -1,21 +1,100 @@
-version: '3.9'
 services:
   postgres:
     image: postgres:16-alpine
     container_name: trade_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgre
-      POSTGRES_PASSWORD: admin
+      POSTGRES_USER: ${DB_USERNAME:-postgre}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin}
       POSTGRES_DB: trade
     ports:
-      - "5433:5432"
+      - "${DB_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgre -d trade"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgre} -d trade"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - trade-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: trade_backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8899}:8899"
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/trade
+      - DB_USERNAME=${DB_USERNAME:-postgre}
+      - DB_PASSWORD=${DB_PASSWORD:-admin}
+      - JWT_SECRET=${JWT_SECRET:-mySecretKeyForJWTTokenGenerationMustBeLongEnoughForHS512AlgorithmWithMinimum256Bits}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-docker}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8899/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - trade-network
+
+  cron-jobs:
+    build:
+      context: ./cron-jobs
+      dockerfile: Dockerfile
+    container_name: trade_cron_jobs
+    restart: unless-stopped
+    ports:
+      - "${CRON_JOBS_PORT:-8898}:8898"
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/trade
+      - DB_USERNAME=${DB_USERNAME:-postgre}
+      - DB_PASSWORD=${DB_PASSWORD:-admin}
+      - APP_BACKEND_BASE_URL=http://backend:8899
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8898/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - trade-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: trade_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8089}:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - trade-network
+
 volumes:
   pgdata:
+    driver: local
+
+networks:
+  trade-network:
+    driver: bridge
