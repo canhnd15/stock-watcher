@@ -1,10 +1,10 @@
-# Trade Tracker Frontend
+# Stock Watcher Frontend
 
 React-based frontend application for Stock Watcher - a professional stock trading data tracker with real-time signal notifications.
 
 ## 📋 Overview
 
-Trade Tracker Frontend is a modern, responsive web application built with React, TypeScript, and Vite. It provides a comprehensive interface for monitoring stock trades, managing tracked stocks, receiving real-time trading signals, and analyzing market data.
+Stock Watcher Frontend is a modern, responsive web application built with React, TypeScript, and Vite. It provides a comprehensive interface for monitoring stock trades, managing tracked stocks, receiving real-time trading signals, and analyzing market data.
 
 ## 🚀 Quick Start
 

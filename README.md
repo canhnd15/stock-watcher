@@ -61,7 +61,7 @@ docker compose up -d
 # - PostgreSQL: localhost:5433
 ```
 
-See [DOCKER_README.md](DOCKER_README.md) for quick reference or [deploy/docs/DOCKER_DEPLOYMENT.md](deploy/docs/DOCKER_DEPLOYMENT.md) for detailed Ubuntu deployment guide.
+See [DOCKER_README.md](deploy/docs/DOCKER_README.md) for quick reference or [deploy/docs/DOCKER_DEPLOYMENT.md](deploy/docs/DOCKER_DEPLOYMENT.md) for detailed Ubuntu deployment guide.
 
 ### Option 2: Manual Development Setup
 
@@ -249,7 +249,7 @@ cd cron-jobs && mvn test
 ## 📚 Documentation
 
 ### Deployment
-- [Docker Quick Start](DOCKER_README.md) - Quick Docker Compose reference
+- [Docker Quick Start](deploy/docs/DOCKER_README.md) - Quick Docker Compose reference
 - [Docker Deployment Guide](deploy/docs/DOCKER_DEPLOYMENT.md) - Complete Ubuntu server deployment guide
 - [Remote Deployment](deploy/docs/REMOTE_DEPLOYMENT.md) - Traditional deployment without Docker
 

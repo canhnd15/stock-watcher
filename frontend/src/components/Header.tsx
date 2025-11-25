@@ -36,7 +36,7 @@ const Header = () => {
         <div className="flex h-16 items-center justify-between">
           <Link to="/" className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
             <TrendingUp className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold text-foreground">Trade Tracker</h1>
+            <h1 className="text-xl font-bold text-foreground">Stock Watcher</h1>
           </Link>
           
           <nav className="flex gap-1">

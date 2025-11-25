@@ -65,7 +65,7 @@ const translations = {
     'auth.enterUsername': 'Nhập tên đăng nhập',
     'auth.enterPassword': 'Nhập mật khẩu',
     'auth.loggingIn': 'Đang đăng nhập...',
-    'auth.joinTradeTracker': 'Tham gia Trade Tracker để bắt đầu theo dõi cổ phiếu',
+    'auth.joinTradeTracker': 'Tham gia Stock Watcher để bắt đầu theo dõi cổ phiếu',
     'auth.chooseUsername': 'Chọn tên đăng nhập',
     'auth.passwordMinLength': 'Tạo mật khẩu (tối thiểu 6 ký tự)',
     'auth.confirmPasswordPlaceholder': 'Xác nhận mật khẩu',
@@ -74,7 +74,7 @@ const translations = {
     'auth.creatingAccount': 'Đang tạo tài khoản...',
     'auth.registerHere': 'Đăng ký tại đây',
     'auth.loginHere': 'Đăng nhập tại đây',
-    'auth.welcomeMessage': 'Đăng ký thành công! Chào mừng đến với Trade Tracker.',
+    'auth.welcomeMessage': 'Đăng ký thành công! Chào mừng đến với Stock Watcher.',
     
     // Trades
     'trades.title': 'Giao dịch',
@@ -264,7 +264,7 @@ const translations = {
     'auth.enterUsername': 'Enter your username',
     'auth.enterPassword': 'Enter your password',
     'auth.loggingIn': 'Logging in...',
-    'auth.joinTradeTracker': 'Join Trade Tracker to start monitoring stocks',
+    'auth.joinTradeTracker': 'Join Stock Watcher to start monitoring stocks',
     'auth.chooseUsername': 'Choose a username',
     'auth.passwordMinLength': 'Create a password (min 6 characters)',
     'auth.confirmPasswordPlaceholder': 'Confirm your password',
@@ -273,7 +273,7 @@ const translations = {
     'auth.creatingAccount': 'Creating account...',
     'auth.registerHere': 'Register here',
     'auth.loginHere': 'Login here',
-    'auth.welcomeMessage': 'Registration successful! Welcome to Trade Tracker.',
+    'auth.welcomeMessage': 'Registration successful! Welcome to Stock Watcher.',
     
     // Trades
     'trades.title': 'Trades',
