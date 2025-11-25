@@ -43,7 +43,7 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints
-                .requestMatchers(ApiEndpoints.API_AUTH_PATTERN, ApiEndpoints.WS_PATTERN, ApiEndpoints.ACTUATOR_HEALTH).permitAll()
+                .requestMatchers(ApiEndpoints.API_AUTH_PATTERN, ApiEndpoints.WS_PATTERN, ApiEndpoints.ACTUATOR_HEALTH, "/actuator/**").permitAll()
                 
                 // Internal service endpoints (for cron-jobs service)
                 .requestMatchers(ApiEndpoints.API_INTERNAL_PATTERN).permitAll()
