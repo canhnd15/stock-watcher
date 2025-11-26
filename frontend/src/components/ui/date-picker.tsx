@@ -96,47 +96,27 @@ export function DatePicker({
     return "";
   }, [date]);
 
-  // Get yesterday's date as the default maximum (disable today and future dates)
-  const getYesterdayDate = React.useCallback((): Date => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(0, 0, 0, 0);
-    return yesterday;
-  }, []);
-
   // Create disabled function to prevent selecting dates outside the valid range
+  // Only disable dates after maxDate (toDate) - all dates before are enabled
   const isDateDisabled = React.useCallback((dateToCheck: Date): boolean => {
     const checkDateOnly = new Date(dateToCheck);
     checkDateOnly.setHours(0, 0, 0, 0);
     
-    // Always disable today and future dates (default behavior)
-    const yesterday = getYesterdayDate();
-    if (checkDateOnly > yesterday) {
-      return true;
-    }
-    
-    // Disable dates before minDate (if provided)
-    if (minDateObj) {
-      const minDateOnly = new Date(minDateObj);
-      minDateOnly.setHours(0, 0, 0, 0);
-      if (checkDateOnly < minDateOnly) {
-        return true;
-      }
-    }
-    
-    // Disable dates after maxDate (if provided, and it's more restrictive than yesterday)
+    // Only disable dates after maxDate (if provided)
+    // This ensures that for "From Date" picker, dates after "To Date" are disabled
     if (maxDateObj) {
       const maxDateOnly = new Date(maxDateObj);
       maxDateOnly.setHours(0, 0, 0, 0);
-      // Use the more restrictive date (earlier of maxDateObj or yesterday)
-      const effectiveMaxDate = maxDateOnly < yesterday ? maxDateOnly : yesterday;
-      if (checkDateOnly > effectiveMaxDate) {
+      if (checkDateOnly > maxDateOnly) {
         return true;
       }
     }
     
+    // Note: We don't disable dates before minDate or today/future dates
+    // All dates before maxDate are enabled and clickable
+    
     return false;
-  }, [minDateObj, maxDateObj, getYesterdayDate]);
+  }, [maxDateObj]);
 
   const handleSelect = (selectedDate: Date | undefined) => {
     if (selectedDate) {

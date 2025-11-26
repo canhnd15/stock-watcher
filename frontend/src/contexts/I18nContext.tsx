@@ -434,7 +434,7 @@ interface I18nProviderProps {
 export const I18nProvider: React.FC<I18nProviderProps> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
     const saved = localStorage.getItem('language') as Language;
-    return saved || 'vi'; // Default to Vietnamese
+    return saved || 'en'; // Default to English
   });
 
   useEffect(() => {
