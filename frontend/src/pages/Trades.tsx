@@ -186,6 +186,29 @@ const Trades = () => {
     }
   };
 
+  // Get default dates based on weekday/weekend logic
+  // Case 1: If current day is weekday -> from/to = current day
+  // Case 2: If current day is weekend -> from/to = last transaction date (last Friday)
+  const getDefaultDates = async (): Promise<{ fromDate: string; toDate: string }> => {
+    const today = getTodayDate();
+    
+    // Check if today is a weekday (Monday-Friday)
+    if (isValidTradingDay(today)) {
+      // Case 1: Weekday -> use current day
+      return { fromDate: today, toDate: today };
+    } else {
+      // Case 2: Weekend -> use last transaction date (last Friday)
+      const latestDate = await fetchLatestTransactionDate();
+      if (latestDate && isValidDateFormat(latestDate)) {
+        return { fromDate: latestDate, toDate: latestDate };
+      } else {
+        // Fallback: if we can't get latest date, use today anyway
+        console.warn('Could not fetch latest transaction date, using today');
+        return { fromDate: today, toDate: today };
+      }
+    }
+  };
+
   // Helper function to calculate N trading days back (excluding weekends)
   const getNTradingDaysBack = (n: number): string => {
     const today = new Date();
@@ -251,16 +274,12 @@ const Trades = () => {
   };
 
   // Load saved filters or use defaults
+  // Note: We don't use cached fromDate/toDate - they will be reset based on weekday/weekend logic
   const savedFilters = loadFiltersFromStorage();
   
-  // Validate and initialize default dates - will be updated by useEffect if today is not valid
-  const todayDate = getTodayDate();
-  const defaultFromDate = (savedFilters.fromDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.fromDate)) 
-    ? savedFilters.fromDate 
-    : todayDate;
-  const defaultToDate = todayDate;
   // Default chart date range: one month ago to today (unless user has saved a preference)
   // If user has saved chart dates, use them; otherwise default to one month range
+  const todayDate = getTodayDate();
   const defaultChartFromDate = (savedFilters.chartFromDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.chartFromDate))
     ? savedFilters.chartFromDate
     : getOneMonthAgo();
@@ -275,8 +294,9 @@ const Trades = () => {
   const [maxVolume, setMaxVolume] = useState(savedFilters.maxVolume || "");
   const [minPrice, setMinPrice] = useState(savedFilters.minPrice || "");
   const [maxPrice, setMaxPrice] = useState(savedFilters.maxPrice || "");
-  const [fromDate, setFromDate] = useState(defaultFromDate); // yyyy-MM-dd
-  const [toDate, setToDate] = useState(defaultToDate);     // yyyy-MM-dd
+  // Initialize dates with today - will be updated by useEffect based on weekday/weekend logic
+  const [fromDate, setFromDate] = useState(todayDate); // yyyy-MM-dd
+  const [toDate, setToDate] = useState(todayDate);     // yyyy-MM-dd
   const [defaultDateInitialized, setDefaultDateInitialized] = useState(false);
   const [page, setPage] = useState(savedFilters.page ?? 0);
   const [size, setSize] = useState(savedFilters.size || 10);
@@ -313,44 +333,15 @@ const Trades = () => {
   // Ref to track if initial data has been loaded
   const hasInitialLoad = useRef(false);
 
-  // Initialize default dates: use latest transaction date if today is not valid
+  // Initialize default dates based on weekday/weekend logic
+  // Case 1: Weekday -> from/to = current day
+  // Case 2: Weekend -> from/to = last transaction date
+  // Note: We always reset dates on page reload (ignore cached dates)
   useEffect(() => {
     const initializeDefaultDates = async () => {
-      // Ensure dates are valid before proceeding
-      const today = getTodayDate();
-      if (!isValidDateFormat(today)) {
-        console.error('Invalid today date format:', today);
-        setDefaultDateInitialized(true);
-        return;
-      }
-
-      // Check if today is a valid transaction date
-      if (isTodayValidTransactionDate()) {
-        // Today is valid, ensure toDate is set to today
-        if (isValidDateFormat(today)) {
-          setToDate(today);
-        }
-        setDefaultDateInitialized(true);
-        return;
-      }
-
-      // Today is not valid (weekend or outside market hours)
-      // Fetch the latest transaction date from backend
-      const latestDate = await fetchLatestTransactionDate();
-      if (latestDate && isValidDateFormat(latestDate)) {
-        // Only update fromDate if user hasn't saved it in localStorage
-        if (!savedFilters.fromDate) {
-          setFromDate(latestDate);
-        }
-        // Always update toDate to latest transaction date if today is not valid
-        setToDate(latestDate);
-      } else {
-        // If we can't get latest date, fall back to today
-        console.warn('Could not fetch latest transaction date, using today');
-        if (isValidDateFormat(today)) {
-          setToDate(today);
-        }
-      }
+      const defaultDates = await getDefaultDates();
+      setFromDate(defaultDates.fromDate);
+      setToDate(defaultDates.toDate);
       setDefaultDateInitialized(true);
     };
 
@@ -550,8 +541,8 @@ const Trades = () => {
 
 
   // Save filters to localStorage whenever they change (but not on initial mount)
-  // Note: toDate is not saved - it always defaults to today
-  // chartToDate IS saved so user's selected range is remembered
+  // Note: fromDate and toDate are saved so user's manual selections are remembered
+  // But they will be reset on page reload based on weekday/weekend logic
   useEffect(() => {
     if (!hasInitialLoad.current) return; // Skip saving on initial mount
     
@@ -562,8 +553,8 @@ const Trades = () => {
       maxVolume,
       minPrice,
       maxPrice,
-      fromDate,
-      // toDate is not saved - always uses today's date
+      fromDate, // Save fromDate so user's manual selection is remembered during session
+      // Note: toDate is also saved, but will be reset on page reload
       page,
       size,
       sortField,
@@ -571,15 +562,14 @@ const Trades = () => {
       chartFromDate,
       chartToDate, // Save chartToDate so user's selection is remembered
     });
-  }, [code, type, minVolume, maxVolume, minPrice, maxPrice, fromDate, page, size, sortField, sortDirection, chartFromDate, chartToDate]);
+  }, [code, type, minVolume, maxVolume, minPrice, maxPrice, fromDate, toDate, page, size, sortField, sortDirection, chartFromDate, chartToDate]);
 
   // Note: toDate is initialized by initializeDefaultDates useEffect above
   // It will be set to today if today is valid, or latest transaction date if not
 
   // Clear all filters and reset to defaults
-  const clearFilters = () => {
-    const today = getTodayDate();
-    
+  // Dates will be reset based on weekday/weekend logic (Case 1 or Case 2)
+  const clearFilters = async () => {
     // Reset all filter states to defaults
     setCode("");
     setType("All");
@@ -587,9 +577,14 @@ const Trades = () => {
     setMaxVolume("");
     setMinPrice("");
     setMaxPrice("");
-    setFromDate(today);
-    setToDate(today);
+    
+    // Reset dates based on weekday/weekend logic
+    const defaultDates = await getDefaultDates();
+    setFromDate(defaultDates.fromDate);
+    setToDate(defaultDates.toDate);
+    
     // Reset chart dates to default one month range
+    const today = getTodayDate();
     setChartFromDate(getOneMonthAgo());
     setChartToDate(today);
     setPage(0);
@@ -785,18 +780,22 @@ const Trades = () => {
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.fromDate')}</label>
               <DatePicker
-                value={fromDate && isValidDateFormat(fromDate) ? fromDate : getTodayDate()}
+                key={`from-date-${fromDate}`}
+                value={fromDate || getTodayDate()}
                 onChange={setFromDate}
                 placeholder="Select from date"
+                maxDate={toDate || undefined}
               />
             </div>
             
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.toDate')}</label>
               <DatePicker
-                value={toDate && isValidDateFormat(toDate) ? toDate : getTodayDate()}
+                key={`to-date-${toDate}`}
+                value={toDate || getTodayDate()}
                 onChange={setToDate}
                 placeholder="Select to date"
+                minDate={fromDate || undefined}
               />
             </div>
             
@@ -913,7 +912,13 @@ const Trades = () => {
               Clear Filter
             </Button>
             <Button
-              onClick={() => fetchTrades(page, size, sortField, sortDirection)}
+              onClick={async () => {
+                // Reset dates based on weekday/weekend logic when reloading
+                const defaultDates = await getDefaultDates();
+                setFromDate(defaultDates.fromDate);
+                setToDate(defaultDates.toDate);
+                // Fetch trades will be triggered by useEffect when dates change
+              }}
               variant="outline"
               size="sm"
               className="h-8 border-green-300 text-green-600 hover:bg-green-50 hover:text-green-700"
@@ -1090,6 +1095,7 @@ const Trades = () => {
                       value={chartFromDate && isValidDateFormat(chartFromDate) ? chartFromDate : getOneMonthAgo()}
                       onChange={setChartFromDate}
                       placeholder="Select from date"
+                      maxDate={chartToDate && isValidDateFormat(chartToDate) ? chartToDate : undefined}
                     />
                   </div>
                   <div>
@@ -1098,6 +1104,7 @@ const Trades = () => {
                       value={chartToDate && isValidDateFormat(chartToDate) ? chartToDate : getTodayDate()}
                       onChange={setChartToDate}
                       placeholder="Select to date"
+                      minDate={chartFromDate && isValidDateFormat(chartFromDate) ? chartFromDate : undefined}
                     />
                   </div>
                 </div>
