@@ -37,9 +37,18 @@ import {
   CardTitle,
 } from "@/components/ui/card.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, HelpCircle, RotateCcw } from "lucide-react";
+import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, HelpCircle, RotateCcw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
@@ -332,6 +341,15 @@ const Trades = () => {
   
   // Ref to track if initial data has been loaded
   const hasInitialLoad = useRef(false);
+  
+  // Alert dialog state for date range validation error
+  const [showDateRangeAlert, setShowDateRangeAlert] = useState(false);
+  const [dateRangeError, setDateRangeError] = useState<{
+    message: string;
+    fromDate?: string;
+    toDate?: string;
+    minimumAllowedFromDate?: string;
+  } | null>(null);
 
   // Initialize default dates based on weekday/weekend logic
   // Case 1: Weekday -> from/to = current day
@@ -453,8 +471,29 @@ const Trades = () => {
 
     setLoading(true);
     api.get(`/api/trades?${params.toString()}`)
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to load trades");
+      .then(async (r) => {
+        if (!r.ok) {
+          // Check if it's a date range validation error
+          if (r.status === 400) {
+            try {
+              const errorData = await r.json();
+              if (errorData.error === "Date range exceeds one month limit") {
+                // Show alert dialog instead of toast
+                setDateRangeError({
+                  message: errorData.message || "The date range you selected exceeds one month. Please upgrade to VIP account to query larger date ranges.",
+                  fromDate: errorData.fromDate,
+                  toDate: errorData.toDate,
+                  minimumAllowedFromDate: errorData.minimumAllowedFromDate,
+                });
+                setShowDateRangeAlert(true);
+                throw new Error(errorData.message || "Date range exceeds one month limit");
+              }
+            } catch (e) {
+              // If JSON parsing fails, fall through to generic error
+            }
+          }
+          throw new Error("Failed to load trades");
+        }
         return r.json();
       })
       .then((response) => {
@@ -1130,6 +1169,40 @@ const Trades = () => {
         )}
 
       </main>
+      
+      {/* Date Range Validation Alert Dialog */}
+      <AlertDialog open={showDateRangeAlert} onOpenChange={setShowDateRangeAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-500" />
+              Date Range Limit Exceeded
+            </AlertDialogTitle>
+            <AlertDialogDescription className="pt-4">
+              {dateRangeError?.message || "The date range you selected exceeds one month. Please upgrade to VIP account to query larger date ranges."}
+              {dateRangeError?.minimumAllowedFromDate && (
+                <div className="mt-4 p-3 bg-muted rounded-md">
+                  <p className="text-sm font-medium mb-1">Date Range Details:</p>
+                  <p className="text-xs text-muted-foreground">
+                    Selected From Date: <span className="font-mono">{dateRangeError.fromDate}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Selected To Date: <span className="font-mono">{dateRangeError.toDate}</span>
+                  </p>
+                  <p className="text-xs font-medium mt-2 text-orange-600">
+                    Minimum Allowed From Date: <span className="font-mono">{dateRangeError.minimumAllowedFromDate}</span>
+                  </p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowDateRangeAlert(false)}>
+              I Understand
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

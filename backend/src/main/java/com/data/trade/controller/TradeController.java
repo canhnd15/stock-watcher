@@ -5,20 +5,26 @@ import com.data.trade.dto.DailyOHLCDTO;
 import com.data.trade.dto.DailyTradeStatsDTO;
 import com.data.trade.dto.TradePageResponse;
 import com.data.trade.model.Trade;
+import com.data.trade.model.User;
+import com.data.trade.model.UserRole;
 import com.data.trade.service.TradeExcelService;
 import com.data.trade.service.TradeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping(ApiEndpoints.API_TRADES)
@@ -29,7 +35,7 @@ public class TradeController {
     private final TradeExcelService tradeExcelService;
 
     @GetMapping
-    public TradePageResponse findTrades(
+    public ResponseEntity<?> findTrades(
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) Long minVolume,
@@ -44,12 +50,32 @@ public class TradeController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String sort,
-            @RequestParam(required = false) String direction
+            @RequestParam(required = false) String direction,
+            @AuthenticationPrincipal User currentUser
     ) {
-        return tradeService.findTradesWithFilters(
+        // Validate date range for non-VIP/ADMIN users
+        if (fromDate != null && toDate != null && currentUser != null) {
+            UserRole userRole = currentUser.getRole();
+            if (userRole != UserRole.VIP && userRole != UserRole.ADMIN) {
+                LocalDate oneMonthBefore = toDate.minusMonths(1);
+                if (fromDate.isBefore(oneMonthBefore)) {
+                    Map<String, String> errorResponse = new HashMap<>();
+                    errorResponse.put("error", "Date range exceeds one month limit");
+                    errorResponse.put("message", "The date range you selected exceeds one month. " +
+                            "Please upgrade to VIP account to query larger date ranges.");
+                    errorResponse.put("fromDate", fromDate.toString());
+                    errorResponse.put("toDate", toDate.toString());
+                    errorResponse.put("minimumAllowedFromDate", oneMonthBefore.toString());
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+                }
+            }
+        }
+        
+        TradePageResponse response = tradeService.findTradesWithFilters(
                 code, type, minVolume, maxVolume, minPrice, maxPrice, highVolume,
                 fromDate, toDate, page, size, sort, direction
         );
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping(ApiEndpoints.TRADES_INGEST_CODE_PATH)
@@ -90,7 +116,7 @@ public class TradeController {
     }
 
     @GetMapping(ApiEndpoints.TRADES_EXPORT_PATH)
-    public ResponseEntity<byte[]> exportToExcel(
+    public ResponseEntity<?> exportToExcel(
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) Long minVolume,
@@ -101,8 +127,30 @@ public class TradeController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @AuthenticationPrincipal User currentUser
     ) {
+        // Validate date range for non-VIP/ADMIN users
+        // The date range from fromDate to toDate should not exceed one month
+        // fromDate must not be more than one month before toDate
+        if (fromDate != null && toDate != null && currentUser != null) {
+            UserRole userRole = currentUser.getRole();
+            if (userRole != UserRole.VIP && userRole != UserRole.ADMIN) {
+                // Calculate one month before toDate
+                LocalDate oneMonthBefore = toDate.minusMonths(1);
+                // If fromDate is before oneMonthBefore, the range exceeds one month
+                if (fromDate.isBefore(oneMonthBefore)) {
+                    Map<String, String> errorResponse = new HashMap<>();
+                    errorResponse.put("error", "Date range exceeds one month limit");
+                    errorResponse.put("message", "The date range you selected exceeds one month. Please upgrade to VIP account to export larger date ranges.");
+                    errorResponse.put("fromDate", fromDate.toString());
+                    errorResponse.put("toDate", toDate.toString());
+                    errorResponse.put("minimumAllowedFromDate", oneMonthBefore.toString());
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+                }
+            }
+        }
+        
         Specification<Trade> spec = tradeService.buildTradeSpecification(
                 code, type, minVolume, maxVolume, minPrice, maxPrice, highVolume, fromDate, toDate
         );
