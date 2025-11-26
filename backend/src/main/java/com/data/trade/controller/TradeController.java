@@ -1,9 +1,12 @@
 package com.data.trade.controller;
 
+import io.github.bucket4j.Bucket;
+import com.data.trade.config.RateLimitConfig;
 import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.dto.DailyOHLCDTO;
 import com.data.trade.dto.DailyTradeStatsDTO;
 import com.data.trade.dto.TradePageResponse;
+import com.data.trade.exception.RateLimitExceededException;
 import com.data.trade.model.Trade;
 import com.data.trade.model.User;
 import com.data.trade.model.UserRole;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +37,7 @@ public class TradeController {
 
     private final TradeService tradeService;
     private final TradeExcelService tradeExcelService;
+    private final RateLimitConfig rateLimitConfig;
 
     @GetMapping
     public ResponseEntity<?> findTrades(
@@ -53,6 +58,19 @@ public class TradeController {
             @RequestParam(required = false) String direction,
             @AuthenticationPrincipal User currentUser
     ) {
+        // Rate limiting check
+        if (currentUser != null) {
+            Bucket bucket = rateLimitConfig.resolveBucket(currentUser);
+            if (!bucket.tryConsume(1)) {
+                // Calculate retry after time (1 minute)
+                long retryAfterSeconds = Duration.ofMinutes(1).getSeconds();
+                throw new RateLimitExceededException(
+                    "Rate limit exceeded. Please try again later.",
+                    retryAfterSeconds
+                );
+            }
+        }
+        
         // Validate date range for non-VIP/ADMIN users
         if (fromDate != null && toDate != null && currentUser != null) {
             UserRole userRole = currentUser.getRole();

@@ -473,6 +473,17 @@ const Trades = () => {
     api.get(`/api/trades?${params.toString()}`)
       .then(async (r) => {
         if (!r.ok) {
+          // Check if it's a rate limit error
+          if (r.status === 429) {
+            try {
+              const errorData = await r.json();
+              const retryAfter = errorData.retryAfterSeconds || 60;
+              toast.error(`Rate limit exceeded. Please try again in ${retryAfter} seconds.`);
+              throw new Error(errorData.message || "Rate limit exceeded");
+            } catch (e) {
+              // If JSON parsing fails, fall through to generic error
+            }
+          }
           // Check if it's a date range validation error
           if (r.status === 400) {
             try {
