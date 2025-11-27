@@ -1,0 +1,76 @@
+name: CD - Docker Compose Deploy
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  deploy-docker-compose:
+    name: Deploy with Docker Compose
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Copy files to server
+        run: |
+          # Copy docker-compose.yml and .env file
+          scp -o StrictHostKeyChecking=no docker-compose.yml \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/stock-watcher/
+          
+          # Copy .env file if it exists (or use env.docker.example)
+          if [ -f .env ]; then
+            scp -o StrictHostKeyChecking=no .env \
+              ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/stock-watcher/
+          else
+            scp -o StrictHostKeyChecking=no env.docker.example \
+              ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/stock-watcher/.env
+          fi
+
+      - name: Deploy with Docker Compose
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            cd /opt/stock-watcher
+            
+            # Pull latest images (if using registry)
+            # docker compose pull || true
+            
+            # Build and start services
+            docker compose down || true
+            docker compose build --no-cache
+            docker compose up -d
+            
+            # Wait for services to be healthy
+            echo "Waiting for services to start..."
+            sleep 30
+            
+            # Check service status
+            docker compose ps
+          EOF
+
+      - name: Health check
+        run: |
+          sleep 15
+          
+          # Check backend
+          curl -f http://${{ secrets.SSH_HOST }}:8899/actuator/health || exit 1
+          echo "✅ Backend health check passed"
+          
+          # Check cron-jobs
+          curl -f http://${{ secrets.SSH_HOST }}:8898/actuator/health || exit 1
+          echo "✅ Cron-jobs health check passed"
+          
+          # Check frontend
+          curl -f http://${{ secrets.SSH_HOST }}:8089 || exit 1
+          echo "✅ Frontend health check passed"
+
