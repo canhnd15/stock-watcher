@@ -443,7 +443,7 @@ const Trades = () => {
     }
   };
 
-  const fetchTrades = (nextPage = page, nextSize = size, sortFieldParam = sortField, sortDirectionParam = sortDirection) => {
+  const fetchTrades = (nextPage = page, nextSize = size, sortFieldParam = sortField, sortDirectionParam = sortDirection, dateOverride?: { fromDate?: string; toDate?: string }) => {
     const params = new URLSearchParams();
     if (code) params.set("code", code.trim());
     if (type && type !== "All") params.set("type", type.toLowerCase());
@@ -451,8 +451,11 @@ const Trades = () => {
     if (maxVolume) params.set("maxVolume", String(parseInt(maxVolume)));
     if (minPrice) params.set("minPrice", String(parseFloat(minPrice)));
     if (maxPrice) params.set("maxPrice", String(parseFloat(maxPrice)));
-    if (fromDate) params.set("fromDate", fromDate);
-    if (toDate) params.set("toDate", toDate);
+    // Use date override if provided, otherwise use state values
+    const fromDateToUse = dateOverride?.fromDate ?? fromDate;
+    const toDateToUse = dateOverride?.toDate ?? toDate;
+    if (fromDateToUse) params.set("fromDate", fromDateToUse);
+    if (toDateToUse) params.set("toDate", toDateToUse);
     params.set("page", String(nextPage));
     params.set("size", String(nextSize));
     
@@ -963,11 +966,35 @@ const Trades = () => {
             </Button>
             <Button
               onClick={async () => {
-                // Reset dates based on weekday/weekend logic when reloading
-                const defaultDates = await getDefaultDates();
-                setFromDate(defaultDates.fromDate);
-                setToDate(defaultDates.toDate);
-                // Fetch trades will be triggered by useEffect when dates change
+                try {
+                  // Reset dates based on weekday/weekend logic when reloading
+                  const defaultDates = await getDefaultDates();
+                  
+                  // Update dates in state
+                  setFromDate(defaultDates.fromDate);
+                  setToDate(defaultDates.toDate);
+                  
+                  // Reset to first page
+                  setPage(0);
+                  
+                  // Fetch trades immediately with the new dates (using date override)
+                  // This ensures we use the new dates even before state updates
+                  fetchTrades(0, size, sortField, sortDirection, {
+                    fromDate: defaultDates.fromDate,
+                    toDate: defaultDates.toDate
+                  });
+                  
+                  // Also refresh chart data if a code is selected
+                  if (code && code.trim() !== "") {
+                    fetchChartData();
+                    fetchOHLCData();
+                  }
+                  
+                  toast.success("Data reloaded");
+                } catch (error) {
+                  console.error("Error reloading data:", error);
+                  toast.error("Failed to reload data");
+                }
               }}
               variant="outline"
               size="sm"
