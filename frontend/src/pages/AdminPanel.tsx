@@ -299,13 +299,13 @@ const AdminPanel = () => {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-4">
-            <Shield className="h-8 w-8 text-primary" />
+            <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
             <div>
-              <h1 className="text-3xl font-bold">Admin Panel</h1>
-              <p className="text-muted-foreground">Manage user accounts, roles, and VIP requests</p>
+              <h1 className="text-2xl sm:text-3xl font-bold">Admin Panel</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">Manage user accounts, roles, and VIP requests</p>
             </div>
           </div>
         </div>
@@ -334,19 +334,20 @@ const AdminPanel = () => {
               <CardTitle>All Users ({users.length})</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[50px]">ID</TableHead>
-                    <TableHead>Username</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead className="w-[120px]">Role</TableHead>
-                    <TableHead className="w-[100px]">Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Last Login</TableHead>
-                    <TableHead className="text-right w-[200px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[50px]">ID</TableHead>
+                      <TableHead className="min-w-[120px]">Username</TableHead>
+                      <TableHead className="min-w-[180px]">Email</TableHead>
+                      <TableHead className="min-w-[120px]">Role</TableHead>
+                      <TableHead className="min-w-[100px]">Status</TableHead>
+                      <TableHead className="min-w-[140px]">Created</TableHead>
+                      <TableHead className="min-w-[140px]">Last Login</TableHead>
+                      <TableHead className="text-right min-w-[150px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
                 <TableBody>
                   {users.map((user) => (
                     <TableRow key={user.id}>
@@ -416,6 +417,7 @@ const AdminPanel = () => {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -435,20 +437,21 @@ const AdminPanel = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[50px]">ID</TableHead>
-                        <TableHead>User</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Reason</TableHead>
-                        <TableHead className="w-[120px]">Status</TableHead>
-                        <TableHead>Requested</TableHead>
-                        <TableHead>Processed</TableHead>
-                        <TableHead>Admin Note</TableHead>
-                        <TableHead className="text-right w-[150px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="min-w-[50px]">ID</TableHead>
+                          <TableHead className="min-w-[120px]">User</TableHead>
+                          <TableHead className="min-w-[180px]">Email</TableHead>
+                          <TableHead className="min-w-[200px]">Reason</TableHead>
+                          <TableHead className="min-w-[120px]">Status</TableHead>
+                          <TableHead className="min-w-[140px]">Requested</TableHead>
+                          <TableHead className="min-w-[140px]">Processed</TableHead>
+                          <TableHead className="min-w-[200px]">Admin Note</TableHead>
+                          <TableHead className="text-right min-w-[150px]">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
                     <TableBody>
                       {vipRequests.length === 0 ? (
                         <TableRow>
@@ -511,6 +514,7 @@ const AdminPanel = () => {
                       )}
                     </TableBody>
                   </Table>
+                  </div>
                 </CardContent>
               </Card>
             )}

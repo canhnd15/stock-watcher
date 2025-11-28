@@ -256,14 +256,15 @@ const Config = () => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">Management</h2>
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <h2 className="text-xl sm:text-2xl font-bold">Management</h2>
           <Button
             variant="outline"
             size="sm"
             onClick={loadConfig}
             disabled={loading}
+            className="w-full sm:w-auto"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -279,14 +280,14 @@ const Config = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                 <Popover open={ingestCodeOpen} onOpenChange={setIngestCodeOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       role="combobox"
                       aria-expanded={ingestCodeOpen}
-                      className="w-64 justify-between"
+                      className="w-full sm:w-64 justify-between"
                     >
                       {ingestCode || "Select stock..."}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -336,13 +337,13 @@ const Config = () => {
                     </Command>
                   </PopoverContent>
                 </Popover>
-                <Button onClick={handleIngest} disabled={!ingestCode || ingesting}>
+                <Button onClick={handleIngest} disabled={!ingestCode || ingesting} className="w-full sm:w-auto">
                   {ingesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {!ingesting && <RefreshCw className="mr-2 h-4 w-4" />}
                   Ingest Now
                 </Button>
                 {ingestCode && !ingesting && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground text-center sm:text-left">
                     {ingestCode === "All" ? "Ingest all VN30 stocks" : `Ingest ${ingestCode}`}
                   </p>
                 )}
@@ -364,7 +365,7 @@ const Config = () => {
                   <label htmlFor="import-file-input" className="text-sm font-medium mb-2 block">
                     Import Trades from Excel
                   </label>
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                     <Input
                       id="import-file-input"
                       type="file"
@@ -376,6 +377,7 @@ const Config = () => {
                     <Button
                       onClick={handleImport}
                       disabled={!importFile || importing}
+                      className="w-full sm:w-auto"
                     >
                       {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       {!importing && <Upload className="mr-2 h-4 w-4" />}
@@ -414,7 +416,7 @@ const Config = () => {
                     </div>
 
                     {!exportAllTrades && (
-                      <div className="flex items-center gap-4">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                         <div className="flex-1">
                           <label htmlFor="export-from-date" className="text-sm font-medium mb-1 block">
                             From Date
@@ -463,7 +465,7 @@ const Config = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between space-x-4 rounded-lg border p-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-lg border p-4">
                 <div className="flex-1 space-y-1">
                   <p className="text-sm font-medium leading-none">
                     VN30 Stock Ingestion Cron Job
@@ -485,7 +487,7 @@ const Config = () => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between space-x-4 rounded-lg border p-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-lg border p-4">
                 <div className="flex-1 space-y-1">
                   <p className="text-sm font-medium leading-none">
                     Tracked Stocks Refresh & Recommendation Cron Job
@@ -507,7 +509,7 @@ const Config = () => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between space-x-4 rounded-lg border p-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-lg border p-4">
                 <div className="flex-1 space-y-1">
                   <p className="text-sm font-medium leading-none">
                     Signal Calculation & WebSocket Notification Cron Job

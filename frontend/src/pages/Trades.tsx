@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import {
@@ -696,9 +696,9 @@ const Trades = () => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
         <div className="mb-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3 sm:gap-4">
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.code')}</label>
               <Popover open={codeOpen} onOpenChange={setCodeOpen}>
@@ -777,7 +777,7 @@ const Trades = () => {
               </Select>
             </div>
             
-            <div className="md:col-span-2">
+            <div className="sm:col-span-2 lg:col-span-1 xl:col-span-2">
               <label className="text-sm font-medium mb-1 block">{t('trades.volumeRange')}</label>
               <Select
                 value={`${minVolume || ''}|${maxVolume || ''}`}
@@ -855,7 +855,7 @@ const Trades = () => {
         </div>
 
         {/* Volume Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
           <Card className={loading ? "opacity-50 pointer-events-none" : ""}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -947,21 +947,22 @@ const Trades = () => {
           </Card>
         </div>
 
-        <div className="rounded-lg border bg-card relative">
+        <div className="rounded-lg border bg-card relative overflow-hidden">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10 rounded-lg">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           )}
-          <div className="flex justify-end items-center gap-2 p-2 border-b bg-muted/30">
+          <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-2 p-2 border-b bg-muted/30">
             <Button
               onClick={clearFilters}
               variant="outline"
               size="sm"
-              className="h-8 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+              className="h-8 w-full sm:w-auto border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
             >
               <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-              Clear Filter
+              <span className="hidden sm:inline">Clear Filter</span>
+              <span className="sm:hidden">Clear</span>
             </Button>
             <Button
               onClick={async () => {
@@ -997,7 +998,7 @@ const Trades = () => {
               }}
               variant="outline"
               size="sm"
-              className="h-8 border-green-300 text-green-600 hover:bg-green-50 hover:text-green-700"
+              className="h-8 w-full sm:w-auto border-green-300 text-green-600 hover:bg-green-50 hover:text-green-700"
               disabled={loading}
             >
               {loading ? (
@@ -1005,10 +1006,12 @@ const Trades = () => {
               ) : (
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
               )}
-              Reload Data
+              <span className="hidden sm:inline">Reload Data</span>
+              <span className="sm:hidden">Reload</span>
             </Button>
           </div>
-          <Table className={loading ? "opacity-50 pointer-events-none" : ""}>
+          <div className="overflow-x-auto">
+            <Table className={loading ? "opacity-50 pointer-events-none" : ""}>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[120px]">
@@ -1118,27 +1121,28 @@ const Trades = () => {
               ))}
             </TableBody>
           </Table>
+          </div>
         </div>
 
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mt-4">
           <div className="text-sm text-muted-foreground">
             {totalElements === 0 ? (
               t('trades.noResults')
             ) : (
-              <div className="flex items-center gap-4">
-                <span>Page size: <span className="font-semibold">{size}</span></span>
-                <span>•</span>
-                <span>Current page: <span className="font-semibold">{page + 1}</span></span>
-                <span>•</span>
-                <span>Total pages: <span className="font-semibold">{totalPages}</span></span>
-                <span>•</span>
-                <span>Total records: <span className="font-semibold">{totalElements.toLocaleString()}</span></span>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                <span className="text-xs sm:text-sm">Page size: <span className="font-semibold">{size}</span></span>
+                <span className="hidden sm:inline">•</span>
+                <span className="text-xs sm:text-sm">Page: <span className="font-semibold">{page + 1}</span></span>
+                <span className="hidden sm:inline">•</span>
+                <span className="text-xs sm:text-sm hidden md:inline">Total pages: <span className="font-semibold">{totalPages}</span></span>
+                <span className="hidden md:inline">•</span>
+                <span className="text-xs sm:text-sm">Total: <span className="font-semibold">{totalElements.toLocaleString()}</span></span>
               </div>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap sm:flex-nowrap">
             <Select value={String(size)} onValueChange={(v) => { const n = Number(v); setSize(n); setPage(0); fetchTrades(0, n); }}>
-              <SelectTrigger className="w-28">
+              <SelectTrigger className="w-full sm:w-28">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1148,8 +1152,8 @@ const Trades = () => {
                 <SelectItem value="100">100 / page</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" disabled={page <= 0 || loading} onClick={() => { const p = page - 1; setPage(p); fetchTrades(p, size); }}>Prev</Button>
-            <Button variant="outline" size="sm" disabled={page + 1 >= totalPages || loading} onClick={() => { const p = page + 1; setPage(p); fetchTrades(p, size); }}>Next</Button>
+            <Button variant="outline" size="sm" disabled={page <= 0 || loading} onClick={() => { const p = page - 1; setPage(p); fetchTrades(p, size); }} className="flex-1 sm:flex-none">Prev</Button>
+            <Button variant="outline" size="sm" disabled={page + 1 >= totalPages || loading} onClick={() => { const p = page + 1; setPage(p); fetchTrades(p, size); }} className="flex-1 sm:flex-none">Next</Button>
           </div>
         </div>
 
@@ -1164,12 +1168,15 @@ const Trades = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label className="text-sm font-medium mb-1 block">From Date</label>
                     <DatePicker
+                      key={`chart-from-${chartFromDate || 'default'}`}
                       value={chartFromDate && isValidDateFormat(chartFromDate) ? chartFromDate : getOneMonthAgo()}
-                      onChange={setChartFromDate}
+                      onChange={(value) => {
+                        setChartFromDate(value);
+                      }}
                       placeholder="Select from date"
                       maxDate={chartToDate && isValidDateFormat(chartToDate) ? chartToDate : undefined}
                     />
@@ -1177,8 +1184,11 @@ const Trades = () => {
                   <div>
                     <label className="text-sm font-medium mb-1 block">To Date</label>
                     <DatePicker
+                      key={`chart-to-${chartToDate || 'default'}`}
                       value={chartToDate && isValidDateFormat(chartToDate) ? chartToDate : getTodayDate()}
-                      onChange={setChartToDate}
+                      onChange={(value) => {
+                        setChartToDate(value);
+                      }}
                       placeholder="Select to date"
                       minDate={chartFromDate && isValidDateFormat(chartFromDate) ? chartFromDate : undefined}
                     />

@@ -125,7 +125,7 @@ export function DailyOHLCChart({ data, code, loading, onRefresh }: DailyOHLCChar
           )}
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-[500px]">
+          <div className="flex items-center justify-center h-[350px] sm:h-[500px]">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         </CardContent>
@@ -153,7 +153,7 @@ export function DailyOHLCChart({ data, code, loading, onRefresh }: DailyOHLCChar
           )}
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-[500px] text-muted-foreground">
+          <div className="flex items-center justify-center h-[350px] sm:h-[500px] text-muted-foreground">
             No data available for the selected filters
           </div>
         </CardContent>
@@ -163,8 +163,8 @@ export function DailyOHLCChart({ data, code, loading, onRefresh }: DailyOHLCChar
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle>
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-2 gap-2">
+        <CardTitle className="text-lg sm:text-xl">
           {code ? `${code} - ` : ""}Price Over Time (OHLC)
         </CardTitle>
         {onRefresh && (
@@ -173,6 +173,7 @@ export function DailyOHLCChart({ data, code, loading, onRefresh }: DailyOHLCChar
             size="sm"
             onClick={onRefresh}
             disabled={loading}
+            className="w-full sm:w-auto"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -180,10 +181,10 @@ export function DailyOHLCChart({ data, code, loading, onRefresh }: DailyOHLCChar
         )}
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-[500px] w-full">
+        <ChartContainer config={chartConfig} className="h-[350px] sm:h-[500px] w-full">
           <LineChart
             data={chartData}
-            margin={{ top: 20, right: 40, left: 30, bottom: 80 }}
+            margin={{ top: 20, right: 10, left: 0, bottom: 80 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis
@@ -192,13 +193,14 @@ export function DailyOHLCChart({ data, code, loading, onRefresh }: DailyOHLCChar
               textAnchor="end"
               height={100}
               interval={xAxisInterval}
-              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
             />
             <YAxis
               domain={yAxisDomain}
-              label={{ value: "Price (VND)", angle: -90, position: "insideLeft", style: { textAnchor: "middle" } }}
-              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+              label={{ value: "Price (VND)", angle: -90, position: "insideLeft", style: { textAnchor: "middle", fontSize: 10 } }}
+              tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
               tickFormatter={(value) => value.toLocaleString()}
+              width={60}
             />
             <ChartTooltip 
               content={
