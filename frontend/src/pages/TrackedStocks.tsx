@@ -202,19 +202,6 @@ const TrackedStocks = () => {
       setTargetPriceValues(targetPriceMap);
       setTargetPriceMode(targetPriceModeMap);
       setUnsavedChanges(new Set()); // Clear unsaved changes after loading
-      
-      // Load stats for tracked stocks
-      const statsResponse = await api.get("/api/tracked-stocks/stats");
-      if (statsResponse.ok) {
-        const statsData: Record<string, TrackedStockStats> = await statsResponse.json();
-        // Merge stats with tracked stocks
-        setTrackedStocks((prev) => 
-          prev.map((stock) => ({
-            ...stock,
-            stats: statsData[stock.code],
-          }))
-        );
-      }
     } catch (error) {
       toast.error("Failed to load tracked stocks");
     } finally {
