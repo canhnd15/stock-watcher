@@ -31,10 +31,9 @@ import { cn } from "@/lib/utils";
 
 // VN30 Stock Codes
 const VN30_STOCKS = [
-  "ACB", "BCM", "CTG", "DGC", "FPT", "BFG", "HDB", "HPG", "MWG",
-  "LPB", "MBB", "MSN", "PLX", "SAB", "SHB", "SSB", "SSI", "VRE",
-  "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB",
-  "DXG", "KDH"
+    "ACB", "BCM", "BID", "CTG", "DGC", "FPT", "GAS", "GVR", "HDB", "HPG", "LPB", "MBB",
+    "MSN", "MWG", "PLX", "SAB", "SHB", "SSB", "SSI", "STB", "TCB", "TPB", "VCB", "VHM",
+    "VIB", "VIC", "VJC", "VNM", "VPB", "VRE"
 ];
 
 const Config = () => {
