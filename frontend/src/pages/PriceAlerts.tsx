@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import {
@@ -29,13 +29,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog.tsx";
 import Header from "@/components/Header.tsx";
-import { TrendingUp, TrendingDown, Loader2, RefreshCw, Plus, Pencil, Trash2, Bell } from "lucide-react";
+import { TrendingUp, TrendingDown, Loader2, RefreshCw, Plus, Pencil, Trash2, Bell, Wifi, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatNumberWithDots, parseFormattedNumber } from "@/lib/utils";
+import { usePriceAlertNotifications } from "@/hooks/usePriceAlertNotifications";
 
 interface PriceAlert {
   id: number;
@@ -59,6 +60,10 @@ const PriceAlerts = () => {
   const [code, setCode] = useState("");
   const [reachPrice, setReachPrice] = useState("");
   const [dropPrice, setDropPrice] = useState("");
+  
+  // WebSocket notifications
+  const { isConnected, notifications: wsNotifications } = usePriceAlertNotifications();
+  const processedNotificationsRef = useRef<Set<number>>(new Set());
 
   const fetchAlerts = async () => {
     try {
@@ -95,6 +100,40 @@ const PriceAlerts = () => {
   useEffect(() => {
     fetchAlerts();
   }, []);
+
+  const formatPrice = (price?: number) => {
+    if (price === null || price === undefined) return "N/A";
+    return Math.round(price).toLocaleString('vi-VN');
+  };
+
+  // Listen for WebSocket notifications and refresh alerts when one is received
+  useEffect(() => {
+    if (wsNotifications.length > 0) {
+      // Process only new notifications (not already processed)
+      const newNotifications = wsNotifications.filter(
+        notif => !processedNotificationsRef.current.has(notif.alertId)
+      );
+
+      newNotifications.forEach(notification => {
+        // Mark as processed
+        processedNotificationsRef.current.add(notification.alertId);
+        
+        // Show toast notification
+        toast.success(
+          `${notification.code}: ${notification.message}`,
+          {
+            description: `Current price: ${formatPrice(notification.currentPrice)}`,
+            duration: 5000,
+          }
+        );
+      });
+
+      // Refresh alerts if we have new notifications
+      if (newNotifications.length > 0) {
+        fetchAlerts();
+      }
+    }
+  }, [wsNotifications]);
 
   const resetForm = () => {
     setCode("");
@@ -232,11 +271,6 @@ const PriceAlerts = () => {
     }
   };
 
-  const formatPrice = (price?: number) => {
-    if (price === null || price === undefined) return "N/A";
-    return Math.round(price).toLocaleString('vi-VN');
-  };
-
   const activeCount = alerts.filter(a => a.active).length;
   const inactiveCount = alerts.filter(a => !a.active).length;
 
@@ -246,7 +280,24 @@ const PriceAlerts = () => {
       
       <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <h2 className="text-xl sm:text-2xl font-bold">Price Alerts</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl sm:text-2xl font-bold">Price Alerts</h2>
+            <div className={`flex items-center gap-2 px-2 py-1 rounded-md text-xs ${
+              isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+            }`}>
+              {isConnected ? (
+                <>
+                  <Wifi className="h-3 w-3" />
+                  <span>Connected</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-3 w-3" />
+                  <span>Disconnected</span>
+                </>
+              )}
+            </div>
+          </div>
           <div className="flex gap-2">
             <Button
               onClick={handleRefresh}
@@ -561,7 +612,8 @@ const PriceAlerts = () => {
         </Dialog>
         
         <p className="mt-4 text-sm text-muted-foreground text-center">
-          * Alerts will notify you when stock prices meet your specified conditions (price &gt;= reach price OR price &lt;= drop price)
+          * Alerts will notify you via WebSocket when stock prices meet your specified conditions (price &gt;= reach price OR price &lt;= drop price). 
+          You will receive browser notifications when alerts are triggered.
         </p>
       </main>
     </div>
