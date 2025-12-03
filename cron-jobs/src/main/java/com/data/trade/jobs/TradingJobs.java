@@ -180,4 +180,20 @@ public class TradingJobs {
             log.error("Failed to trigger tracked stock notifications via backend API: {}", ex.getMessage(), ex);
         }
     }
+
+    /**
+     * Check price alerts and send notifications every 2 minutes
+     * Runs at: 00:00, 00:02, 00:04, ... 23:58
+     */
+    @Scheduled(cron = "${cron.price-alerts.check}", zone = "${cron.timezone}")
+    public void checkPriceAlerts() {
+        log.info("Starting price alerts check via backend API...");
+        try {
+            // Call backend API to check price alerts and send notifications via WebSocket
+            backendApiClient.triggerPriceAlertsCheck();
+            log.info("Price alerts check completed via backend API");
+        } catch (Exception ex) {
+            log.error("Failed to trigger price alerts check via backend API: {}", ex.getMessage(), ex);
+        }
+    }
 }

@@ -9,6 +9,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Trades from "./pages/Trades.tsx";
 import TrackedStocks from "./pages/TrackedStocks.tsx";
 import Suggestions from "./pages/Suggestions.tsx";
+import PriceAlerts from "./pages/PriceAlerts.tsx";
 import AdminPanel from "./pages/AdminPanel.tsx";
 import Config from "./pages/Config.tsx";
 import Login from "./pages/Login.tsx";
@@ -49,6 +50,12 @@ const App = () => (
             <Route path="/suggestions" element={
               <ProtectedRoute requiredRoles={['VIP', 'ADMIN']}>
                 <Suggestions />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/price-alerts" element={
+              <ProtectedRoute requiredRoles={['VIP', 'ADMIN']}>
+                <PriceAlerts />
               </ProtectedRoute>
             } />
             

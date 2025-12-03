@@ -32,6 +32,7 @@ const Header = () => {
     { path: "/", labelKey: "nav.trades", roles: ['NORMAL', 'VIP', 'ADMIN'] },
     { path: "/tracked", labelKey: "nav.trackedStocks", roles: ['VIP', 'ADMIN'] },
     { path: "/suggestions", labelKey: "nav.suggestions", roles: ['VIP', 'ADMIN'] },
+    { path: "/price-alerts", labelKey: "nav.priceAlerts", roles: ['VIP', 'ADMIN'] },
     { path: "/admin", labelKey: "nav.userManagement", roles: ['ADMIN'] },
     { path: "/config", labelKey: "nav.systemConfig", roles: ['ADMIN'] },
   ];
