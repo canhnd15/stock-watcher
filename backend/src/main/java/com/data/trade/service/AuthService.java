@@ -31,6 +31,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
+    private final EmailService emailService;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -61,10 +62,15 @@ public class AuthService {
 
         user = userRepository.save(user);
 
-        // TODO: Send verification email
-        // For now, we'll just log it. In production, you would send an actual email
-        log.info("Email verification token for {}: {}", user.getEmail(), verificationToken);
-        log.info("Verification link: /api/auth/verify-email?token={}", verificationToken);
+        // Send verification email
+        try {
+            emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), verificationToken);
+            log.info("Verification email sent to: {}", user.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to send verification email to {}: {}", user.getEmail(), e.getMessage());
+            // Don't fail registration if email fails, but log it
+            // User can request resend later
+        }
 
         return mapToUserResponse(user);
     }
@@ -85,6 +91,33 @@ public class AuthService {
         userRepository.save(user);
 
         log.info("Email verified for user: {}", user.getUsername());
+    }
+
+    @Transactional
+    public void resendVerificationEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
+
+        if (user.getEmailVerified()) {
+            throw new RuntimeException("Email is already verified");
+        }
+
+        // Generate new verification token
+        String verificationToken = generateVerificationToken();
+        OffsetDateTime tokenExpiry = OffsetDateTime.now().plusDays(7);
+
+        user.setEmailVerificationToken(verificationToken);
+        user.setEmailVerificationTokenExpiry(tokenExpiry);
+        userRepository.save(user);
+
+        // Send verification email
+        try {
+            emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), verificationToken);
+            log.info("Verification email resent to: {}", user.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to resend verification email to {}: {}", user.getEmail(), e.getMessage());
+            throw new RuntimeException("Failed to send verification email: " + e.getMessage());
+        }
     }
 
     private String generateVerificationToken() {

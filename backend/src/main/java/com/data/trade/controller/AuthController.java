@@ -4,6 +4,7 @@ import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.dto.auth.LoginRequest;
 import com.data.trade.dto.auth.LoginResponse;
 import com.data.trade.dto.auth.RegisterRequest;
+import com.data.trade.dto.auth.ResendVerificationRequest;
 import com.data.trade.dto.auth.UserResponse;
 import com.data.trade.service.AuthService;
 import jakarta.validation.Valid;
@@ -53,6 +54,16 @@ public class AuthController {
         try {
             authService.verifyEmail(token);
             return ResponseEntity.ok("Email verified successfully");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping(ApiEndpoints.AUTH_RESEND_VERIFICATION_PATH)
+    public ResponseEntity<?> resendVerificationEmail(@Valid @RequestBody ResendVerificationRequest request) {
+        try {
+            authService.resendVerificationEmail(request.getEmail());
+            return ResponseEntity.ok("Verification email sent successfully");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

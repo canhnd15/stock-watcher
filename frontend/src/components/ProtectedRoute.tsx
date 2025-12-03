@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { EmailVerificationBanner } from './EmailVerificationBanner';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -29,6 +30,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/unauthorized" replace />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <EmailVerificationBanner />
+      {children}
+    </>
+  );
 };
 

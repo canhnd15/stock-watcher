@@ -18,6 +18,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   hasRole: (roles: string[]) => boolean;
   isLoading: boolean;
+  fetchCurrentUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -86,8 +87,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error(error || 'Registration failed');
     }
 
-    // Auto-login after registration
-    await login(username, password);
+    // Don't auto-login - user needs to verify email first
+    // User can login after verifying email
   };
 
   const logout = () => {
@@ -110,7 +111,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logout,
       isAuthenticated: !!user,
       hasRole,
-      isLoading
+      isLoading,
+      fetchCurrentUser
     }}>
       {children}
     </AuthContext.Provider>

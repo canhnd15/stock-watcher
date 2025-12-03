@@ -14,6 +14,7 @@ import AdminPanel from "./pages/AdminPanel.tsx";
 import Config from "./pages/Config.tsx";
 import Login from "./pages/Login.tsx";
 import Register from "./pages/Register.tsx";
+import VerifyEmail from "./pages/VerifyEmail.tsx";
 import Unauthorized from "./pages/Unauthorized.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -31,6 +32,7 @@ const App = () => (
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             
             {/* Protected routes - all authenticated users */}

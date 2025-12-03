@@ -25,6 +25,7 @@ public class ApiEndpoints {
     public static final String AUTH_LOGIN_PATH = "/login";
     public static final String AUTH_ME_PATH = "/me";
     public static final String AUTH_VERIFY_EMAIL_PATH = "/verify-email";
+    public static final String AUTH_RESEND_VERIFICATION_PATH = "/resend-verification";
     
     // Admin endpoint paths (relative to base /api/admin)
     public static final String ADMIN_USERS_PATH = "/users";
