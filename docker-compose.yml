@@ -31,10 +31,15 @@ services:
       - DB_URL=jdbc:postgresql://postgres:5432/trade
       - DB_USERNAME=${DB_USERNAME:-postgre}
       - DB_PASSWORD=${DB_PASSWORD:-admin}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
       - JWT_SECRET=${JWT_SECRET:-mySecretKeyForJWTTokenGenerationMustBeLongEnoughForHS512AlgorithmWithMinimum256Bits}
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-docker}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8899/actuator/health"]
@@ -91,8 +96,27 @@ services:
     networks:
       - trade-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: trade_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - trade-network
+
 volumes:
   pgdata:
+    driver: local
+  redis-data:
     driver: local
 
 networks:

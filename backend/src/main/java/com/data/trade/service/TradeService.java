@@ -11,6 +11,8 @@ import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -110,6 +112,11 @@ public class TradeService {
                 .build();
     }
 
+    @Cacheable(
+        value = "trades",
+        keyGenerator = "tradeCacheKeyGenerator",
+        unless = "#result == null"
+    )
     public TradePageResponse findTradesWithFilters(
             String code,
             String type,
@@ -258,11 +265,13 @@ public class TradeService {
         return Specification.allOf(specs);
     }
 
+    @CacheEvict(value = "trades", allEntries = true)
     public void ingestForCode(String code) {
         String normalized = code.trim().toUpperCase();
         ingestionService.ingestForCode(normalized);
     }
 
+    @CacheEvict(value = "trades", allEntries = true)
     public void ingestAllVn30() {
         for (String stockCode : vn30) {
             ingestionService.ingestForCode(stockCode);
@@ -277,6 +286,7 @@ public class TradeService {
         return (rec == null) ? "Neutral — hold" : rec;
     }
 
+    @CacheEvict(value = "trades", allEntries = true)
     public void reingestForCode(String code) {
         String normalized = code.trim().toUpperCase();
         LocalDate today = LocalDate.now();

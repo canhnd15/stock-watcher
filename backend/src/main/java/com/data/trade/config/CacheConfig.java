@@ -13,9 +13,10 @@ import java.util.concurrent.TimeUnit;
 /**
  * Cache configuration using Caffeine for in-memory caching
  * Provides fast access to calculated suggestions and recommendations
+ * Note: This is a secondary cache manager for suggestions.
+ * Redis is used as the primary cache manager for trades.
  */
 @Configuration
-@EnableCaching
 public class CacheConfig {
 
     @Value("${cache.suggestions.ttl-minutes:5}")
@@ -24,8 +25,8 @@ public class CacheConfig {
     @Value("${cache.suggestions.max-size:1000}")
     private int cacheMaxSize;
 
-    @Bean
-    public CacheManager cacheManager() {
+    @Bean(name = "caffeineCacheManager")
+    public CacheManager caffeineCacheManager() {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager(
                 "recommendations",      // Cache for individual stock recommendations
                 "allSuggestions"        // Cache for all suggestions list
