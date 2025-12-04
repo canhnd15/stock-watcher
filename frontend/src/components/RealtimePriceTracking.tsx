@@ -363,32 +363,46 @@ export function RealtimePriceTracking({
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[250px] p-0">
-                  <Command>
+                <PopoverContent className="w-[250px] p-0" align="start">
+                  <Command className="rounded-lg border-none overflow-visible">
                     <CommandInput placeholder="Tìm kiếm mã cổ phiếu..." />
-                    <CommandList>
-                      <CommandEmpty>Không tìm thấy mã cổ phiếu.</CommandEmpty>
-                      <CommandGroup>
-                        {vn30Codes.map((code) => (
-                          <CommandItem
-                            key={code}
-                            value={code}
-                            onSelect={(currentValue) => {
-                              setSelectedCode(currentValue.toUpperCase());
-                              setStockSelectOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedCode === code ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {code}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
+                    <div 
+                      className="max-h-[300px] overflow-y-auto overflow-x-hidden"
+                      style={{ 
+                        maxHeight: '300px', 
+                        overflowY: 'auto', 
+                        overflowX: 'hidden',
+                        WebkitOverflowScrolling: 'touch'
+                      }}
+                      onWheel={(e) => {
+                        // Prevent event from bubbling to parent
+                        e.stopPropagation();
+                      }}
+                    >
+                      <CommandList className="!overflow-visible">
+                        <CommandEmpty>Không tìm thấy mã cổ phiếu.</CommandEmpty>
+                        <CommandGroup>
+                          {vn30Codes.map((code) => (
+                            <CommandItem
+                              key={code}
+                              value={code}
+                              onSelect={(currentValue) => {
+                                setSelectedCode(currentValue.toUpperCase());
+                                setStockSelectOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedCode === code ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {code}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </div>
                   </Command>
                 </PopoverContent>
               </Popover>
