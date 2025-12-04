@@ -16,8 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,16 +34,43 @@ public class TrackedStockService {
 
     /**
      * Get all tracked stocks for a specific user
+     * Returns stocks immediately without market price for faster response
+     * Frontend will fetch market prices separately via /market-prices endpoint
      */
     public List<TrackedStockWithMarketPriceDTO> getAllTrackedStocksForUser(Long userId) {
         List<TrackedStock> stocks = trackedStockRepository.findAllByUserId(userId);
         
+        // Return stocks immediately without market price
         return stocks.stream()
-                .map(stock -> {
-                    BigDecimal marketPrice = getMarketPrice(stock.getCode());
-                    return TrackedStockWithMarketPriceDTO.fromTrackedStock(stock, marketPrice);
-                })
+                .map(stock -> TrackedStockWithMarketPriceDTO.fromTrackedStock(stock, null))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get market prices for multiple stock codes in parallel (no cache)
+     * Used by frontend to fetch prices asynchronously after stocks are loaded
+     */
+    public Map<String, BigDecimal> getMarketPricesForCodes(Set<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, BigDecimal> result = new ConcurrentHashMap<>();
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+        // Fetch all prices in parallel
+        for (String code : codes) {
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                BigDecimal price = getMarketPrice(code);
+                result.put(code, price); // null if failed
+            });
+            futures.add(future);
+        }
+
+        // Wait for all to complete
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        return result;
     }
 
     /**
@@ -65,13 +93,23 @@ public class TrackedStockService {
 
     /**
      * Refresh market prices for all tracked stocks of a user
+     * Uses parallel fetching for better performance
      */
     public RefreshMarketPriceResponse refreshMarketPriceForUser(Long userId) {
         List<TrackedStock> stocks = trackedStockRepository.findAllByUserId(userId);
         
+        // Get all codes
+        Set<String> codes = stocks.stream()
+                .map(TrackedStock::getCode)
+                .collect(Collectors.toSet());
+        
+        // Fetch prices in parallel
+        Map<String, BigDecimal> priceMap = getMarketPricesForCodes(codes);
+        
+        // Build result
         List<TrackedStockWithMarketPriceDTO> result = stocks.stream()
                 .map(stock -> {
-                    BigDecimal marketPrice = getMarketPrice(stock.getCode());
+                    BigDecimal marketPrice = priceMap.get(stock.getCode());
                     return TrackedStockWithMarketPriceDTO.fromTrackedStock(stock, marketPrice);
                 })
                 .collect(Collectors.toList());

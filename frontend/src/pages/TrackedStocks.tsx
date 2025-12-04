@@ -180,6 +180,8 @@ const TrackedStocks = () => {
   const loadTrackedStocks = async () => {
     try {
       setLoadingStocks(true);
+      
+      // Load stocks first (fast, without market price)
       const stocksResponse = await api.get("/api/tracked-stocks");
       if (!stocksResponse.ok) throw new Error("Failed to load stocks");
       const stocksData: TrackedStock[] = await stocksResponse.json();
@@ -202,10 +204,48 @@ const TrackedStocks = () => {
       setTargetPriceValues(targetPriceMap);
       setTargetPriceMode(targetPriceModeMap);
       setUnsavedChanges(new Set()); // Clear unsaved changes after loading
+
+      // Load market prices async (non-blocking, after stocks are displayed)
+      if (stocksData.length > 0) {
+        loadMarketPricesAsync(stocksData.map(s => s.code));
+      }
     } catch (error) {
       toast.error("Failed to load tracked stocks");
     } finally {
       setLoadingStocks(false);
+    }
+  };
+
+  // Function to load market prices asynchronously for tracked stocks
+  const loadMarketPricesAsync = async (codes: string[]) => {
+    try {
+      const response = await api.post("/api/tracked-stocks/market-prices", codes);
+      if (response.ok) {
+        const priceMap: Record<string, number> = await response.json();
+        
+        // Update stocks with market prices
+        setTrackedStocks((prev) =>
+          prev.map((stock) => {
+            const price = priceMap[stock.code];
+            if (price !== undefined && price !== null) {
+              // Calculate priceChangePercent
+              const priceChangePercent = stock.costBasis 
+                ? ((price - stock.costBasis) / stock.costBasis) * 100 
+                : undefined;
+              
+              return {
+                ...stock,
+                marketPrice: price,
+                priceChangePercent: priceChangePercent
+              };
+            }
+            return stock;
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load market prices:", error);
+      // Don't show error toast, just log it (non-critical)
     }
   };
 
@@ -620,6 +660,8 @@ const TrackedStocks = () => {
   const loadShortTermTrackedStocks = async () => {
     try {
       setLoadingShortTermStocks(true);
+      
+      // Load stocks first (fast, without market price)
       const stocksResponse = await api.get("/api/short-term-tracked-stocks");
       if (!stocksResponse.ok) throw new Error("Failed to load short-term stocks");
       const stocksData: TrackedStock[] = await stocksResponse.json();
@@ -655,10 +697,48 @@ const TrackedStocks = () => {
           }))
         );
       }
+
+      // Load market prices async (non-blocking, after stocks are displayed)
+      if (stocksData.length > 0) {
+        loadShortTermMarketPricesAsync(stocksData.map(s => s.code));
+      }
     } catch (error) {
       toast.error("Failed to load short-term tracked stocks");
     } finally {
       setLoadingShortTermStocks(false);
+    }
+  };
+
+  // Function to load market prices asynchronously for short-term tracked stocks
+  const loadShortTermMarketPricesAsync = async (codes: string[]) => {
+    try {
+      const response = await api.post("/api/short-term-tracked-stocks/market-prices", codes);
+      if (response.ok) {
+        const priceMap: Record<string, number> = await response.json();
+        
+        // Update stocks with market prices
+        setShortTermStocks((prev) =>
+          prev.map((stock) => {
+            const price = priceMap[stock.code];
+            if (price !== undefined && price !== null) {
+              // Calculate priceChangePercent
+              const priceChangePercent = stock.costBasis 
+                ? ((price - stock.costBasis) / stock.costBasis) * 100 
+                : undefined;
+              
+              return {
+                ...stock,
+                marketPrice: price,
+                priceChangePercent: priceChangePercent
+              };
+            }
+            return stock;
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load market prices:", error);
+      // Don't show error toast, just log it (non-critical)
     }
   };
 
