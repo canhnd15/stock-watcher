@@ -16,6 +16,7 @@ public class ApiEndpoints {
     public static final String API_STOCKS = "/api/stocks";
     public static final String API_SUGGESTIONS = "/api/suggestions";
     public static final String API_SIGNALS = "/api/signals";
+    public static final String API_PRICE_ALERTS = "/api/price-alerts";
     public static final String API_CONFIG = "/api/config";
     public static final String API_INTERNAL = "/api/internal";
     
@@ -71,6 +72,11 @@ public class ApiEndpoints {
     public static final String SIGNALS_REFRESH_PATH = "/refresh";
     public static final String SIGNALS_CHECK_TRACKED_PATH = "/check-tracked";
     
+    // Price Alerts endpoint paths (relative to base /api/price-alerts)
+    public static final String PRICE_ALERTS_BY_ID_PATH = "/{id}";
+    public static final String PRICE_ALERTS_TOGGLE_PATH = "/{id}/toggle";
+    public static final String PRICE_ALERTS_REFRESH_PATH = "/refresh";
+    
     // Config endpoint paths (relative to base /api/config)
     public static final String CONFIG_VN30_CRON_PATH = "/vn30-cron";
     public static final String CONFIG_TRACKED_STOCKS_CRON_PATH = "/tracked-stocks-cron";
@@ -79,6 +85,7 @@ public class ApiEndpoints {
     // Internal endpoint paths (relative to base /api/internal)
     public static final String INTERNAL_SIGNALS_REFRESH_PATH = "/signals/refresh";
     public static final String INTERNAL_SIGNALS_CHECK_TRACKED_PATH = "/signals/check-tracked";
+    public static final String INTERNAL_PRICE_ALERTS_CHECK_PATH = "/price-alerts/check";
 
     // Security patterns (for use in SecurityConfig)
     public static final String API_AUTH_PATTERN = "/api/auth/**";
@@ -88,6 +95,7 @@ public class ApiEndpoints {
     public static final String API_SHORT_TERM_TRACKED_STOCKS_PATTERN = "/api/short-term-tracked-stocks/**";
     public static final String API_SUGGESTIONS_PATTERN = "/api/suggestions/**";
     public static final String API_SIGNALS_PATTERN = "/api/signals/**";
+    public static final String API_PRICE_ALERTS_PATTERN = "/api/price-alerts/**";
     public static final String API_ADMIN_PATTERN = "/api/admin/**";
     public static final String API_CONFIG_PATTERN = "/api/config/**";
     public static final String WS_PATTERN = "/ws/**";

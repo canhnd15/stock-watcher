@@ -12,6 +12,8 @@ interface DatePickerProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  minDate?: string; // ISO format: yyyy-MM-dd
+  maxDate?: string; // ISO format: yyyy-MM-dd
 }
 
 export function DatePicker({
@@ -20,44 +22,123 @@ export function DatePicker({
   placeholder = "Pick a date",
   className,
   disabled,
+  minDate,
+  maxDate,
 }: DatePickerProps) {
+  const [open, setOpen] = React.useState(false);
+
   // Convert ISO string (yyyy-MM-dd) to Date object
   // Validate the date before creating Date object to avoid "Invalid time value" error
-  let date: Date | undefined = undefined;
-  if (value && typeof value === 'string' && value.trim() !== '') {
+  // Use useMemo to ensure date is recalculated when value changes
+  const date = React.useMemo<Date | undefined>(() => {
+    if (value && typeof value === 'string' && value.trim() !== '') {
+      try {
+        const dateString = value.trim();
+        // Check if it matches yyyy-MM-dd format
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+          // Parse date components to avoid timezone issues
+          const [year, month, day] = dateString.split('-').map(Number);
+          const parsedDate = new Date(year, month - 1, day);
+          // Check if the date is valid
+          if (!isNaN(parsedDate.getTime())) {
+            return parsedDate;
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing date value:', value, error);
+      }
+    }
+    return undefined;
+  }, [value]);
+
+  // Convert minDate/maxDate from ISO string to Date object
+  let minDateObj: Date | undefined = undefined;
+  if (minDate && typeof minDate === 'string' && minDate.trim() !== '') {
     try {
-      const dateString = value.trim();
-      // Check if it matches yyyy-MM-dd format
+      const dateString = minDate.trim();
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
         const parsedDate = new Date(dateString + "T00:00:00");
-        // Check if the date is valid
         if (!isNaN(parsedDate.getTime())) {
-          date = parsedDate;
+          minDateObj = parsedDate;
         }
       }
     } catch (error) {
-      console.error('Error parsing date value:', value, error);
+      console.error('Error parsing minDate:', minDate, error);
+    }
+  }
+
+  let maxDateObj: Date | undefined = undefined;
+  if (maxDate && typeof maxDate === 'string' && maxDate.trim() !== '') {
+    try {
+      const dateString = maxDate.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        const parsedDate = new Date(dateString + "T00:00:00");
+        if (!isNaN(parsedDate.getTime())) {
+          maxDateObj = parsedDate;
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing maxDate:', maxDate, error);
     }
   }
 
   // Format date for display: DD/MM/YYYY
-  const displayValue = date ? format(date, "dd/MM/yyyy") : "";
+  // Use useMemo to ensure it recalculates when date changes
+  const displayValue = React.useMemo(() => {
+    if (date) {
+      try {
+        return format(date, "dd/MM/yyyy");
+      } catch (error) {
+        console.error('Error formatting date:', date, error);
+        return "";
+      }
+    }
+    return "";
+  }, [date]);
+
+  // Create disabled function to prevent selecting dates outside the valid range
+  // Only disable dates after maxDate (toDate) - all dates before are enabled
+  const isDateDisabled = React.useCallback((dateToCheck: Date): boolean => {
+    const checkDateOnly = new Date(dateToCheck);
+    checkDateOnly.setHours(0, 0, 0, 0);
+    
+    // Only disable dates after maxDate (if provided)
+    // This ensures that for "From Date" picker, dates after "To Date" are disabled
+    if (maxDateObj) {
+      const maxDateOnly = new Date(maxDateObj);
+      maxDateOnly.setHours(0, 0, 0, 0);
+      if (checkDateOnly > maxDateOnly) {
+        return true;
+      }
+    }
+    
+    // Note: We don't disable dates before minDate or today/future dates
+    // All dates before maxDate are enabled and clickable
+    
+    return false;
+  }, [maxDateObj]);
 
   const handleSelect = (selectedDate: Date | undefined) => {
     if (selectedDate) {
+      // Additional validation: prevent selection if date is disabled
+      if (isDateDisabled(selectedDate)) {
+        return; // Don't allow selection of disabled dates
+      }
       // Convert Date to ISO string (yyyy-MM-dd)
       const year = selectedDate.getFullYear();
       const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
       const day = String(selectedDate.getDate()).padStart(2, "0");
       const isoString = `${year}-${month}-${day}`;
       onChange(isoString);
+      // Close the popover after selection
+      setOpen(false);
     } else {
       onChange("");
     }
   };
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant={"outline"}
@@ -74,10 +155,12 @@ export function DatePicker({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
+          key={value} // Force re-render when value changes
           mode="single"
           selected={date}
           onSelect={handleSelect}
           initialFocus
+          disabled={isDateDisabled}
         />
       </PopoverContent>
     </Popover>

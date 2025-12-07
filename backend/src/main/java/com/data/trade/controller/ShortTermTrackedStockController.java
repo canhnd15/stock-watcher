@@ -23,9 +23,9 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @RestController
@@ -39,16 +39,48 @@ public class ShortTermTrackedStockController {
     private final TrackedStockStatsService trackedStockStatsService;
     private final FinpathClient finpathClient;
 
+    /**
+     * Get all tracked stocks WITHOUT market price (fast response)
+     * Frontend will fetch market prices separately via /market-prices endpoint
+     */
     @GetMapping
     public List<ShortTermTrackedStockWithMarketPriceDTO> getAllShortTermTrackedStocks(@AuthenticationPrincipal User currentUser) {
         List<ShortTermTrackedStock> stocks = shortTermTrackedStockRepository.findAllByUserId(currentUser.getId());
         
+        // Return stocks immediately without market price for faster response
         return stocks.stream()
-                .map(stock -> {
-                    BigDecimal marketPrice = getMarketPrice(stock.getCode());
-                    return ShortTermTrackedStockWithMarketPriceDTO.fromShortTermTrackedStock(stock, marketPrice);
-                })
+                .map(stock -> ShortTermTrackedStockWithMarketPriceDTO.fromShortTermTrackedStock(stock, null))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get market prices for multiple stock codes in parallel (no cache)
+     * POST /api/short-term-tracked-stocks/market-prices
+     * Body: ["VCB", "FPT", "HPG"]
+     * Returns: {"VCB": 85000, "FPT": 125000, "HPG": 45000}
+     */
+    @PostMapping("/market-prices")
+    public ResponseEntity<Map<String, BigDecimal>> getMarketPrices(@RequestBody List<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return ResponseEntity.ok(Collections.emptyMap());
+        }
+
+        Map<String, BigDecimal> result = new ConcurrentHashMap<>();
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+        // Fetch all prices in parallel
+        for (String code : codes) {
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                BigDecimal price = getMarketPrice(code);
+                result.put(code, price); // null if failed
+            });
+            futures.add(future);
+        }
+
+        // Wait for all to complete
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        return ResponseEntity.ok(result);
     }
     
     /**
@@ -82,9 +114,30 @@ public class ShortTermTrackedStockController {
         try {
             List<ShortTermTrackedStock> stocks = shortTermTrackedStockRepository.findAllByUserId(currentUser.getId());
             
+            // Get all codes
+            Set<String> codes = stocks.stream()
+                    .map(ShortTermTrackedStock::getCode)
+                    .collect(Collectors.toSet());
+            
+            // Fetch prices in parallel
+            Map<String, BigDecimal> priceMap = new ConcurrentHashMap<>();
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
+            
+            for (String code : codes) {
+                CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                    BigDecimal price = getMarketPrice(code);
+                    priceMap.put(code, price);
+                });
+                futures.add(future);
+            }
+            
+            // Wait for all to complete
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            
+            // Build result
             List<ShortTermTrackedStockWithMarketPriceDTO> result = stocks.stream()
                     .map(stock -> {
-                        BigDecimal marketPrice = getMarketPrice(stock.getCode());
+                        BigDecimal marketPrice = priceMap.get(stock.getCode());
                         return ShortTermTrackedStockWithMarketPriceDTO.fromShortTermTrackedStock(stock, marketPrice);
                     })
                     .collect(Collectors.toList());

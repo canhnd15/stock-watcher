@@ -41,6 +41,7 @@ const translations = {
     'nav.trackedStocks': 'Cổ phiếu theo dõi',
     'nav.shortTermPortfolio': 'Portfolio ngắn hạn',
     'nav.suggestions': 'Gợi ý',
+    'nav.priceAlerts': 'Cảnh báo giá',
     'nav.signals': 'Tín hiệu',
     'nav.userManagement': 'Quản lý người dùng',
     'nav.systemConfig': 'Cấu hình hệ thống',
@@ -240,6 +241,7 @@ const translations = {
     'nav.trackedStocks': 'Tracked Stocks',
     'nav.shortTermPortfolio': 'Short-Term Portfolio',
     'nav.suggestions': 'Suggestions',
+    'nav.priceAlerts': 'Alerts',
     'nav.signals': 'Signals',
     'nav.userManagement': 'User Management',
     'nav.systemConfig': 'System Config',
@@ -434,7 +436,7 @@ interface I18nProviderProps {
 export const I18nProvider: React.FC<I18nProviderProps> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
     const saved = localStorage.getItem('language') as Language;
-    return saved || 'vi'; // Default to Vietnamese
+    return saved || 'en'; // Default to English
   });
 
   useEffect(() => {

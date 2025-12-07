@@ -46,6 +46,7 @@ import { Input } from "@/components/ui/input.tsx";
 import { useTrackedStockStats } from "@/hooks/useTrackedStockStats";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { api, getStockRoombars, RoombarResponse } from "@/lib/api";
+import { formatNumberWithDots, parseFormattedNumber } from "@/lib/utils";
 import { StockRoombarStats } from "@/components/StockRoombarStats";
 import { RealtimePriceTracking } from "@/components/RealtimePriceTracking";
 import { PortfolioSimulationModal } from "@/components/PortfolioSimulationModal";
@@ -179,6 +180,8 @@ const TrackedStocks = () => {
   const loadTrackedStocks = async () => {
     try {
       setLoadingStocks(true);
+      
+      // Load stocks first (fast, without market price)
       const stocksResponse = await api.get("/api/tracked-stocks");
       if (!stocksResponse.ok) throw new Error("Failed to load stocks");
       const stocksData: TrackedStock[] = await stocksResponse.json();
@@ -201,23 +204,48 @@ const TrackedStocks = () => {
       setTargetPriceValues(targetPriceMap);
       setTargetPriceMode(targetPriceModeMap);
       setUnsavedChanges(new Set()); // Clear unsaved changes after loading
-      
-      // Load stats for tracked stocks
-      const statsResponse = await api.get("/api/tracked-stocks/stats");
-      if (statsResponse.ok) {
-        const statsData: Record<string, TrackedStockStats> = await statsResponse.json();
-        // Merge stats with tracked stocks
-        setTrackedStocks((prev) => 
-          prev.map((stock) => ({
-            ...stock,
-            stats: statsData[stock.code],
-          }))
-        );
+
+      // Load market prices async (non-blocking, after stocks are displayed)
+      if (stocksData.length > 0) {
+        loadMarketPricesAsync(stocksData.map(s => s.code));
       }
     } catch (error) {
       toast.error("Failed to load tracked stocks");
     } finally {
       setLoadingStocks(false);
+    }
+  };
+
+  // Function to load market prices asynchronously for tracked stocks
+  const loadMarketPricesAsync = async (codes: string[]) => {
+    try {
+      const response = await api.post("/api/tracked-stocks/market-prices", codes);
+      if (response.ok) {
+        const priceMap: Record<string, number> = await response.json();
+        
+        // Update stocks with market prices
+        setTrackedStocks((prev) =>
+          prev.map((stock) => {
+            const price = priceMap[stock.code];
+            if (price !== undefined && price !== null) {
+              // Calculate priceChangePercent
+              const priceChangePercent = stock.costBasis 
+                ? ((price - stock.costBasis) / stock.costBasis) * 100 
+                : undefined;
+              
+              return {
+                ...stock,
+                marketPrice: price,
+                priceChangePercent: priceChangePercent
+              };
+            }
+            return stock;
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load market prices:", error);
+      // Don't show error toast, just log it (non-critical)
     }
   };
 
@@ -263,7 +291,7 @@ const TrackedStocks = () => {
     // Get target price from input or saved value
     let targetPrice: number | null = null;
     const targetPriceInput = targetPriceValues[stock.code];
-    const mode = targetPriceMode[stock.code] || "value";
+    const mode = targetPriceMode[stock.code] || "percent";
     
     if (targetPriceInput && targetPriceInput.trim() !== "") {
       const inputValue = parseFloat(targetPriceInput);
@@ -354,7 +382,7 @@ const TrackedStocks = () => {
           
           let targetPrice: number | null = null;
           const targetPriceInput = targetPriceValues[code];
-          const mode = targetPriceMode[code] || "value";
+          const mode = targetPriceMode[code] || "percent";
           
           if (targetPriceInput && targetPriceInput.trim() !== "") {
             const inputValue = parseFloat(targetPriceInput);
@@ -632,6 +660,8 @@ const TrackedStocks = () => {
   const loadShortTermTrackedStocks = async () => {
     try {
       setLoadingShortTermStocks(true);
+      
+      // Load stocks first (fast, without market price)
       const stocksResponse = await api.get("/api/short-term-tracked-stocks");
       if (!stocksResponse.ok) throw new Error("Failed to load short-term stocks");
       const stocksData: TrackedStock[] = await stocksResponse.json();
@@ -667,10 +697,48 @@ const TrackedStocks = () => {
           }))
         );
       }
+
+      // Load market prices async (non-blocking, after stocks are displayed)
+      if (stocksData.length > 0) {
+        loadShortTermMarketPricesAsync(stocksData.map(s => s.code));
+      }
     } catch (error) {
       toast.error("Failed to load short-term tracked stocks");
     } finally {
       setLoadingShortTermStocks(false);
+    }
+  };
+
+  // Function to load market prices asynchronously for short-term tracked stocks
+  const loadShortTermMarketPricesAsync = async (codes: string[]) => {
+    try {
+      const response = await api.post("/api/short-term-tracked-stocks/market-prices", codes);
+      if (response.ok) {
+        const priceMap: Record<string, number> = await response.json();
+        
+        // Update stocks with market prices
+        setShortTermStocks((prev) =>
+          prev.map((stock) => {
+            const price = priceMap[stock.code];
+            if (price !== undefined && price !== null) {
+              // Calculate priceChangePercent
+              const priceChangePercent = stock.costBasis 
+                ? ((price - stock.costBasis) / stock.costBasis) * 100 
+                : undefined;
+              
+              return {
+                ...stock,
+                marketPrice: price,
+                priceChangePercent: priceChangePercent
+              };
+            }
+            return stock;
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load market prices:", error);
+      // Don't show error toast, just log it (non-critical)
     }
   };
 
@@ -681,10 +749,9 @@ const TrackedStocks = () => {
     // Load VN30 codes - using hardcoded list
     setLoadingVn30(true);
     const vn30List = [
-      "ACB", "BCM", "CTG", "DGC", "FPT", "BFG", "HDB", "HPG", "MWG",
-      "LPB", "MBB", "MSN", "PLX", "SAB", "SHB", "SSB", "SSI", "VRE",
-      "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB",
-      "DXG", "KDH"
+        "ACB", "BCM", "BID", "CTG", "DGC", "FPT", "GAS", "GVR", "HDB", "HPG", "LPB", "MBB",
+        "MSN", "MWG", "PLX", "SAB", "SHB", "SSB", "SSI", "STB", "TCB", "TPB", "VCB", "VHM",
+        "VIB", "VIC", "VJC", "VNM", "VPB", "VRE"
     ];
     setVn30Codes(vn30List);
     setLoadingVn30(false);
@@ -736,7 +803,7 @@ const TrackedStocks = () => {
       initialCostBasis[code] = "";
       initialVolume[code] = "";
       initialTargetPrice[code] = "";
-      initialTargetPriceMode[code] = "value";
+      initialTargetPriceMode[code] = "percent";
     });
     setCostBasisValues(initialCostBasis);
     setVolumeValuesModal(initialVolume);
@@ -761,7 +828,7 @@ const TrackedStocks = () => {
       initialCostBasis[code] = "";
       initialVolume[code] = "";
       initialTargetPrice[code] = "";
-      initialTargetPriceMode[code] = "value";
+      initialTargetPriceMode[code] = "percent";
     });
     setShortTermCostBasisValues(initialCostBasis);
     setShortTermVolumeValuesModal(initialVolume);
@@ -778,7 +845,9 @@ const TrackedStocks = () => {
       // Add stocks one by one with cost basis, volume, and target price
       for (const code of codes) {
         const costBasisValue = costBasisValues[code]?.trim();
-        const costBasis = costBasisValue ? parseFloat(costBasisValue) : undefined;
+        // Parse formatted number to handle any edge cases
+        const costBasisRaw = costBasisValue ? parseFormattedNumber(costBasisValue) : "";
+        const costBasis = costBasisRaw ? parseFloat(costBasisRaw) : undefined;
         
         if (costBasis !== undefined && (isNaN(costBasis) || costBasis < 0)) {
           toast.error(`Invalid cost basis for ${code}. Please enter a valid positive number.`);
@@ -786,7 +855,9 @@ const TrackedStocks = () => {
         }
 
         const volumeValue = volumeValuesModal[code]?.trim();
-        const volume = volumeValue ? parseInt(volumeValue, 10) : undefined;
+        // Parse formatted number to handle any edge cases
+        const volumeRaw = volumeValue ? parseFormattedNumber(volumeValue) : "";
+        const volume = volumeRaw ? parseInt(volumeRaw, 10) : undefined;
         
         if (volume !== undefined && (isNaN(volume) || volume < 0)) {
           toast.error(`Invalid volume for ${code}. Please enter a valid positive number.`);
@@ -796,9 +867,11 @@ const TrackedStocks = () => {
         let targetPrice: number | undefined = undefined;
         const targetPriceValue = targetPriceValuesModal[code]?.trim();
         if (targetPriceValue) {
-          const inputValue = parseFloat(targetPriceValue);
+          // Parse formatted number to handle any edge cases
+          const targetPriceRaw = parseFormattedNumber(targetPriceValue);
+          const inputValue = parseFloat(targetPriceRaw);
           if (!isNaN(inputValue) && inputValue >= 0) {
-            const mode = targetPriceModeModal[code] || "value";
+            const mode = targetPriceModeModal[code] || "percent";
             if (mode === "percent") {
               if (costBasis && costBasis > 0) {
                 targetPrice = costBasis * (1 + inputValue / 100);
@@ -855,7 +928,9 @@ const TrackedStocks = () => {
       // Add stocks one by one with cost basis, volume, and target price to short-term portfolio
       for (const code of codes) {
         const costBasisValue = shortTermCostBasisValues[code]?.trim();
-        const costBasis = costBasisValue ? parseFloat(costBasisValue) : undefined;
+        // Parse formatted number to handle any edge cases
+        const costBasisRaw = costBasisValue ? parseFormattedNumber(costBasisValue) : "";
+        const costBasis = costBasisRaw ? parseFloat(costBasisRaw) : undefined;
         
         if (costBasis !== undefined && (isNaN(costBasis) || costBasis < 0)) {
           toast.error(`Invalid cost basis for ${code}. Please enter a valid positive number.`);
@@ -863,7 +938,9 @@ const TrackedStocks = () => {
         }
 
         const volumeValue = shortTermVolumeValuesModal[code]?.trim();
-        const volume = volumeValue ? parseInt(volumeValue, 10) : undefined;
+        // Parse formatted number to handle any edge cases
+        const volumeRaw = volumeValue ? parseFormattedNumber(volumeValue) : "";
+        const volume = volumeRaw ? parseInt(volumeRaw, 10) : undefined;
         
         if (volume !== undefined && (isNaN(volume) || volume < 0)) {
           toast.error(`Invalid volume for ${code}. Please enter a valid positive number.`);
@@ -873,9 +950,11 @@ const TrackedStocks = () => {
         let targetPrice: number | undefined = undefined;
         const targetPriceValue = shortTermTargetPriceValuesModal[code]?.trim();
         if (targetPriceValue) {
-          const inputValue = parseFloat(targetPriceValue);
+          // Parse formatted number to handle any edge cases
+          const targetPriceRaw = parseFormattedNumber(targetPriceValue);
+          const inputValue = parseFloat(targetPriceRaw);
           if (!isNaN(inputValue) && inputValue >= 0) {
-            const mode = shortTermTargetPriceModeModal[code] || "value";
+            const mode = shortTermTargetPriceModeModal[code] || "percent";
             if (mode === "percent") {
               if (costBasis && costBasis > 0) {
                 targetPrice = costBasis * (1 + inputValue / 100);
@@ -1313,7 +1392,7 @@ const TrackedStocks = () => {
     // Get target price from input or saved value
     let targetPrice: number | null = null;
     const targetPriceInput = shortTermTargetPriceValues[stock.code];
-    const mode = shortTermTargetPriceMode[stock.code] || "value";
+    const mode = shortTermTargetPriceMode[stock.code] || "percent";
     
     if (targetPriceInput && targetPriceInput.trim() !== "") {
       const inputValue = parseFloat(targetPriceInput);
@@ -1358,7 +1437,7 @@ const TrackedStocks = () => {
           
           let targetPrice: number | null = null;
           const targetPriceInput = shortTermTargetPriceValues[code];
-          const mode = shortTermTargetPriceMode[code] || "value";
+          const mode = shortTermTargetPriceMode[code] || "percent";
           
           if (targetPriceInput && targetPriceInput.trim() !== "") {
             const inputValue = parseFloat(targetPriceInput);
@@ -2102,69 +2181,119 @@ const TrackedStocks = () => {
                     <div>
                       <label className="text-sm font-medium mb-1 block">Cost Basis (VND)</label>
                       <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
+                        type="text"
                         placeholder="Cost basis (optional)"
-                        value={costBasisValues[code] || ""}
+                        value={formatNumberWithDots(costBasisValues[code])}
                         onChange={(e) => {
-                          setCostBasisValues(prev => ({
-                            ...prev,
-                            [code]: e.target.value
-                          }));
+                          const rawValue = parseFormattedNumber(e.target.value);
+                          // Only allow numbers and decimal point
+                          if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                            setCostBasisValues(prev => ({
+                              ...prev,
+                              [code]: rawValue
+                            }));
+                          }
                         }}
                       />
                     </div>
                     <div>
                       <label className="text-sm font-medium mb-1 block">Volume</label>
-                      <Input
-                        type="number"
-                        step="1"
-                        min="0"
-                        placeholder="Volume (optional)"
-                        value={volumeValuesModal[code] || ""}
-                        onChange={(e) => {
-                          setVolumeValuesModal(prev => ({
-                            ...prev,
-                            [code]: e.target.value
-                          }));
-                        }}
-                      />
+                      <div className="space-y-2">
+                        <Input
+                          type="text"
+                          placeholder="Volume (optional)"
+                          value={formatNumberWithDots(volumeValuesModal[code])}
+                          onChange={(e) => {
+                            const rawValue = parseFormattedNumber(e.target.value);
+                            // Only allow numbers
+                            if (rawValue === "" || /^\d+$/.test(rawValue)) {
+                              setVolumeValuesModal(prev => ({
+                                ...prev,
+                                [code]: rawValue
+                              }));
+                            }
+                          }}
+                        />
+                        <div className="flex gap-2 flex-wrap">
+                          {[100, 200, 300, 500, 1000, 5000].map((vol) => (
+                            <Button
+                              key={vol}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                setVolumeValuesModal(prev => ({
+                                  ...prev,
+                                  [code]: String(vol)
+                                }));
+                              }}
+                            >
+                              {vol.toLocaleString('vi-VN')}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className="text-sm font-medium mb-1 block">Target Price</label>
-                      <div className="flex gap-2">
-                        <Select
-                          value={targetPriceModeModal[code] || "value"}
-                          onValueChange={(value: "value" | "percent") => {
-                            setTargetPriceModeModal(prev => ({
-                              ...prev,
-                              [code]: value
-                            }));
-                          }}
-                        >
-                          <SelectTrigger className="w-24">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="value">Value</SelectItem>
-                            <SelectItem value="percent">%</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder={targetPriceModeModal[code] === "percent" ? "Profit %" : "Target price (optional)"}
-                          value={targetPriceValuesModal[code] || ""}
-                          onChange={(e) => {
-                            setTargetPriceValuesModal(prev => ({
-                              ...prev,
-                              [code]: e.target.value
-                            }));
-                          }}
-                          className="flex-1"
-                        />
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Select
+                            value={targetPriceModeModal[code] || "percent"}
+                            onValueChange={(value: "value" | "percent") => {
+                              setTargetPriceModeModal(prev => ({
+                                ...prev,
+                                [code]: value
+                              }));
+                            }}
+                          >
+                            <SelectTrigger className="w-24">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="percent">%</SelectItem>
+                              <SelectItem value="value">Value</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="text"
+                            placeholder={(targetPriceModeModal[code] || "percent") === "percent" ? "Profit %" : "Target price (optional)"}
+                            value={formatNumberWithDots(targetPriceValuesModal[code])}
+                            onChange={(e) => {
+                              const rawValue = parseFormattedNumber(e.target.value);
+                              // Only allow numbers and decimal point
+                              if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                                setTargetPriceValuesModal(prev => ({
+                                  ...prev,
+                                  [code]: rawValue
+                                }));
+                              }
+                            }}
+                            className="flex-1"
+                          />
+                        </div>
+                        {(targetPriceModeModal[code] || "percent") === "percent" && (
+                          <div className="flex gap-2 flex-wrap">
+                            {[10, 20, 30, 50, 100, 200].map((percent) => (
+                              <Button
+                                key={percent}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs"
+                                onClick={() => {
+                                  setTargetPriceValuesModal(prev => ({
+                                    ...prev,
+                                    [code]: String(percent)
+                                  }));
+                                }}
+                              >
+                                {percent}%
+                              </Button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2205,69 +2334,119 @@ const TrackedStocks = () => {
                     <div>
                       <label className="text-sm font-medium mb-1 block">Cost Basis (VND)</label>
                       <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
+                        type="text"
                         placeholder="Cost basis (optional)"
-                        value={shortTermCostBasisValues[code] || ""}
+                        value={formatNumberWithDots(shortTermCostBasisValues[code])}
                         onChange={(e) => {
-                          setShortTermCostBasisValues(prev => ({
-                            ...prev,
-                            [code]: e.target.value
-                          }));
+                          const rawValue = parseFormattedNumber(e.target.value);
+                          // Only allow numbers and decimal point
+                          if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                            setShortTermCostBasisValues(prev => ({
+                              ...prev,
+                              [code]: rawValue
+                            }));
+                          }
                         }}
                       />
                     </div>
                     <div>
                       <label className="text-sm font-medium mb-1 block">Volume</label>
-                      <Input
-                        type="number"
-                        step="1"
-                        min="0"
-                        placeholder="Volume (optional)"
-                        value={shortTermVolumeValuesModal[code] || ""}
-                        onChange={(e) => {
-                          setShortTermVolumeValuesModal(prev => ({
-                            ...prev,
-                            [code]: e.target.value
-                          }));
-                        }}
-                      />
+                      <div className="space-y-2">
+                        <Input
+                          type="text"
+                          placeholder="Volume (optional)"
+                          value={formatNumberWithDots(shortTermVolumeValuesModal[code])}
+                          onChange={(e) => {
+                            const rawValue = parseFormattedNumber(e.target.value);
+                            // Only allow numbers
+                            if (rawValue === "" || /^\d+$/.test(rawValue)) {
+                              setShortTermVolumeValuesModal(prev => ({
+                                ...prev,
+                                [code]: rawValue
+                              }));
+                            }
+                          }}
+                        />
+                        <div className="flex gap-2 flex-wrap">
+                          {[100, 200, 300, 500, 1000].map((vol) => (
+                            <Button
+                              key={vol}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                setShortTermVolumeValuesModal(prev => ({
+                                  ...prev,
+                                  [code]: String(vol)
+                                }));
+                              }}
+                            >
+                              {vol.toLocaleString('vi-VN')}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className="text-sm font-medium mb-1 block">Target Price</label>
-                      <div className="flex gap-2">
-                        <Select
-                          value={shortTermTargetPriceModeModal[code] || "value"}
-                          onValueChange={(value: "value" | "percent") => {
-                            setShortTermTargetPriceModeModal(prev => ({
-                              ...prev,
-                              [code]: value
-                            }));
-                          }}
-                        >
-                          <SelectTrigger className="w-24">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="value">Value</SelectItem>
-                            <SelectItem value="percent">%</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder={shortTermTargetPriceModeModal[code] === "percent" ? "Profit %" : "Target price (optional)"}
-                          value={shortTermTargetPriceValuesModal[code] || ""}
-                          onChange={(e) => {
-                            setShortTermTargetPriceValuesModal(prev => ({
-                              ...prev,
-                              [code]: e.target.value
-                            }));
-                          }}
-                          className="flex-1"
-                        />
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Select
+                            value={shortTermTargetPriceModeModal[code] || "percent"}
+                            onValueChange={(value: "value" | "percent") => {
+                              setShortTermTargetPriceModeModal(prev => ({
+                                ...prev,
+                                [code]: value
+                              }));
+                            }}
+                          >
+                            <SelectTrigger className="w-24">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="value">Value</SelectItem>
+                              <SelectItem value="percent">%</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="text"
+                            placeholder={(shortTermTargetPriceModeModal[code] || "percent") === "percent" ? "Profit %" : "Target price (optional)"}
+                            value={formatNumberWithDots(shortTermTargetPriceValuesModal[code])}
+                            onChange={(e) => {
+                              const rawValue = parseFormattedNumber(e.target.value);
+                              // Only allow numbers and decimal point
+                              if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                                setShortTermTargetPriceValuesModal(prev => ({
+                                  ...prev,
+                                  [code]: rawValue
+                                }));
+                              }
+                            }}
+                            className="flex-1"
+                          />
+                        </div>
+                        {(shortTermTargetPriceModeModal[code] || "percent") === "percent" && (
+                          <div className="flex gap-2 flex-wrap">
+                            {[10, 20, 30, 50, 100, 200].map((percent) => (
+                              <Button
+                                key={percent}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs"
+                                onClick={() => {
+                                  setShortTermTargetPriceValuesModal(prev => ({
+                                    ...prev,
+                                    [code]: String(percent)
+                                  }));
+                                }}
+                              >
+                                {percent}%
+                              </Button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2312,11 +2491,15 @@ const TrackedStocks = () => {
               <div>
                 <label className="text-sm font-medium mb-1 block">Cost Basis</label>
                 <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editCostBasis}
-                  onChange={(e) => setEditCostBasis(e.target.value)}
+                  type="text"
+                  value={formatNumberWithDots(editCostBasis)}
+                  onChange={(e) => {
+                    const rawValue = parseFormattedNumber(e.target.value);
+                    // Only allow numbers and decimal point
+                    if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                      setEditCostBasis(rawValue);
+                    }
+                  }}
                   placeholder="Cost basis (optional)"
                 />
               </div>
@@ -2702,7 +2885,7 @@ const TrackedStocks = () => {
                       <div className="flex flex-col items-center gap-1">
                         <div className="flex items-center gap-1">
                           <Select
-                            value={targetPriceMode[stock.code] || "value"}
+                            value={targetPriceMode[stock.code] || "percent"}
                             onValueChange={(value: "value" | "percent") => {
                               setTargetPriceMode(prev => ({
                                 ...prev,
@@ -2724,7 +2907,7 @@ const TrackedStocks = () => {
                               type="number"
                               step="0.01"
                               min="0"
-                              placeholder={targetPriceMode[stock.code] === "percent" ? "%" : "Price"}
+                              placeholder={(targetPriceMode[stock.code] || "percent") === "percent" ? "%" : "Price"}
                               value={targetPriceValues[stock.code] || ""}
                               onChange={(e) => {
                                 setTargetPriceValues(prev => ({
@@ -2741,7 +2924,7 @@ const TrackedStocks = () => {
                         {(() => {
                           // Show calculated target price if in percentage mode, otherwise show saved or input value
                           const targetPriceInput = targetPriceValues[stock.code];
-                          const mode = targetPriceMode[stock.code] || "value";
+                          const mode = targetPriceMode[stock.code] || "percent";
                           let displayPrice: number | null = null;
                           
                           if (targetPriceInput && targetPriceInput.trim() !== "") {
@@ -2923,7 +3106,7 @@ const TrackedStocks = () => {
                 // Get target price from input or saved value
                 let targetPrice: number | null = null;
                 const targetPriceInput = targetPriceValues[stock.code];
-                const mode = targetPriceMode[stock.code] || "value";
+                const mode = targetPriceMode[stock.code] || "percent";
                 
                 if (targetPriceInput && targetPriceInput.trim() !== "") {
                   const inputValue = parseFloat(targetPriceInput);
@@ -3347,7 +3530,7 @@ const TrackedStocks = () => {
                           <div className="flex flex-col items-center gap-1">
                             <div className="flex items-center gap-1">
                               <Select
-                                value={shortTermTargetPriceMode[stock.code] || "value"}
+                                value={shortTermTargetPriceMode[stock.code] || "percent"}
                                 onValueChange={(value: "value" | "percent") => {
                                   setShortTermTargetPriceMode(prev => ({
                                     ...prev,
@@ -3369,7 +3552,7 @@ const TrackedStocks = () => {
                                   type="number"
                                   step="0.01"
                                   min="0"
-                                  placeholder={shortTermTargetPriceMode[stock.code] === "percent" ? "%" : "Price"}
+                                  placeholder={(shortTermTargetPriceMode[stock.code] || "percent") === "percent" ? "%" : "Price"}
                                   value={shortTermTargetPriceValues[stock.code] || ""}
                                   onChange={(e) => {
                                     setShortTermTargetPriceValues(prev => ({
@@ -3386,7 +3569,7 @@ const TrackedStocks = () => {
                             {(() => {
                               // Show calculated target price if in percentage mode, otherwise show saved or input value
                               const targetPriceInput = shortTermTargetPriceValues[stock.code];
-                              const mode = shortTermTargetPriceMode[stock.code] || "value";
+                              const mode = shortTermTargetPriceMode[stock.code] || "percent";
                               let displayPrice: number | null = null;
                               
                               if (targetPriceInput && targetPriceInput.trim() !== "") {
@@ -3571,7 +3754,7 @@ const TrackedStocks = () => {
                   // Get target price from input or saved value
                   let targetPrice: number | null = null;
                   const targetPriceInput = shortTermTargetPriceValues[stock.code];
-                  const mode = shortTermTargetPriceMode[stock.code] || "value";
+                  const mode = shortTermTargetPriceMode[stock.code] || "percent";
                   
                   if (targetPriceInput && targetPriceInput.trim() !== "") {
                     const inputValue = parseFloat(targetPriceInput);

@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e3a8a;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e40af;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="chartGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#10b981;stop-opacity:0" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGrad)" />
+  
+  <!-- Grid lines -->
+  <g opacity="0.1">
+    <line x1="0" y1="315" x2="1200" y2="315" stroke="white" stroke-width="1"/>
+    <line x1="200" y1="0" x2="200" y2="630" stroke="white" stroke-width="1"/>
+    <line x1="400" y1="0" x2="400" y2="630" stroke="white" stroke-width="1"/>
+    <line x1="600" y1="0" x2="600" y2="630" stroke="white" stroke-width="1"/>
+    <line x1="800" y1="0" x2="800" y2="630" stroke="white" stroke-width="1"/>
+    <line x1="1000" y1="0" x2="1000" y2="630" stroke="white" stroke-width="1"/>
+  </g>
+  
+  <!-- Chart area background -->
+  <path d="M 150 450 L 150 180 L 200 200 L 250 160 L 300 140 L 350 120 L 400 100 L 450 90 L 500 85 L 550 80 L 600 75 L 650 70 L 700 65 L 750 60 L 800 55 L 850 50 L 900 45 L 950 40 L 1000 35 L 1050 30 L 1100 25 L 1150 20 L 1150 450 Z" 
+        fill="url(#chartGrad)" 
+        opacity="0.6"/>
+  
+  <!-- Main chart line -->
+  <polyline points="150,450 200,200 250,160 300,140 350,120 400,100 450,90 500,85 550,80 600,75 650,70 700,65 750,60 800,55 850,50 900,45 950,40 1000,35 1050,30 1100,25 1150,20" 
+            fill="none" 
+            stroke="#10b981" 
+            stroke-width="6" 
+            stroke-linecap="round" 
+            stroke-linejoin="round"/>
+  
+  <!-- Chart points -->
+  <circle cx="200" cy="200" r="5" fill="#10b981" />
+  <circle cx="300" cy="140" r="5" fill="#10b981" />
+  <circle cx="400" cy="100" r="5" fill="#10b981" />
+  <circle cx="500" cy="85" r="5" fill="#10b981" />
+  <circle cx="600" cy="75" r="5" fill="#10b981" />
+  <circle cx="700" cy="65" r="5" fill="#10b981" />
+  <circle cx="800" cy="55" r="5" fill="#10b981" />
+  <circle cx="900" cy="45" r="5" fill="#10b981" />
+  <circle cx="1000" cy="35" r="5" fill="#10b981" />
+  <circle cx="1100" cy="25" r="6" fill="#10b981" />
+  <circle cx="1150" cy="20" r="7" fill="#10b981" />
+  
+  <!-- Upward trend arrow -->
+  <path d="M 1100 50 L 1130 20 L 1160 50" 
+        fill="none" 
+        stroke="#10b981" 
+        stroke-width="4" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+  
+  <!-- Title -->
+  <text x="150" y="120" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="white">
+    Stock Watcher
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="150" y="170" font-family="Arial, sans-serif" font-size="32" fill="rgba(255,255,255,0.9)">
+    Professional Stock Trading Monitor
+  </text>
+  
+  <!-- Features -->
+  <g opacity="0.9">
+    <circle cx="150" cy="240" r="4" fill="#10b981"/>
+    <text x="170" y="245" font-family="Arial, sans-serif" font-size="24" fill="white">Real-time Trade Monitoring</text>
+    
+    <circle cx="150" cy="280" r="4" fill="#10b981"/>
+    <text x="170" y="285" font-family="Arial, sans-serif" font-size="24" fill="white">Tracked Stocks &amp; Watchlists</text>
+    
+    <circle cx="150" cy="320" r="4" fill="#10b981"/>
+    <text x="170" y="325" font-family="Arial, sans-serif" font-size="24" fill="white">Trading Signals &amp; Suggestions</text>
+  </g>
+  
+  <!-- Decorative elements -->
+  <g opacity="0.2">
+    <circle cx="1050" cy="150" r="80" fill="white"/>
+    <circle cx="1100" cy="200" r="60" fill="white"/>
+    <circle cx="1000" cy="250" r="50" fill="white"/>
+  </g>
+</svg>
+

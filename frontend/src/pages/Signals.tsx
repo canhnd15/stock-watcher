@@ -58,18 +58,18 @@ const Signals = () => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
             <div className="flex items-center gap-3">
-              <Activity className="h-8 w-8 text-primary" />
+              <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
               <div>
-                <h1 className="text-3xl font-bold">Signal Tracker</h1>
-                <p className="text-muted-foreground">Real-time buy/sell signals based on trade analysis</p>
+                <h1 className="text-2xl sm:text-3xl font-bold">Signal Tracker</h1>
+                <p className="text-sm sm:text-base text-muted-foreground">Real-time buy/sell signals based on trade analysis</p>
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
               {/* Refresh Button */}
               <Button
                 variant="outline"
@@ -82,10 +82,10 @@ const Signals = () => {
               </Button>
               
               {/* Connection Status */}
-              <Card className={`${isConnected ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'} transition-colors`}>
-                <CardContent className="p-3 flex items-center gap-2">
+              <Card className={`${isConnected ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'} transition-colors flex-1 sm:flex-none`}>
+                <CardContent className="p-2 sm:p-3 flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                  <span className={`text-sm font-semibold ${isConnected ? 'text-green-700' : 'text-red-700'}`}>
+                  <span className={`text-xs sm:text-sm font-semibold ${isConnected ? 'text-green-700' : 'text-red-700'}`}>
                     {isConnected ? 'Active' : 'Disconnected'}
                   </span>
                 </CardContent>
@@ -111,18 +111,19 @@ const Signals = () => {
         {signals.length > 0 ? (
           <Card>
             <CardContent className="p-0">
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[100px]">Code</TableHead>
-                    <TableHead className="w-[100px]">Signal</TableHead>
-                    <TableHead className="w-[80px]">Score</TableHead>
-                    <TableHead className="w-[150px]">Time</TableHead>
-                    <TableHead className="text-right">Buy Volume</TableHead>
-                    <TableHead className="text-right">Sell Volume</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
-                    <TableHead className="text-right">Change</TableHead>
-                    <TableHead>Reason</TableHead>
+                <TableHead className="min-w-[80px]">Code</TableHead>
+                <TableHead className="min-w-[100px]">Signal</TableHead>
+                <TableHead className="min-w-[70px]">Score</TableHead>
+                <TableHead className="min-w-[120px]">Time</TableHead>
+                <TableHead className="text-right min-w-[100px]">Buy Volume</TableHead>
+                <TableHead className="text-right min-w-[100px]">Sell Volume</TableHead>
+                <TableHead className="text-right min-w-[90px]">Price</TableHead>
+                <TableHead className="text-right min-w-[90px]">Change</TableHead>
+                <TableHead className="min-w-[200px]">Reason</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -182,6 +183,7 @@ const Signals = () => {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         ) : (

@@ -63,6 +63,9 @@ public class SecurityConfig {
                 // Signals - VIP and ADMIN only
                 .requestMatchers(ApiEndpoints.API_SIGNALS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
                 
+                // Price Alerts - VIP and ADMIN only
+                .requestMatchers(ApiEndpoints.API_PRICE_ALERTS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
+                
                 // Admin endpoints - ADMIN only
                 .requestMatchers(ApiEndpoints.API_ADMIN_PATTERN).hasRole(RoleConstants.ROLE_ADMIN)
                 

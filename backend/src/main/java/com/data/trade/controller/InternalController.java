@@ -1,6 +1,7 @@
 package com.data.trade.controller;
 
 import com.data.trade.constants.ApiEndpoints;
+import com.data.trade.service.PriceAlertNotificationService;
 import com.data.trade.service.SignalCalculationService;
 import com.data.trade.service.TrackedStockNotificationService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class InternalController {
 
     private final SignalCalculationService signalCalculationService;
     private final TrackedStockNotificationService trackedStockNotificationService;
+    private final PriceAlertNotificationService priceAlertNotificationService;
 
     /**
      * Internal endpoint for cron-jobs service to trigger signal calculation
@@ -74,6 +76,33 @@ public class InternalController {
             Map<String, String> response = new HashMap<>();
             response.put("status", "error");
             response.put("message", "Failed to check tracked stocks: " + e.getMessage());
+            
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * Internal endpoint for cron-jobs service to trigger price alerts check
+     * Checks all active price alerts and sends notifications via WebSocket when conditions are met
+     */
+    @PostMapping(ApiEndpoints.INTERNAL_PRICE_ALERTS_CHECK_PATH)
+    public ResponseEntity<Map<String, String>> checkPriceAlerts() {
+        log.info("Price alerts check triggered by cron-jobs service via internal API");
+        
+        try {
+            priceAlertNotificationService.checkPriceAlertsAndNotify();
+            
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Price alerts check completed. Notifications sent if conditions met.");
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to check price alerts: {}", e.getMessage(), e);
+            
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "error");
+            response.put("message", "Failed to check price alerts: " + e.getMessage());
             
             return ResponseEntity.internalServerError().body(response);
         }

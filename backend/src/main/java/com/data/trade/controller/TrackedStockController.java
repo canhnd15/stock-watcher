@@ -21,8 +21,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping(ApiEndpoints.API_TRACKED_STOCKS)
@@ -37,6 +37,19 @@ public class TrackedStockController {
     @GetMapping
     public List<TrackedStockWithMarketPriceDTO> getAllTrackedStocks(@AuthenticationPrincipal User currentUser) {
         return trackedStockService.getAllTrackedStocksForUser(currentUser.getId());
+    }
+
+    /**
+     * Get market prices for multiple stock codes in parallel (no cache)
+     * POST /api/tracked-stocks/market-prices
+     * Body: ["VCB", "FPT", "HPG"]
+     * Returns: {"VCB": 85000, "FPT": 125000, "HPG": 45000}
+     */
+    @PostMapping("/market-prices")
+    public ResponseEntity<Map<String, BigDecimal>> getMarketPrices(@RequestBody List<String> codes) {
+        Set<String> codeSet = codes != null ? new HashSet<>(codes) : Collections.emptySet();
+        Map<String, BigDecimal> prices = trackedStockService.getMarketPricesForCodes(codeSet);
+        return ResponseEntity.ok(prices);
     }
 
     @GetMapping(ApiEndpoints.TRACKED_STOCKS_STATS_PATH)

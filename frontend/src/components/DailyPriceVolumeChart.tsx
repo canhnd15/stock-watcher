@@ -102,8 +102,8 @@ export function DailyPriceVolumeChart({ data, code, loading, onRefresh }: DailyP
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle>
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-2 gap-2">
+        <CardTitle className="text-lg sm:text-xl">
           {code ? `${code} - ` : ""}Volume Over Time
         </CardTitle>
         {onRefresh && (
@@ -112,6 +112,7 @@ export function DailyPriceVolumeChart({ data, code, loading, onRefresh }: DailyP
             size="sm"
             onClick={onRefresh}
             disabled={loading}
+            className="w-full sm:w-auto"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -119,10 +120,10 @@ export function DailyPriceVolumeChart({ data, code, loading, onRefresh }: DailyP
         )}
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-[400px] w-full">
+        <ChartContainer config={chartConfig} className="h-[300px] sm:h-[400px] w-full">
           <BarChart
             data={chartData}
-            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+            margin={{ top: 20, right: 10, left: 0, bottom: 60 }}
           >
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis
@@ -130,12 +131,14 @@ export function DailyPriceVolumeChart({ data, code, loading, onRefresh }: DailyP
                 angle={-45}
                 textAnchor="end"
                 height={80}
-                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                interval="preserveStartEnd"
               />
               <YAxis
-                label={{ value: "Volume (M)", angle: -90, position: "insideLeft", style: { textAnchor: "middle" } }}
-                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                label={{ value: "Volume (M)", angle: -90, position: "insideLeft", style: { textAnchor: "middle", fontSize: 10 } }}
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
                 tickFormatter={(value) => `${value.toFixed(1)}M`}
+                width={50}
               />
               <ChartTooltip 
                 content={

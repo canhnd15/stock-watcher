@@ -113,13 +113,14 @@ const Suggestions = () => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">Trading Suggestions</h2>
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <h2 className="text-xl sm:text-2xl font-bold">Trading Suggestions</h2>
           <Button
             onClick={handleRefresh}
             disabled={refreshing || loading}
             variant="outline"
+            className="w-full sm:w-auto"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
@@ -168,17 +169,18 @@ const Suggestions = () => {
           </Card>
         ) : (
           <div className="rounded-lg border bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Price Target</TableHead>
-                  <TableHead>Confidence</TableHead>
-                  <TableHead className="text-right">24h Volume</TableHead>
-                  <TableHead>Reason</TableHead>
-                </TableRow>
-              </TableHeader>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[80px]">Code</TableHead>
+                    <TableHead className="min-w-[120px]">Action</TableHead>
+                    <TableHead className="min-w-[180px]">Price Target</TableHead>
+                    <TableHead className="min-w-[120px]">Confidence</TableHead>
+                    <TableHead className="text-right min-w-[120px]">24h Volume</TableHead>
+                    <TableHead className="min-w-[250px]">Reason</TableHead>
+                  </TableRow>
+                </TableHeader>
               <TableBody>
                 {suggestions.map((suggestion) => (
                   <TableRow key={suggestion.code}>
@@ -216,6 +218,7 @@ const Suggestions = () => {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </div>
         )}
         

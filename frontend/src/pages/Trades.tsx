@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import {
@@ -37,9 +37,18 @@ import {
   CardTitle,
 } from "@/components/ui/card.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, HelpCircle, RotateCcw } from "lucide-react";
+import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, HelpCircle, RotateCcw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
@@ -76,10 +85,9 @@ interface DailyOHLCData {
 
 // VN30 Stock Codes
 const VN30_STOCKS = [
-  "ACB", "BCM", "CTG", "DGC", "FPT", "BFG", "HDB", "HPG", "MWG",
-  "LPB", "MBB", "MSN", "PLX", "SAB", "SHB", "SSB", "SSI", "VRE",
-  "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB",
-  "DXG", "KDH"
+    "ACB", "BCM", "BID", "CTG", "DGC", "FPT", "GAS", "GVR", "HDB", "HPG", "LPB", "MBB",
+    "MSN", "MWG", "PLX", "SAB", "SHB", "SSB", "SSI", "STB", "TCB", "TPB", "VCB", "VHM",
+    "VIB", "VIC", "VJC", "VNM", "VPB", "VRE"
 ];
 
 // LocalStorage key for saving trade filters (will be made user-specific)
@@ -186,6 +194,29 @@ const Trades = () => {
     }
   };
 
+  // Get default dates based on weekday/weekend logic
+  // Case 1: If current day is weekday -> from/to = current day
+  // Case 2: If current day is weekend -> from/to = last transaction date (last Friday)
+  const getDefaultDates = async (): Promise<{ fromDate: string; toDate: string }> => {
+    const today = getTodayDate();
+    
+    // Check if today is a weekday (Monday-Friday)
+    if (isValidTradingDay(today)) {
+      // Case 1: Weekday -> use current day
+      return { fromDate: today, toDate: today };
+    } else {
+      // Case 2: Weekend -> use last transaction date (last Friday)
+      const latestDate = await fetchLatestTransactionDate();
+      if (latestDate && isValidDateFormat(latestDate)) {
+        return { fromDate: latestDate, toDate: latestDate };
+      } else {
+        // Fallback: if we can't get latest date, use today anyway
+        console.warn('Could not fetch latest transaction date, using today');
+        return { fromDate: today, toDate: today };
+      }
+    }
+  };
+
   // Helper function to calculate N trading days back (excluding weekends)
   const getNTradingDaysBack = (n: number): string => {
     const today = new Date();
@@ -251,16 +282,12 @@ const Trades = () => {
   };
 
   // Load saved filters or use defaults
+  // Note: We don't use cached fromDate/toDate - they will be reset based on weekday/weekend logic
   const savedFilters = loadFiltersFromStorage();
   
-  // Validate and initialize default dates - will be updated by useEffect if today is not valid
-  const todayDate = getTodayDate();
-  const defaultFromDate = (savedFilters.fromDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.fromDate)) 
-    ? savedFilters.fromDate 
-    : todayDate;
-  const defaultToDate = todayDate;
   // Default chart date range: one month ago to today (unless user has saved a preference)
   // If user has saved chart dates, use them; otherwise default to one month range
+  const todayDate = getTodayDate();
   const defaultChartFromDate = (savedFilters.chartFromDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.chartFromDate))
     ? savedFilters.chartFromDate
     : getOneMonthAgo();
@@ -275,8 +302,9 @@ const Trades = () => {
   const [maxVolume, setMaxVolume] = useState(savedFilters.maxVolume || "");
   const [minPrice, setMinPrice] = useState(savedFilters.minPrice || "");
   const [maxPrice, setMaxPrice] = useState(savedFilters.maxPrice || "");
-  const [fromDate, setFromDate] = useState(defaultFromDate); // yyyy-MM-dd
-  const [toDate, setToDate] = useState(defaultToDate);     // yyyy-MM-dd
+  // Initialize dates with today - will be updated by useEffect based on weekday/weekend logic
+  const [fromDate, setFromDate] = useState(todayDate); // yyyy-MM-dd
+  const [toDate, setToDate] = useState(todayDate);     // yyyy-MM-dd
   const [defaultDateInitialized, setDefaultDateInitialized] = useState(false);
   const [page, setPage] = useState(savedFilters.page ?? 0);
   const [size, setSize] = useState(savedFilters.size || 10);
@@ -312,45 +340,25 @@ const Trades = () => {
   
   // Ref to track if initial data has been loaded
   const hasInitialLoad = useRef(false);
+  
+  // Alert dialog state for date range validation error
+  const [showDateRangeAlert, setShowDateRangeAlert] = useState(false);
+  const [dateRangeError, setDateRangeError] = useState<{
+    message: string;
+    fromDate?: string;
+    toDate?: string;
+    minimumAllowedFromDate?: string;
+  } | null>(null);
 
-  // Initialize default dates: use latest transaction date if today is not valid
+  // Initialize default dates based on weekday/weekend logic
+  // Case 1: Weekday -> from/to = current day
+  // Case 2: Weekend -> from/to = last transaction date
+  // Note: We always reset dates on page reload (ignore cached dates)
   useEffect(() => {
     const initializeDefaultDates = async () => {
-      // Ensure dates are valid before proceeding
-      const today = getTodayDate();
-      if (!isValidDateFormat(today)) {
-        console.error('Invalid today date format:', today);
-        setDefaultDateInitialized(true);
-        return;
-      }
-
-      // Check if today is a valid transaction date
-      if (isTodayValidTransactionDate()) {
-        // Today is valid, ensure toDate is set to today
-        if (isValidDateFormat(today)) {
-          setToDate(today);
-        }
-        setDefaultDateInitialized(true);
-        return;
-      }
-
-      // Today is not valid (weekend or outside market hours)
-      // Fetch the latest transaction date from backend
-      const latestDate = await fetchLatestTransactionDate();
-      if (latestDate && isValidDateFormat(latestDate)) {
-        // Only update fromDate if user hasn't saved it in localStorage
-        if (!savedFilters.fromDate) {
-          setFromDate(latestDate);
-        }
-        // Always update toDate to latest transaction date if today is not valid
-        setToDate(latestDate);
-      } else {
-        // If we can't get latest date, fall back to today
-        console.warn('Could not fetch latest transaction date, using today');
-        if (isValidDateFormat(today)) {
-          setToDate(today);
-        }
-      }
+      const defaultDates = await getDefaultDates();
+      setFromDate(defaultDates.fromDate);
+      setToDate(defaultDates.toDate);
       setDefaultDateInitialized(true);
     };
 
@@ -434,7 +442,7 @@ const Trades = () => {
     }
   };
 
-  const fetchTrades = (nextPage = page, nextSize = size, sortFieldParam = sortField, sortDirectionParam = sortDirection) => {
+  const fetchTrades = (nextPage = page, nextSize = size, sortFieldParam = sortField, sortDirectionParam = sortDirection, dateOverride?: { fromDate?: string; toDate?: string }) => {
     const params = new URLSearchParams();
     if (code) params.set("code", code.trim());
     if (type && type !== "All") params.set("type", type.toLowerCase());
@@ -442,8 +450,11 @@ const Trades = () => {
     if (maxVolume) params.set("maxVolume", String(parseInt(maxVolume)));
     if (minPrice) params.set("minPrice", String(parseFloat(minPrice)));
     if (maxPrice) params.set("maxPrice", String(parseFloat(maxPrice)));
-    if (fromDate) params.set("fromDate", fromDate);
-    if (toDate) params.set("toDate", toDate);
+    // Use date override if provided, otherwise use state values
+    const fromDateToUse = dateOverride?.fromDate ?? fromDate;
+    const toDateToUse = dateOverride?.toDate ?? toDate;
+    if (fromDateToUse) params.set("fromDate", fromDateToUse);
+    if (toDateToUse) params.set("toDate", toDateToUse);
     params.set("page", String(nextPage));
     params.set("size", String(nextSize));
     
@@ -462,8 +473,40 @@ const Trades = () => {
 
     setLoading(true);
     api.get(`/api/trades?${params.toString()}`)
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to load trades");
+      .then(async (r) => {
+        if (!r.ok) {
+          // Check if it's a rate limit error
+          if (r.status === 429) {
+            try {
+              const errorData = await r.json();
+              const retryAfter = errorData.retryAfterSeconds || 60;
+              toast.error(`Rate limit exceeded. Please try again in ${retryAfter} seconds.`);
+              throw new Error(errorData.message || "Rate limit exceeded");
+            } catch (e) {
+              // If JSON parsing fails, fall through to generic error
+            }
+          }
+          // Check if it's a date range validation error
+          if (r.status === 400) {
+            try {
+              const errorData = await r.json();
+              if (errorData.error === "Date range exceeds one month limit") {
+                // Show alert dialog instead of toast
+                setDateRangeError({
+                  message: errorData.message || "The date range you selected exceeds one month. Please upgrade to VIP account to query larger date ranges.",
+                  fromDate: errorData.fromDate,
+                  toDate: errorData.toDate,
+                  minimumAllowedFromDate: errorData.minimumAllowedFromDate,
+                });
+                setShowDateRangeAlert(true);
+                throw new Error(errorData.message || "Date range exceeds one month limit");
+              }
+            } catch (e) {
+              // If JSON parsing fails, fall through to generic error
+            }
+          }
+          throw new Error("Failed to load trades");
+        }
         return r.json();
       })
       .then((response) => {
@@ -550,8 +593,8 @@ const Trades = () => {
 
 
   // Save filters to localStorage whenever they change (but not on initial mount)
-  // Note: toDate is not saved - it always defaults to today
-  // chartToDate IS saved so user's selected range is remembered
+  // Note: fromDate and toDate are saved so user's manual selections are remembered
+  // But they will be reset on page reload based on weekday/weekend logic
   useEffect(() => {
     if (!hasInitialLoad.current) return; // Skip saving on initial mount
     
@@ -562,8 +605,8 @@ const Trades = () => {
       maxVolume,
       minPrice,
       maxPrice,
-      fromDate,
-      // toDate is not saved - always uses today's date
+      fromDate, // Save fromDate so user's manual selection is remembered during session
+      // Note: toDate is also saved, but will be reset on page reload
       page,
       size,
       sortField,
@@ -571,15 +614,14 @@ const Trades = () => {
       chartFromDate,
       chartToDate, // Save chartToDate so user's selection is remembered
     });
-  }, [code, type, minVolume, maxVolume, minPrice, maxPrice, fromDate, page, size, sortField, sortDirection, chartFromDate, chartToDate]);
+  }, [code, type, minVolume, maxVolume, minPrice, maxPrice, fromDate, toDate, page, size, sortField, sortDirection, chartFromDate, chartToDate]);
 
   // Note: toDate is initialized by initializeDefaultDates useEffect above
   // It will be set to today if today is valid, or latest transaction date if not
 
   // Clear all filters and reset to defaults
-  const clearFilters = () => {
-    const today = getTodayDate();
-    
+  // Dates will be reset based on weekday/weekend logic (Case 1 or Case 2)
+  const clearFilters = async () => {
     // Reset all filter states to defaults
     setCode("");
     setType("All");
@@ -587,9 +629,14 @@ const Trades = () => {
     setMaxVolume("");
     setMinPrice("");
     setMaxPrice("");
-    setFromDate(today);
-    setToDate(today);
+    
+    // Reset dates based on weekday/weekend logic
+    const defaultDates = await getDefaultDates();
+    setFromDate(defaultDates.fromDate);
+    setToDate(defaultDates.toDate);
+    
     // Reset chart dates to default one month range
+    const today = getTodayDate();
     setChartFromDate(getOneMonthAgo());
     setChartToDate(today);
     setPage(0);
@@ -649,9 +696,9 @@ const Trades = () => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
         <div className="mb-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3 sm:gap-4">
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.code')}</label>
               <Popover open={codeOpen} onOpenChange={setCodeOpen}>
@@ -730,7 +777,7 @@ const Trades = () => {
               </Select>
             </div>
             
-            <div className="md:col-span-2">
+            <div className="sm:col-span-2 lg:col-span-1 xl:col-span-2">
               <label className="text-sm font-medium mb-1 block">{t('trades.volumeRange')}</label>
               <Select
                 value={`${minVolume || ''}|${maxVolume || ''}`}
@@ -785,18 +832,22 @@ const Trades = () => {
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.fromDate')}</label>
               <DatePicker
-                value={fromDate && isValidDateFormat(fromDate) ? fromDate : getTodayDate()}
+                key={`from-date-${fromDate}`}
+                value={fromDate || getTodayDate()}
                 onChange={setFromDate}
                 placeholder="Select from date"
+                maxDate={toDate || undefined}
               />
             </div>
             
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.toDate')}</label>
               <DatePicker
-                value={toDate && isValidDateFormat(toDate) ? toDate : getTodayDate()}
+                key={`to-date-${toDate}`}
+                value={toDate || getTodayDate()}
                 onChange={setToDate}
                 placeholder="Select to date"
+                minDate={fromDate || undefined}
               />
             </div>
             
@@ -804,7 +855,7 @@ const Trades = () => {
         </div>
 
         {/* Volume Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
           <Card className={loading ? "opacity-50 pointer-events-none" : ""}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -896,27 +947,58 @@ const Trades = () => {
           </Card>
         </div>
 
-        <div className="rounded-lg border bg-card relative">
+        <div className="rounded-lg border bg-card relative overflow-hidden">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10 rounded-lg">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           )}
-          <div className="flex justify-end items-center gap-2 p-2 border-b bg-muted/30">
+          <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-2 p-2 border-b bg-muted/30">
             <Button
               onClick={clearFilters}
               variant="outline"
               size="sm"
-              className="h-8 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+              className="h-8 w-full sm:w-auto border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
             >
               <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-              Clear Filter
+              <span className="hidden sm:inline">Clear Filter</span>
+              <span className="sm:hidden">Clear</span>
             </Button>
             <Button
-              onClick={() => fetchTrades(page, size, sortField, sortDirection)}
+              onClick={async () => {
+                try {
+                  // Reset dates based on weekday/weekend logic when reloading
+                  const defaultDates = await getDefaultDates();
+                  
+                  // Update dates in state
+                  setFromDate(defaultDates.fromDate);
+                  setToDate(defaultDates.toDate);
+                  
+                  // Reset to first page
+                  setPage(0);
+                  
+                  // Fetch trades immediately with the new dates (using date override)
+                  // This ensures we use the new dates even before state updates
+                  fetchTrades(0, size, sortField, sortDirection, {
+                    fromDate: defaultDates.fromDate,
+                    toDate: defaultDates.toDate
+                  });
+                  
+                  // Also refresh chart data if a code is selected
+                  if (code && code.trim() !== "") {
+                    fetchChartData();
+                    fetchOHLCData();
+                  }
+                  
+                  toast.success("Data reloaded");
+                } catch (error) {
+                  console.error("Error reloading data:", error);
+                  toast.error("Failed to reload data");
+                }
+              }}
               variant="outline"
               size="sm"
-              className="h-8 border-green-300 text-green-600 hover:bg-green-50 hover:text-green-700"
+              className="h-8 w-full sm:w-auto border-green-300 text-green-600 hover:bg-green-50 hover:text-green-700"
               disabled={loading}
             >
               {loading ? (
@@ -924,10 +1006,12 @@ const Trades = () => {
               ) : (
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
               )}
-              Reload Data
+              <span className="hidden sm:inline">Reload Data</span>
+              <span className="sm:hidden">Reload</span>
             </Button>
           </div>
-          <Table className={loading ? "opacity-50 pointer-events-none" : ""}>
+          <div className="overflow-x-auto">
+            <Table className={loading ? "opacity-50 pointer-events-none" : ""}>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[120px]">
@@ -1037,27 +1121,28 @@ const Trades = () => {
               ))}
             </TableBody>
           </Table>
+          </div>
         </div>
 
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0 mt-4">
           <div className="text-sm text-muted-foreground">
             {totalElements === 0 ? (
               t('trades.noResults')
             ) : (
-              <div className="flex items-center gap-4">
-                <span>Page size: <span className="font-semibold">{size}</span></span>
-                <span>•</span>
-                <span>Current page: <span className="font-semibold">{page + 1}</span></span>
-                <span>•</span>
-                <span>Total pages: <span className="font-semibold">{totalPages}</span></span>
-                <span>•</span>
-                <span>Total records: <span className="font-semibold">{totalElements.toLocaleString()}</span></span>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                <span className="text-xs sm:text-sm">Page size: <span className="font-semibold">{size}</span></span>
+                <span className="hidden sm:inline">•</span>
+                <span className="text-xs sm:text-sm">Page: <span className="font-semibold">{page + 1}</span></span>
+                <span className="hidden sm:inline">•</span>
+                <span className="text-xs sm:text-sm hidden md:inline">Total pages: <span className="font-semibold">{totalPages}</span></span>
+                <span className="hidden md:inline">•</span>
+                <span className="text-xs sm:text-sm">Total: <span className="font-semibold">{totalElements.toLocaleString()}</span></span>
               </div>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap sm:flex-nowrap">
             <Select value={String(size)} onValueChange={(v) => { const n = Number(v); setSize(n); setPage(0); fetchTrades(0, n); }}>
-              <SelectTrigger className="w-28">
+              <SelectTrigger className="w-full sm:w-28">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1067,8 +1152,8 @@ const Trades = () => {
                 <SelectItem value="100">100 / page</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" disabled={page <= 0 || loading} onClick={() => { const p = page - 1; setPage(p); fetchTrades(p, size); }}>Prev</Button>
-            <Button variant="outline" size="sm" disabled={page + 1 >= totalPages || loading} onClick={() => { const p = page + 1; setPage(p); fetchTrades(p, size); }}>Next</Button>
+            <Button variant="outline" size="sm" disabled={page <= 0 || loading} onClick={() => { const p = page - 1; setPage(p); fetchTrades(p, size); }} className="flex-1 sm:flex-none">Prev</Button>
+            <Button variant="outline" size="sm" disabled={page + 1 >= totalPages || loading} onClick={() => { const p = page + 1; setPage(p); fetchTrades(p, size); }} className="flex-1 sm:flex-none">Next</Button>
           </div>
         </div>
 
@@ -1083,21 +1168,29 @@ const Trades = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label className="text-sm font-medium mb-1 block">From Date</label>
                     <DatePicker
+                      key={`chart-from-${chartFromDate || 'default'}`}
                       value={chartFromDate && isValidDateFormat(chartFromDate) ? chartFromDate : getOneMonthAgo()}
-                      onChange={setChartFromDate}
+                      onChange={(value) => {
+                        setChartFromDate(value);
+                      }}
                       placeholder="Select from date"
+                      maxDate={chartToDate && isValidDateFormat(chartToDate) ? chartToDate : undefined}
                     />
                   </div>
                   <div>
                     <label className="text-sm font-medium mb-1 block">To Date</label>
                     <DatePicker
+                      key={`chart-to-${chartToDate || 'default'}`}
                       value={chartToDate && isValidDateFormat(chartToDate) ? chartToDate : getTodayDate()}
-                      onChange={setChartToDate}
+                      onChange={(value) => {
+                        setChartToDate(value);
+                      }}
                       placeholder="Select to date"
+                      minDate={chartFromDate && isValidDateFormat(chartFromDate) ? chartFromDate : undefined}
                     />
                   </div>
                 </div>
@@ -1123,6 +1216,40 @@ const Trades = () => {
         )}
 
       </main>
+      
+      {/* Date Range Validation Alert Dialog */}
+      <AlertDialog open={showDateRangeAlert} onOpenChange={setShowDateRangeAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-500" />
+              Date Range Limit Exceeded
+            </AlertDialogTitle>
+            <AlertDialogDescription className="pt-4">
+              {dateRangeError?.message || "The date range you selected exceeds one month. Please upgrade to VIP account to query larger date ranges."}
+              {dateRangeError?.minimumAllowedFromDate && (
+                <div className="mt-4 p-3 bg-muted rounded-md">
+                  <p className="text-sm font-medium mb-1">Date Range Details:</p>
+                  <p className="text-xs text-muted-foreground">
+                    Selected From Date: <span className="font-mono">{dateRangeError.fromDate}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Selected To Date: <span className="font-mono">{dateRangeError.toDate}</span>
+                  </p>
+                  <p className="text-xs font-medium mt-2 text-orange-600">
+                    Minimum Allowed From Date: <span className="font-mono">{dateRangeError.minimumAllowedFromDate}</span>
+                  </p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowDateRangeAlert(false)}>
+              I Understand
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

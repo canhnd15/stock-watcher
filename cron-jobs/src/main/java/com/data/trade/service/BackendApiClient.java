@@ -83,6 +83,37 @@ public class BackendApiClient {
             // Don't throw - allow cron job to continue even if this fails
         }
     }
+
+    /**
+     * Trigger price alerts check on backend service
+     * This will check all active price alerts and send notifications via backend's WebSocket
+     */
+    public void triggerPriceAlertsCheck() {
+        try {
+            WebClient webClient = webClientBuilder
+                    .baseUrl(backendBaseUrl)
+                    .build();
+
+            log.info("Calling backend API to trigger price alerts check: {}/api/internal/price-alerts/check", backendBaseUrl);
+            
+            webClient.post()
+                    .uri("/api/internal/price-alerts/check")
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .retryWhen(Retry.fixedDelay(2, Duration.ofSeconds(1))
+                            .filter(throwable -> {
+                                log.warn("Retrying backend API call after error: {}", throwable.getMessage());
+                                return true;
+                            }))
+                    .doOnSuccess(response -> log.info("Backend price alerts check triggered successfully"))
+                    .doOnError(error -> log.error("Failed to trigger price alerts check on backend: {}", error.getMessage(), error))
+                    .block(Duration.ofSeconds(5));
+                    
+        } catch (Exception e) {
+            log.error("Error calling backend API for price alerts check: {}", e.getMessage(), e);
+            // Don't throw - allow cron job to continue even if this fails
+        }
+    }
 }
 
 

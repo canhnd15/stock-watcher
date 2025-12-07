@@ -63,6 +63,29 @@ build_images() {
     print_info "Build completed"
 }
 
+# Build specific service
+build_service() {
+    local service=$1
+    if [ -z "$service" ]; then
+        print_error "Service name is required"
+        print_info "Available services: backend, cron-jobs, frontend"
+        exit 1
+    fi
+    
+    case $service in
+        backend|cron-jobs|frontend)
+            print_info "Building $service image..."
+            docker compose build "$service"
+            print_info "$service build completed"
+            ;;
+        *)
+            print_error "Invalid service: $service"
+            print_info "Available services: backend, cron-jobs, frontend"
+            exit 1
+            ;;
+    esac
+}
+
 # Start services
 start_services() {
     print_info "Starting services..."
@@ -82,6 +105,29 @@ restart_services() {
     print_info "Restarting services..."
     docker compose restart
     print_info "Services restarted"
+}
+
+# Restart specific service
+restart_service() {
+    local service=$1
+    if [ -z "$service" ]; then
+        print_error "Service name is required"
+        print_info "Available services: backend, cron-jobs, frontend"
+        exit 1
+    fi
+    
+    case $service in
+        backend|cron-jobs|frontend)
+            print_info "Restarting $service..."
+            docker compose restart "$service"
+            print_info "$service restarted"
+            ;;
+        *)
+            print_error "Invalid service: $service"
+            print_info "Available services: backend, cron-jobs, frontend"
+            exit 1
+            ;;
+    esac
 }
 
 # Show logs
@@ -134,15 +180,30 @@ show_menu() {
     echo "=========================================="
     echo "  Stock Watcher Docker Deployment"
     echo "=========================================="
-    echo "1. Build images"
-    echo "2. Start services"
-    echo "3. Stop services"
-    echo "4. Restart services"
+    echo "1. Build images (all)"
+    echo "2. Start services (all)"
+    echo "3. Stop services (all)"
+    echo "4. Restart services (all)"
     echo "5. Show logs"
     echo "6. Show status"
     echo "7. Health check"
-    echo "8. Full deployment (build + start)"
-    echo "9. Update and restart"
+    echo "8. Full deployment (build + start all)"
+    echo "9. Update and restart (all)"
+    echo ""
+    echo "--- Individual Service Operations ---"
+    echo "10. Build backend"
+    echo "11. Build cron-jobs"
+    echo "12. Build frontend"
+    echo "13. Deploy backend (build + start)"
+    echo "14. Deploy cron-jobs (build + start)"
+    echo "15. Deploy frontend (build + start)"
+    echo "16. Restart backend"
+    echo "17. Restart cron-jobs"
+    echo "18. Restart frontend"
+    echo "19. Update backend (build + restart)"
+    echo "20. Update cron-jobs (build + restart)"
+    echo "21. Update frontend (build + restart)"
+    echo ""
     echo "0. Exit"
     echo "=========================================="
     echo ""
@@ -170,12 +231,73 @@ update_restart() {
     health_check
 }
 
+# Deploy specific service (build + start)
+deploy_service() {
+    local service=$1
+    if [ -z "$service" ]; then
+        print_error "Service name is required"
+        print_info "Available services: backend, cron-jobs, frontend"
+        exit 1
+    fi
+    
+    case $service in
+        backend|cron-jobs|frontend)
+            print_info "Deploying $service..."
+            check_docker
+            check_env
+            build_service "$service"
+            print_info "Starting $service..."
+            docker compose up -d "$service"
+            print_info "$service deployed successfully"
+            sleep 3
+            show_status
+            ;;
+        *)
+            print_error "Invalid service: $service"
+            print_info "Available services: backend, cron-jobs, frontend"
+            exit 1
+            ;;
+    esac
+}
+
+# Update and restart specific service
+update_service() {
+    local service=$1
+    if [ -z "$service" ]; then
+        print_error "Service name is required"
+        print_info "Available services: backend, cron-jobs, frontend"
+        exit 1
+    fi
+    
+    case $service in
+        backend|cron-jobs|frontend)
+            print_info "Updating $service..."
+            check_docker
+            build_service "$service"
+            restart_service "$service"
+            print_info "$service updated successfully"
+            sleep 3
+            show_status
+            ;;
+        *)
+            print_error "Invalid service: $service"
+            print_info "Available services: backend, cron-jobs, frontend"
+            exit 1
+            ;;
+    esac
+}
+
 # Main script
 main() {
     case "${1:-menu}" in
         build)
-            check_docker
-            build_images
+            if [ -n "$2" ]; then
+                check_docker
+                build_service "$2"
+            else
+                check_docker
+                build_images
+            fi
             ;;
         start)
             check_docker
@@ -187,8 +309,13 @@ main() {
             stop_services
             ;;
         restart)
-            check_docker
-            restart_services
+            if [ -n "$2" ]; then
+                check_docker
+                restart_service "$2"
+            else
+                check_docker
+                restart_services
+            fi
             ;;
         logs)
             check_docker
@@ -203,10 +330,18 @@ main() {
             health_check
             ;;
         deploy)
-            full_deployment
+            if [ -n "$2" ]; then
+                deploy_service "$2"
+            else
+                full_deployment
+            fi
             ;;
         update)
-            update_restart
+            if [ -n "$2" ]; then
+                update_service "$2"
+            else
+                update_restart
+            fi
             ;;
         menu|*)
             while true; do
@@ -226,6 +361,18 @@ main() {
                     7) check_docker && health_check ;;
                     8) full_deployment ;;
                     9) update_restart ;;
+                    10) check_docker && build_service "backend" ;;
+                    11) check_docker && build_service "cron-jobs" ;;
+                    12) check_docker && build_service "frontend" ;;
+                    13) deploy_service "backend" ;;
+                    14) deploy_service "cron-jobs" ;;
+                    15) deploy_service "frontend" ;;
+                    16) check_docker && restart_service "backend" ;;
+                    17) check_docker && restart_service "cron-jobs" ;;
+                    18) check_docker && restart_service "frontend" ;;
+                    19) update_service "backend" ;;
+                    20) update_service "cron-jobs" ;;
+                    21) update_service "frontend" ;;
                     0) print_info "Exiting..."; exit 0 ;;
                     *) print_error "Invalid option" ;;
                 esac
