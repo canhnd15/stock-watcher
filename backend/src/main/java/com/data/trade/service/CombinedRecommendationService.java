@@ -77,6 +77,62 @@ public class CombinedRecommendationService {
     }
 
     /**
+     * Fetch last 10 trading days of aggregated data for multiple stocks in batch
+     * Returns a map of stock code to list of daily stats
+     */
+    public Map<String, List<DailyStats>> fetch10DaysDataBatch(List<String> stockCodes) {
+        if (stockCodes == null || stockCodes.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        List<Object[]> results = tradeRepository.findLast10DaysStatsForMultipleCodes(stockCodes);
+
+        // Group results by stock code
+        Map<String, List<DailyStats>> statsByCode = new HashMap<>();
+        
+        for (Object[] row : results) {
+            String code = (String) row[0];
+            DailyStats stats = DailyStats.builder()
+                    .tradeDate((String) row[1])
+                    .closePrice(((Number) row[2]).doubleValue() > 0 ? 
+                        BigDecimal.valueOf(((Number) row[2]).doubleValue()) : null)
+                    .openPrice(((Number) row[3]).doubleValue() > 0 ? 
+                        BigDecimal.valueOf(((Number) row[3]).doubleValue()) : null)
+                    .highPrice(((Number) row[4]).doubleValue() > 0 ? 
+                        BigDecimal.valueOf(((Number) row[4]).doubleValue()) : null)
+                    .lowPrice(((Number) row[5]).doubleValue() > 0 ? 
+                        BigDecimal.valueOf(((Number) row[5]).doubleValue()) : null)
+                    .buyVolume(((Number) row[6]).longValue())
+                    .sellVolume(((Number) row[7]).longValue())
+                    .totalVolume(((Number) row[8]).longValue())
+                    .largeBuyBlocks(((Number) row[9]).longValue())
+                    .largeSellBlocks(((Number) row[10]).longValue())
+                    .mediumBuyBlocks(((Number) row[11]).longValue())
+                    .mediumSellBlocks(((Number) row[12]).longValue())
+                    .build();
+
+            if (stats.getClosePrice() != null && stats.getClosePrice().compareTo(BigDecimal.ZERO) > 0) {
+                statsByCode.computeIfAbsent(code, k -> new ArrayList<>()).add(stats);
+            }
+        }
+
+        // Sort each list by date (most recent first)
+        statsByCode.values().forEach(list -> 
+            list.sort((a, b) -> {
+                int dateA = Integer.parseInt(a.getTradeDate().substring(6, 10) + 
+                                             a.getTradeDate().substring(3, 5) + 
+                                             a.getTradeDate().substring(0, 2));
+                int dateB = Integer.parseInt(b.getTradeDate().substring(6, 10) + 
+                                             b.getTradeDate().substring(3, 5) + 
+                                             b.getTradeDate().substring(0, 2));
+                return Integer.compare(dateB, dateA);
+            })
+        );
+
+        return statsByCode;
+    }
+
+    /**
      * Fetch last 10 trading days of aggregated data
      */
     private List<DailyStats> fetch10DaysData(String stockCode) {
@@ -102,6 +158,65 @@ public class CombinedRecommendationService {
                         .mediumSellBlocks(((Number) row[11]).longValue())
                         .build())
                 .filter(stats -> stats.getClosePrice() != null && stats.getClosePrice().compareTo(BigDecimal.ZERO) > 0)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Calculate recommendation for a stock using pre-fetched daily stats
+     * This method is used for batch processing to avoid redundant database queries
+     */
+    public RecommendationResult calculateRecommendationFromStats(String stockCode, List<DailyStats> dailyStats) {
+        if (dailyStats == null || dailyStats.isEmpty()) {
+            return RecommendationResult.builder()
+                    .code(stockCode)
+                    .action("hold")
+                    .strength("neutral")
+                    .confidence(0.0)
+                    .reason("No trading data available")
+                    .build();
+        }
+
+        if (dailyStats.size() < 5) {
+            return RecommendationResult.builder()
+                    .code(stockCode)
+                    .action("hold")
+                    .strength("neutral")
+                    .confidence(0.0)
+                    .reason("Insufficient data (need at least 5 days)")
+                    .build();
+        }
+
+        // Calculate all 4 formulas
+        FormulaResult formula1 = calculateWeightedVolumePriceMomentum(dailyStats);
+        FormulaResult formula2 = calculateMovingAverageCrossover(dailyStats);
+        FormulaResult formula3 = calculateRSIWithVolume(dailyStats);
+        FormulaResult formula4 = calculateTrendStrengthADLine(dailyStats);
+
+        // Combine results
+        CombinedResult combined = combineResults(formula1, formula2, formula3, formula4);
+
+        // Generate final recommendation
+        return generateFinalRecommendation(combined, dailyStats, stockCode);
+    }
+
+    /**
+     * Calculate recommendations for multiple stocks in batch
+     * Uses a single database query to fetch all data, then processes in parallel
+     */
+    public List<RecommendationResult> calculateRecommendationsBatch(List<String> stockCodes) {
+        if (stockCodes == null || stockCodes.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // Fetch all data in a single query
+        Map<String, List<DailyStats>> statsByCode = fetch10DaysDataBatch(stockCodes);
+
+        // Calculate recommendations for each stock
+        return stockCodes.stream()
+                .map(code -> {
+                    List<DailyStats> stats = statsByCode.getOrDefault(code, new ArrayList<>());
+                    return calculateRecommendationFromStats(code, stats);
+                })
                 .collect(Collectors.toList());
     }
 
