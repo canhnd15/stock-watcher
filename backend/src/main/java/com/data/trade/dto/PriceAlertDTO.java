@@ -18,11 +18,15 @@ public class PriceAlertDTO {
     private String code;
     private BigDecimal reachPrice;
     private BigDecimal dropPrice;
+    private Long reachVolume;
     private Boolean active;
     private OffsetDateTime createdAt;
     
     // Market price data (optional, populated when fetching alerts)
     private BigDecimal marketPrice;
+    
+    // Market volume data (optional, populated when fetching alerts)
+    private Long marketVolume;
     
     public static PriceAlertDTO fromPriceAlert(PriceAlert alert) {
         return PriceAlertDTO.builder()
@@ -30,6 +34,7 @@ public class PriceAlertDTO {
                 .code(alert.getCode())
                 .reachPrice(alert.getReachPrice())
                 .dropPrice(alert.getDropPrice())
+                .reachVolume(alert.getReachVolume())
                 .active(alert.getActive())
                 .createdAt(alert.getCreatedAt())
                 .build();
@@ -38,6 +43,13 @@ public class PriceAlertDTO {
     public static PriceAlertDTO fromPriceAlertWithMarketPrice(PriceAlert alert, BigDecimal marketPrice) {
         PriceAlertDTO dto = fromPriceAlert(alert);
         dto.setMarketPrice(marketPrice);
+        return dto;
+    }
+    
+    public static PriceAlertDTO fromPriceAlertWithMarketData(PriceAlert alert, BigDecimal marketPrice, Long marketVolume) {
+        PriceAlertDTO dto = fromPriceAlert(alert);
+        dto.setMarketPrice(marketPrice);
+        dto.setMarketVolume(marketVolume);
         return dto;
     }
 }

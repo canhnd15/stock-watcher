@@ -18,7 +18,9 @@ public class PriceAlertNotification {
     private BigDecimal currentPrice;
     private BigDecimal reachPrice;
     private BigDecimal dropPrice;
-    private String alertType; // "REACH" or "DROP"
+    private Long currentVolume;
+    private Long reachVolume;
+    private String alertType; // "REACH", "DROP", or "VOLUME_REACH"
     private OffsetDateTime timestamp;
     private String message;
 }

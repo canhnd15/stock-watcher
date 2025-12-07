@@ -13,5 +13,7 @@ public class CreatePriceAlertRequest {
     private BigDecimal reachPrice; // Alert when price reaches or exceeds this value
     
     private BigDecimal dropPrice; // Alert when price drops to or below this value
+    
+    private Long reachVolume; // Alert when volume reaches or exceeds this value
 }
 

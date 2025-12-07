@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -22,13 +23,20 @@ public class PriceAlertNotificationService {
     private final PriceAlertRepository priceAlertRepository;
     private final FinpathClient finpathClient;
     private final SimpMessagingTemplate messagingTemplate;
+    
+    // Track last notification time per alert to prevent spam (notify at most once per 5 minutes)
+    private final Map<Long, OffsetDateTime> lastNotificationTime = new ConcurrentHashMap<>();
+    private static final int NOTIFICATION_COOLDOWN_MINUTES = 5;
 
     /**
-     * Check all active price alerts and send notifications if conditions are met
-     * Condition: price >= reachPrice OR price <= dropPrice
+     * Check all active price and volume alerts and send notifications if conditions are met
+     * Conditions: 
+     *   - Price: price >= reachPrice OR price <= dropPrice
+     *   - Volume: volume >= reachVolume
+     * Alerts remain active and continue checking until manually deactivated
      */
     public void checkPriceAlertsAndNotify() {
-        log.info("========== Starting price alerts check ==========");
+        log.info("========== Starting price and volume alerts check ==========");
         
         List<PriceAlert> activeAlerts = priceAlertRepository.findAllByActiveTrueWithUser();
         
@@ -51,11 +59,13 @@ public class PriceAlertNotificationService {
             List<PriceAlert> alertsForCode = entry.getValue();
             
             try {
-                // Fetch current market price for this stock
+                // Fetch current market data (price and volume) for this stock
                 BigDecimal currentPrice = getMarketPrice(code);
+                Long currentVolume = getMarketVolume(code);
                 
-                if (currentPrice == null) {
-                    log.debug("Failed to fetch market price for {}. Skipping alerts.", code);
+                // Skip if we can't get any market data (at least price or volume should be available)
+                if (currentPrice == null && currentVolume == null) {
+                    log.debug("Failed to fetch market data for {}. Skipping alerts.", code);
                     failCount += alertsForCode.size();
                     continue;
                 }
@@ -66,45 +76,70 @@ public class PriceAlertNotificationService {
                     String alertType = null;
                     
                     // Check reach price condition: price >= reachPrice
-                    if (alert.getReachPrice() != null && currentPrice.compareTo(alert.getReachPrice()) >= 0) {
+                    if (alert.getReachPrice() != null && currentPrice != null && 
+                        currentPrice.compareTo(alert.getReachPrice()) >= 0) {
                         shouldAlert = true;
                         alertType = "REACH";
                     }
                     
                     // Check drop price condition: price <= dropPrice
-                    if (alert.getDropPrice() != null && currentPrice.compareTo(alert.getDropPrice()) <= 0) {
+                    if (alert.getDropPrice() != null && currentPrice != null && 
+                        currentPrice.compareTo(alert.getDropPrice()) <= 0) {
                         shouldAlert = true;
-                        alertType = "DROP";
+                        // If both price conditions are met, prioritize REACH over DROP
+                        if (alertType == null) {
+                            alertType = "DROP";
+                        }
+                    }
+                    
+                    // Check reach volume condition: volume >= reachVolume
+                    if (alert.getReachVolume() != null && currentVolume != null && 
+                        currentVolume >= alert.getReachVolume()) {
+                        shouldAlert = true;
+                        // Prioritize price alerts over volume alerts if both are triggered
+                        if (alertType == null) {
+                            alertType = "VOLUME_REACH";
+                        }
                     }
                     
                     if (shouldAlert) {
-                        // Send notification to user
-                        Long userId = alert.getUser().getId();
-                        String message = buildAlertMessage(code, currentPrice, alert, alertType);
+                        // Check if we should send notification (cooldown to prevent spam)
+                        if (shouldSendNotification(alert.getId())) {
+                            // Send notification to user
+                            Long userId = alert.getUser().getId();
+                            String message = buildAlertMessage(code, currentPrice, currentVolume, alert, alertType);
+                            
+                            PriceAlertNotification notification = PriceAlertNotification.builder()
+                                    .alertId(alert.getId())
+                                    .code(code)
+                                    .currentPrice(currentPrice)
+                                    .reachPrice(alert.getReachPrice())
+                                    .dropPrice(alert.getDropPrice())
+                                    .currentVolume(currentVolume)
+                                    .reachVolume(alert.getReachVolume())
+                                    .alertType(alertType)
+                                    .timestamp(OffsetDateTime.now())
+                                    .message(message)
+                                    .build();
+                            
+                            // Send to user-specific WebSocket topic
+                            messagingTemplate.convertAndSend("/topic/price-alerts/user/" + userId, notification);
+                            
+                            // Update last notification time
+                            lastNotificationTime.put(alert.getId(), OffsetDateTime.now());
+                            
+                            log.info("🔔 Alert notification sent to user {}: {} - {} (price: {}, volume: {})", 
+                                    userId, code, alertType, currentPrice, currentVolume);
+                            
+                            notificationsSent++;
+                        } else {
+                            log.debug("Skipping notification for alert {} due to cooldown", alert.getId());
+                        }
                         
-                        PriceAlertNotification notification = PriceAlertNotification.builder()
-                                .alertId(alert.getId())
-                                .code(code)
-                                .currentPrice(currentPrice)
-                                .reachPrice(alert.getReachPrice())
-                                .dropPrice(alert.getDropPrice())
-                                .alertType(alertType)
-                                .timestamp(OffsetDateTime.now())
-                                .message(message)
-                                .build();
-                        
-                        // Send to user-specific WebSocket topic
-                        messagingTemplate.convertAndSend("/topic/price-alerts/user/" + userId, notification);
-                        
-                        log.info("🔔 Price alert notification sent to user {}: {} - {} (current: {}, target: {})", 
-                                userId, code, alertType, currentPrice, 
-                                alertType.equals("REACH") ? alert.getReachPrice() : alert.getDropPrice());
-                        
-                        notificationsSent++;
-                        
-                        // Deactivate alert after notification to prevent spam
-                        alert.setActive(false);
-                        priceAlertRepository.save(alert);
+                        // Note: Alert remains active - no deactivation
+                    } else {
+                        // Condition no longer met, remove from cooldown tracking
+                        lastNotificationTime.remove(alert.getId());
                     }
                 }
             } catch (Exception e) {
@@ -115,6 +150,21 @@ public class PriceAlertNotificationService {
         
         log.info("========== Price alerts check completed. Notifications sent: {}, Failed: {} ==========", 
                 notificationsSent, failCount);
+    }
+    
+    /**
+     * Check if notification should be sent based on cooldown period
+     */
+    private boolean shouldSendNotification(Long alertId) {
+        OffsetDateTime lastNotification = lastNotificationTime.get(alertId);
+        if (lastNotification == null) {
+            return true; // No previous notification, send it
+        }
+        
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime cooldownEnd = lastNotification.plusMinutes(NOTIFICATION_COOLDOWN_MINUTES);
+        
+        return now.isAfter(cooldownEnd);
     }
     
     /**
@@ -136,16 +186,44 @@ public class PriceAlertNotificationService {
     }
     
     /**
+     * Get market volume for a stock code
+     */
+    private Long getMarketVolume(String code) {
+        try {
+            var response = finpathClient.fetchTradingViewBars(code);
+            if (response != null) {
+                return response.getMarketVolume();
+            }
+        } catch (Exception e) {
+            log.debug("Failed to fetch market volume for {}: {}", code, e.getMessage());
+        }
+        return null;
+    }
+    
+    /**
      * Build alert message
      */
-    private String buildAlertMessage(String code, BigDecimal currentPrice, PriceAlert alert, String alertType) {
-        if ("REACH".equals(alertType)) {
-            return String.format("%s reached target price %s (current: %s)", 
-                    code, alert.getReachPrice(), currentPrice);
-        } else {
-            return String.format("%s dropped to target price %s (current: %s)", 
-                    code, alert.getDropPrice(), currentPrice);
+    private String buildAlertMessage(String code, BigDecimal currentPrice, Long currentVolume, PriceAlert alert, String alertType) {
+        switch (alertType) {
+            case "REACH":
+                return String.format("%s reached target price %s (current: %s)", 
+                        code, alert.getReachPrice(), currentPrice);
+            case "DROP":
+                return String.format("%s dropped to target price %s (current: %s)", 
+                        code, alert.getDropPrice(), currentPrice);
+            case "VOLUME_REACH":
+                return String.format("%s reached target volume %s (current: %s)", 
+                        code, alert.getReachVolume(), currentVolume);
+            default:
+                return String.format("%s alert triggered", code);
         }
+    }
+    
+    /**
+     * Clear notification cooldown for an alert (called when alert is modified or deleted)
+     */
+    public void clearNotificationCooldown(Long alertId) {
+        lastNotificationTime.remove(alertId);
     }
 }
 

@@ -9,6 +9,7 @@ public class UpdatePriceAlertRequest {
     private String code;
     private BigDecimal reachPrice;
     private BigDecimal dropPrice;
+    private Long reachVolume;
     private Boolean active;
 }
 

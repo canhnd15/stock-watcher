@@ -33,5 +33,23 @@ public class TradingViewBarsResponse {
         // Return close price (index 3) as market price
         return firstBar.get(3).doubleValue();
     }
+    
+    /**
+     * Get market volume from bars data
+     * bars format: [open, high, low, close, volume, value]
+     * Returns volume (index 4) as market volume
+     */
+    public Long getMarketVolume() {
+        if (data == null || data.getBars() == null || data.getBars().isEmpty()) {
+            return null;
+        }
+        List<Number> firstBar = data.getBars().get(0);
+        if (firstBar == null || firstBar.size() < 5) {
+            return null;
+        }
+        // Return volume (index 4) as market volume
+        Number volume = firstBar.get(4);
+        return volume != null ? volume.longValue() : null;
+    }
 }
 

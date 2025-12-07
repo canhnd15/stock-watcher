@@ -39,6 +39,9 @@ public class PriceAlert {
     @Column(nullable = true, precision = 19, scale = 2)
     private BigDecimal dropPrice; // Alert when price drops to or below this value
 
+    @Column(nullable = true, precision = 19, scale = 0)
+    private Long reachVolume; // Alert when volume reaches or exceeds this value
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean active = true;

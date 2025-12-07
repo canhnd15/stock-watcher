@@ -43,9 +43,11 @@ interface PriceAlert {
   code: string;
   reachPrice?: number;
   dropPrice?: number;
+  reachVolume?: number;
   active: boolean;
   createdAt: string;
   marketPrice?: number;
+  marketVolume?: number;
 }
 
 const PriceAlerts = () => {
@@ -60,6 +62,7 @@ const PriceAlerts = () => {
   const [code, setCode] = useState("");
   const [reachPrice, setReachPrice] = useState("");
   const [dropPrice, setDropPrice] = useState("");
+  const [reachVolume, setReachVolume] = useState("");
   
   // WebSocket notifications
   const { isConnected, notifications: wsNotifications } = usePriceAlertNotifications();
@@ -106,6 +109,11 @@ const PriceAlerts = () => {
     return Math.round(price).toLocaleString('vi-VN');
   };
 
+  const formatVolume = (volume?: number) => {
+    if (volume === null || volume === undefined) return "N/A";
+    return volume.toLocaleString('vi-VN');
+  };
+
   // Listen for WebSocket notifications and refresh alerts when one is received
   useEffect(() => {
     if (wsNotifications.length > 0) {
@@ -139,6 +147,7 @@ const PriceAlerts = () => {
     setCode("");
     setReachPrice("");
     setDropPrice("");
+    setReachVolume("");
     setEditingAlert(null);
   };
 
@@ -150,9 +159,10 @@ const PriceAlerts = () => {
 
     const reachPriceNum = reachPrice.trim() ? parseFloat(parseFormattedNumber(reachPrice)) : undefined;
     const dropPriceNum = dropPrice.trim() ? parseFloat(parseFormattedNumber(dropPrice)) : undefined;
+    const reachVolumeNum = reachVolume.trim() ? parseInt(parseFormattedNumber(reachVolume)) : undefined;
 
-    if (reachPriceNum === undefined && dropPriceNum === undefined) {
-      toast.error('At least one of reach price or drop price must be provided');
+    if (reachPriceNum === undefined && dropPriceNum === undefined && reachVolumeNum === undefined) {
+      toast.error('At least one alert condition (price or volume) must be provided');
       return;
     }
 
@@ -166,11 +176,17 @@ const PriceAlerts = () => {
       return;
     }
 
+    if (reachVolumeNum !== undefined && (isNaN(reachVolumeNum) || reachVolumeNum <= 0)) {
+      toast.error('Invalid reach volume');
+      return;
+    }
+
     try {
       const response = await api.post('/api/price-alerts', {
         code: code.toUpperCase().trim(),
         reachPrice: reachPriceNum,
         dropPrice: dropPriceNum,
+        reachVolume: reachVolumeNum,
       });
 
       if (!response.ok) {
@@ -193,6 +209,7 @@ const PriceAlerts = () => {
     setCode(alert.code);
     setReachPrice(alert.reachPrice ? formatNumberWithDots(alert.reachPrice.toString()) : "");
     setDropPrice(alert.dropPrice ? formatNumberWithDots(alert.dropPrice.toString()) : "");
+    setReachVolume(alert.reachVolume ? formatNumberWithDots(alert.reachVolume.toString()) : "");
     setEditDialogOpen(true);
   };
 
@@ -201,9 +218,10 @@ const PriceAlerts = () => {
 
     const reachPriceNum = reachPrice.trim() ? parseFloat(parseFormattedNumber(reachPrice)) : null;
     const dropPriceNum = dropPrice.trim() ? parseFloat(parseFormattedNumber(dropPrice)) : null;
+    const reachVolumeNum = reachVolume.trim() ? parseInt(parseFormattedNumber(reachVolume)) : null;
 
-    if (reachPriceNum === null && dropPriceNum === null) {
-      toast.error('At least one of reach price or drop price must be provided');
+    if (reachPriceNum === null && dropPriceNum === null && reachVolumeNum === null) {
+      toast.error('At least one alert condition (price or volume) must be provided');
       return;
     }
 
@@ -217,11 +235,17 @@ const PriceAlerts = () => {
       return;
     }
 
+    if (reachVolumeNum !== null && (isNaN(reachVolumeNum) || reachVolumeNum <= 0)) {
+      toast.error('Invalid reach volume');
+      return;
+    }
+
     try {
       const response = await api.put(`/api/price-alerts/${editingAlert.id}`, {
         code: code.toUpperCase().trim(),
         reachPrice: reachPriceNum,
         dropPrice: dropPriceNum,
+        reachVolume: reachVolumeNum,
       });
 
       if (!response.ok) {
@@ -320,9 +344,9 @@ const PriceAlerts = () => {
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle>Create Price Alert</DialogTitle>
+                  <DialogTitle>Create Price & Volume Alert</DialogTitle>
                   <DialogDescription>
-                    Set up an alert when stock price reaches or drops to a target price.
+                    Set up alerts for stock price and/or volume changes.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -335,35 +359,60 @@ const PriceAlerts = () => {
                       placeholder="e.g., FPT"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="reachPrice">Reach Price (VND)</Label>
-                    <Input
-                      id="reachPrice"
-                      type="text"
-                      value={formatNumberWithDots(reachPrice)}
-                      onChange={(e) => {
-                        const rawValue = parseFormattedNumber(e.target.value);
-                        if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
-                          setReachPrice(rawValue);
-                        }
-                      }}
-                      placeholder="Alert when price reaches this value"
-                    />
+                  <div className="border-t pt-4">
+                    <Label className="text-base font-semibold mb-3 block">Price Alerts</Label>
+                    <div className="space-y-3">
+                      <div>
+                        <Label htmlFor="reachPrice">Reach Price (VND)</Label>
+                        <Input
+                          id="reachPrice"
+                          type="text"
+                          value={formatNumberWithDots(reachPrice)}
+                          onChange={(e) => {
+                            const rawValue = parseFormattedNumber(e.target.value);
+                            if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                              setReachPrice(rawValue);
+                            }
+                          }}
+                          placeholder="Alert when price reaches this value"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="dropPrice">Drop Price (VND)</Label>
+                        <Input
+                          id="dropPrice"
+                          type="text"
+                          value={formatNumberWithDots(dropPrice)}
+                          onChange={(e) => {
+                            const rawValue = parseFormattedNumber(e.target.value);
+                            if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                              setDropPrice(rawValue);
+                            }
+                          }}
+                          placeholder="Alert when price drops to this value"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="dropPrice">Drop Price (VND)</Label>
-                    <Input
-                      id="dropPrice"
-                      type="text"
-                      value={formatNumberWithDots(dropPrice)}
-                      onChange={(e) => {
-                        const rawValue = parseFormattedNumber(e.target.value);
-                        if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
-                          setDropPrice(rawValue);
-                        }
-                      }}
-                      placeholder="Alert when price drops to this value"
-                    />
+                  <div className="border-t pt-4">
+                    <Label className="text-base font-semibold mb-3 block">Volume Alerts</Label>
+                    <div className="space-y-3">
+                      <div>
+                        <Label htmlFor="reachVolume">Reach Volume</Label>
+                        <Input
+                          id="reachVolume"
+                          type="text"
+                          value={formatNumberWithDots(reachVolume)}
+                          onChange={(e) => {
+                            const rawValue = parseFormattedNumber(e.target.value);
+                            if (rawValue === "" || /^\d*$/.test(rawValue)) {
+                              setReachVolume(rawValue);
+                            }
+                          }}
+                          placeholder="Alert when volume reaches this value"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="flex justify-end gap-2">
@@ -431,6 +480,8 @@ const PriceAlerts = () => {
                     <TableHead className="min-w-[120px]">Reach Price</TableHead>
                     <TableHead className="min-w-[120px]">Drop Price</TableHead>
                     <TableHead className="min-w-[120px]">Current Price</TableHead>
+                    <TableHead className="min-w-[120px]">Reach Volume</TableHead>
+                    <TableHead className="min-w-[120px]">Current Volume</TableHead>
                     <TableHead className="min-w-[100px]">Status</TableHead>
                     <TableHead className="min-w-[150px]">Condition</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -440,16 +491,28 @@ const PriceAlerts = () => {
                   {alerts.map((alert) => {
                     const isReached = alert.reachPrice && alert.marketPrice && alert.marketPrice >= alert.reachPrice;
                     const isDropped = alert.dropPrice && alert.marketPrice && alert.marketPrice <= alert.dropPrice;
+                    const isVolumeReached = alert.reachVolume && alert.marketVolume && alert.marketVolume >= alert.reachVolume;
+                    const hasActiveCondition = isReached || isDropped || isVolumeReached;
                     
                     return (
-                      <TableRow key={alert.id}>
-                        <TableCell className="font-semibold text-lg">{alert.code}</TableCell>
+                      <TableRow key={alert.id} className={hasActiveCondition && alert.active ? "bg-green-50 dark:bg-green-950/20" : ""}>
+                        <TableCell className="font-semibold text-lg">
+                          <div className="flex items-center gap-2">
+                            <span>{alert.code}</span>
+                            {hasActiveCondition && alert.active && (
+                              <Badge variant="default" className="bg-green-600 text-white animate-pulse">
+                                <Bell className="h-3 w-3 mr-1" />
+                                Alert Active
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           {alert.reachPrice ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-mono">{formatPrice(alert.reachPrice)}</span>
                               {isReached && (
-                                <Badge variant="default" className="bg-green-600">
+                                <Badge variant="default" className="bg-green-600 text-white">
                                   <TrendingUp className="h-3 w-3 mr-1" />
                                   Reached
                                 </Badge>
@@ -461,10 +524,10 @@ const PriceAlerts = () => {
                         </TableCell>
                         <TableCell>
                           {alert.dropPrice ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-mono">{formatPrice(alert.dropPrice)}</span>
                               {isDropped && (
-                                <Badge variant="destructive">
+                                <Badge variant="destructive" className="bg-red-600">
                                   <TrendingDown className="h-3 w-3 mr-1" />
                                   Dropped
                                 </Badge>
@@ -476,7 +539,55 @@ const PriceAlerts = () => {
                         </TableCell>
                         <TableCell>
                           {alert.marketPrice ? (
-                            <span className="font-mono font-semibold">{formatPrice(alert.marketPrice)}</span>
+                            <div className="flex items-center gap-2">
+                              <span className={`font-mono font-semibold ${hasActiveCondition ? "text-green-700 dark:text-green-400" : ""}`}>
+                                {formatPrice(alert.marketPrice)}
+                              </span>
+                              {isReached && (
+                                <Badge variant="outline" className="border-green-600 text-green-700 dark:text-green-400">
+                                  <TrendingUp className="h-3 w-3 mr-1" />
+                                  Price Reached
+                                </Badge>
+                              )}
+                              {isDropped && !isReached && (
+                                <Badge variant="outline" className="border-red-600 text-red-700 dark:text-red-400">
+                                  <TrendingDown className="h-3 w-3 mr-1" />
+                                  Price Dropped
+                                </Badge>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">N/A</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {alert.reachVolume ? (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono">{formatVolume(alert.reachVolume)}</span>
+                              {isVolumeReached && (
+                                <Badge variant="default" className="bg-green-600 text-white">
+                                  <TrendingUp className="h-3 w-3 mr-1" />
+                                  Reached
+                                </Badge>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {alert.marketVolume !== undefined ? (
+                            <div className="flex items-center gap-2">
+                              <span className={`font-mono font-semibold ${hasActiveCondition ? "text-green-700 dark:text-green-400" : ""}`}>
+                                {formatVolume(alert.marketVolume)}
+                              </span>
+                              {isVolumeReached && (
+                                <Badge variant="outline" className="border-green-600 text-green-700 dark:text-green-400">
+                                  <TrendingUp className="h-3 w-3 mr-1" />
+                                  Volume Reached
+                                </Badge>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-muted-foreground">N/A</span>
                           )}
@@ -487,15 +598,39 @@ const PriceAlerts = () => {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {alert.reachPrice && alert.dropPrice && (
-                            <span>Price &gt;= {formatPrice(alert.reachPrice)} OR Price &lt;= {formatPrice(alert.dropPrice)}</span>
-                          )}
-                          {alert.reachPrice && !alert.dropPrice && (
-                            <span>Price &gt;= {formatPrice(alert.reachPrice)}</span>
-                          )}
-                          {!alert.reachPrice && alert.dropPrice && (
-                            <span>Price &lt;= {formatPrice(alert.dropPrice)}</span>
-                          )}
+                          <div className="space-y-1">
+                            {((alert.reachPrice || alert.dropPrice) && alert.reachVolume) ? (
+                              <>
+                                {alert.reachPrice && alert.dropPrice && (
+                                  <div>Price: &gt;= {formatPrice(alert.reachPrice)} OR &lt;= {formatPrice(alert.dropPrice)}</div>
+                                )}
+                                {alert.reachPrice && !alert.dropPrice && (
+                                  <div>Price: &gt;= {formatPrice(alert.reachPrice)}</div>
+                                )}
+                                {!alert.reachPrice && alert.dropPrice && (
+                                  <div>Price: &lt;= {formatPrice(alert.dropPrice)}</div>
+                                )}
+                                {alert.reachVolume && (
+                                  <div>Volume: &gt;= {formatVolume(alert.reachVolume)}</div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {alert.reachPrice && alert.dropPrice && (
+                                  <span>Price &gt;= {formatPrice(alert.reachPrice)} OR Price &lt;= {formatPrice(alert.dropPrice)}</span>
+                                )}
+                                {alert.reachPrice && !alert.dropPrice && (
+                                  <span>Price &gt;= {formatPrice(alert.reachPrice)}</span>
+                                )}
+                                {!alert.reachPrice && alert.dropPrice && (
+                                  <span>Price &lt;= {formatPrice(alert.dropPrice)}</span>
+                                )}
+                                {alert.reachVolume && (
+                                  <span>Volume &gt;= {formatVolume(alert.reachVolume)}</span>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -553,9 +688,9 @@ const PriceAlerts = () => {
         }}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Edit Price Alert</DialogTitle>
+              <DialogTitle>Edit Price & Volume Alert</DialogTitle>
               <DialogDescription>
-                Update the price alert settings.
+                Update the alert settings for price and/or volume.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -568,35 +703,60 @@ const PriceAlerts = () => {
                   placeholder="e.g., FPT"
                 />
               </div>
-              <div>
-                <Label htmlFor="edit-reachPrice">Reach Price (VND)</Label>
-                <Input
-                  id="edit-reachPrice"
-                  type="text"
-                  value={formatNumberWithDots(reachPrice)}
-                  onChange={(e) => {
-                    const rawValue = parseFormattedNumber(e.target.value);
-                    if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
-                      setReachPrice(rawValue);
-                    }
-                  }}
-                  placeholder="Alert when price reaches this value"
-                />
+              <div className="border-t pt-4">
+                <Label className="text-base font-semibold mb-3 block">Price Alerts</Label>
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="edit-reachPrice">Reach Price (VND)</Label>
+                    <Input
+                      id="edit-reachPrice"
+                      type="text"
+                      value={formatNumberWithDots(reachPrice)}
+                      onChange={(e) => {
+                        const rawValue = parseFormattedNumber(e.target.value);
+                        if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                          setReachPrice(rawValue);
+                        }
+                      }}
+                      placeholder="Alert when price reaches this value"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-dropPrice">Drop Price (VND)</Label>
+                    <Input
+                      id="edit-dropPrice"
+                      type="text"
+                      value={formatNumberWithDots(dropPrice)}
+                      onChange={(e) => {
+                        const rawValue = parseFormattedNumber(e.target.value);
+                        if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
+                          setDropPrice(rawValue);
+                        }
+                      }}
+                      placeholder="Alert when price drops to this value"
+                    />
+                  </div>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="edit-dropPrice">Drop Price (VND)</Label>
-                <Input
-                  id="edit-dropPrice"
-                  type="text"
-                  value={formatNumberWithDots(dropPrice)}
-                  onChange={(e) => {
-                    const rawValue = parseFormattedNumber(e.target.value);
-                    if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
-                      setDropPrice(rawValue);
-                    }
-                  }}
-                  placeholder="Alert when price drops to this value"
-                />
+              <div className="border-t pt-4">
+                <Label className="text-base font-semibold mb-3 block">Volume Alerts</Label>
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="edit-reachVolume">Reach Volume</Label>
+                    <Input
+                      id="edit-reachVolume"
+                      type="text"
+                      value={formatNumberWithDots(reachVolume)}
+                      onChange={(e) => {
+                        const rawValue = parseFormattedNumber(e.target.value);
+                        if (rawValue === "" || /^\d*$/.test(rawValue)) {
+                          setReachVolume(rawValue);
+                        }
+                      }}
+                      placeholder="Alert when volume reaches this value"
+                    />
+                      </div>
+                    </div>
               </div>
             </div>
             <div className="flex justify-end gap-2">
@@ -612,8 +772,8 @@ const PriceAlerts = () => {
         </Dialog>
         
         <p className="mt-4 text-sm text-muted-foreground text-center">
-          * Alerts will notify you via WebSocket when stock prices meet your specified conditions (price &gt;= reach price OR price &lt;= drop price). 
-          You will receive browser notifications when alerts are triggered.
+          * Alerts will notify you via WebSocket when stock prices or volumes meet your specified conditions (price &gt;= reach OR price &lt;= drop, volume &gt;= reach). 
+          Alerts remain active and continue monitoring until you manually deactivate them. You will receive browser notifications when conditions are met (notifications are sent at most once every 5 minutes to prevent spam).
         </p>
       </main>
     </div>
