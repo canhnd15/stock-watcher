@@ -168,14 +168,10 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
         WITH last_10_dates AS (
             SELECT DISTINCT 
                 trade_date,
-                CAST(
-                    SUBSTRING(trade_date, 7, 4) || 
-                    SUBSTRING(trade_date, 4, 2) || 
-                    SUBSTRING(trade_date, 1, 2)
-                AS INTEGER) as date_int
+                trade_date_numeric
             FROM trades
             WHERE UPPER(code) = UPPER(:stockCode)
-            ORDER BY date_int DESC
+            ORDER BY trade_date_numeric DESC
             LIMIT 10
         ),
         daily_aggregates AS (
@@ -239,12 +235,8 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
         FROM daily_aggregates da
         LEFT JOIN first_prices_filtered fp ON da.trade_date = fp.trade_date
         LEFT JOIN last_prices_filtered lp ON da.trade_date = lp.trade_date
-        ORDER BY 
-            CAST(
-                SUBSTRING(da.trade_date, 7, 4) || 
-                SUBSTRING(da.trade_date, 4, 2) || 
-                SUBSTRING(da.trade_date, 1, 2)
-            AS INTEGER) DESC
+        LEFT JOIN last_10_dates l10d ON da.trade_date = l10d.trade_date
+        ORDER BY l10d.trade_date_numeric DESC
         """, nativeQuery = true)
     List<Object[]> findLast10DaysStats(@Param("stockCode") String stockCode);
 
@@ -259,14 +251,10 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
         WITH last_10_dates AS (
             SELECT DISTINCT 
                 trade_date,
-                CAST(
-                    SUBSTRING(trade_date, 7, 4) || 
-                    SUBSTRING(trade_date, 4, 2) || 
-                    SUBSTRING(trade_date, 1, 2)
-                AS INTEGER) as date_int
+                trade_date_numeric
             FROM trades
             WHERE code IN :stockCodes
-            ORDER BY date_int DESC
+            ORDER BY trade_date_numeric DESC
             LIMIT 10
         ),
         daily_aggregates AS (
@@ -334,11 +322,8 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
         FROM daily_aggregates da
         LEFT JOIN first_prices_filtered fp ON da.code = fp.code AND da.trade_date = fp.trade_date
         LEFT JOIN last_prices_filtered lp ON da.code = lp.code AND da.trade_date = lp.trade_date
-        ORDER BY da.code, CAST(
-            SUBSTRING(da.trade_date, 7, 4) || 
-            SUBSTRING(da.trade_date, 4, 2) || 
-            SUBSTRING(da.trade_date, 1, 2)
-        AS INTEGER) DESC
+        LEFT JOIN last_10_dates l10d ON da.trade_date = l10d.trade_date
+        ORDER BY da.code, l10d.trade_date_numeric DESC
         """, nativeQuery = true)
     List<Object[]> findLast10DaysStatsForMultipleCodes(@Param("stockCodes") List<String> stockCodes);
 
