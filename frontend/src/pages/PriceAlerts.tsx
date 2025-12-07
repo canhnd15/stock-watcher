@@ -344,9 +344,9 @@ const PriceAlerts = () => {
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle>Create Price & Volume Alert</DialogTitle>
+                  <DialogTitle>Create New Alert</DialogTitle>
                   <DialogDescription>
-                    Set up alerts for stock price and/or volume changes.
+                    Set up alerts to get notified when stock prices or trading volumes reach your target values.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -374,8 +374,9 @@ const PriceAlerts = () => {
                               setReachPrice(rawValue);
                             }
                           }}
-                          placeholder="Alert when price reaches this value"
+                          placeholder="e.g., 100000"
                         />
+                        <p className="text-xs text-muted-foreground mt-1">Notify when price goes up to this level</p>
                       </div>
                       <div>
                         <Label htmlFor="dropPrice">Drop Price (VND)</Label>
@@ -389,8 +390,9 @@ const PriceAlerts = () => {
                               setDropPrice(rawValue);
                             }
                           }}
-                          placeholder="Alert when price drops to this value"
+                          placeholder="e.g., 90000"
                         />
+                        <p className="text-xs text-muted-foreground mt-1">Notify when price falls to this level</p>
                       </div>
                     </div>
                   </div>
@@ -409,8 +411,9 @@ const PriceAlerts = () => {
                               setReachVolume(rawValue);
                             }
                           }}
-                          placeholder="Alert when volume reaches this value"
+                          placeholder="e.g., 5000000"
                         />
+                        <p className="text-xs text-muted-foreground mt-1">Notify when trading volume exceeds this amount</p>
                       </div>
                     </div>
                   </div>
@@ -429,7 +432,7 @@ const PriceAlerts = () => {
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Alerts</CardTitle>
@@ -437,7 +440,7 @@ const PriceAlerts = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-primary">{activeCount}</div>
-              <CardDescription>Alerts currently monitoring prices</CardDescription>
+              <CardDescription>Monitoring prices and volumes</CardDescription>
             </CardContent>
           </Card>
           
@@ -448,7 +451,7 @@ const PriceAlerts = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-muted-foreground">{inactiveCount}</div>
-              <CardDescription>Alerts that are currently disabled</CardDescription>
+              <CardDescription>Currently paused</CardDescription>
             </CardContent>
           </Card>
         </div>
@@ -464,10 +467,14 @@ const PriceAlerts = () => {
           <Card className="max-w-md mx-auto">
             <CardContent className="p-12 text-center">
               <Bell className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">No price alerts yet.</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Create your first price alert to get notified when stocks reach target prices.
+              <h3 className="text-lg font-semibold mb-2">No alerts yet</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Create your first alert to get notified when stocks reach target prices or volumes.
               </p>
+              <Button onClick={() => setCreateDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Your First Alert
+              </Button>
             </CardContent>
           </Card>
         ) : (
@@ -476,15 +483,12 @@ const PriceAlerts = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[100px]">Stock Code</TableHead>
-                    <TableHead className="min-w-[120px]">Reach Price</TableHead>
-                    <TableHead className="min-w-[120px]">Drop Price</TableHead>
-                    <TableHead className="min-w-[120px]">Current Price</TableHead>
-                    <TableHead className="min-w-[120px]">Reach Volume</TableHead>
-                    <TableHead className="min-w-[120px]">Current Volume</TableHead>
-                    <TableHead className="min-w-[100px]">Status</TableHead>
-                    <TableHead className="min-w-[150px]">Condition</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="min-w-[140px]">Stock</TableHead>
+                    <TableHead className="min-w-[200px]">Price Settings</TableHead>
+                    <TableHead className="min-w-[200px]">Volume Settings</TableHead>
+                    <TableHead className="min-w-[180px]">Alert Conditions</TableHead>
+                    <TableHead className="min-w-[100px] text-center">Status</TableHead>
+                    <TableHead className="text-right min-w-[140px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -495,176 +499,172 @@ const PriceAlerts = () => {
                     const hasActiveCondition = isReached || isDropped || isVolumeReached;
                     
                     return (
-                      <TableRow key={alert.id} className={hasActiveCondition && alert.active ? "bg-green-50 dark:bg-green-950/20" : ""}>
-                        <TableCell className="font-semibold text-lg">
-                          <div className="flex items-center gap-2">
-                            <span>{alert.code}</span>
-                            {hasActiveCondition && alert.active && (
-                              <Badge variant="default" className="bg-green-600 text-white animate-pulse">
-                                <Bell className="h-3 w-3 mr-1" />
-                                Alert Active
-                              </Badge>
+                      <TableRow key={alert.id} className={hasActiveCondition && alert.active ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" : ""}>
+                        {/* Stock Code Column */}
+                        <TableCell>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-lg">{alert.code}</span>
+                              {hasActiveCondition && alert.active && (
+                                <Badge variant="default" className="bg-green-600 text-white animate-pulse text-xs">
+                                  <Bell className="h-3 w-3 mr-1" />
+                                  Triggered
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        
+                        {/* Price Settings Column */}
+                        <TableCell>
+                          <div className="space-y-2">
+                            {alert.reachPrice && (
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1">
+                                  <div className="text-xs text-muted-foreground mb-0.5">Alert when price reaches</div>
+                                  <div className="font-mono font-semibold">{formatPrice(alert.reachPrice)}</div>
+                                </div>
+                                {isReached && (
+                                  <Badge variant="default" className="bg-green-600 text-white shrink-0">
+                                    <TrendingUp className="h-3 w-3 mr-1" />
+                                    ✓
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
+                            {alert.dropPrice && (
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1">
+                                  <div className="text-xs text-muted-foreground mb-0.5">Alert when price drops to</div>
+                                  <div className="font-mono font-semibold">{formatPrice(alert.dropPrice)}</div>
+                                </div>
+                                {isDropped && (
+                                  <Badge variant="destructive" className="bg-red-600 shrink-0">
+                                    <TrendingDown className="h-3 w-3 mr-1" />
+                                    ✓
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
+                            {!alert.reachPrice && !alert.dropPrice && (
+                              <span className="text-sm text-muted-foreground italic">No price alerts set</span>
+                            )}
+                            {alert.marketPrice && (
+                              <div className="pt-1 border-t">
+                                <div className="text-xs text-muted-foreground">Current: <span className={`font-mono font-semibold ${hasActiveCondition ? "text-green-600 dark:text-green-400" : ""}`}>{formatPrice(alert.marketPrice)}</span></div>
+                              </div>
                             )}
                           </div>
                         </TableCell>
+                        
+                        {/* Volume Settings Column */}
                         <TableCell>
-                          {alert.reachPrice ? (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-mono">{formatPrice(alert.reachPrice)}</span>
-                              {isReached && (
-                                <Badge variant="default" className="bg-green-600 text-white">
-                                  <TrendingUp className="h-3 w-3 mr-1" />
-                                  Reached
-                                </Badge>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
+                          <div className="space-y-2">
+                            {alert.reachVolume ? (
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1">
+                                  <div className="text-xs text-muted-foreground mb-0.5">Alert when volume reaches</div>
+                                  <div className="font-mono font-semibold">{formatVolume(alert.reachVolume)}</div>
+                                </div>
+                                {isVolumeReached && (
+                                  <Badge variant="default" className="bg-green-600 text-white shrink-0">
+                                    <TrendingUp className="h-3 w-3 mr-1" />
+                                    ✓
+                                  </Badge>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground italic">No volume alerts set</span>
+                            )}
+                            {alert.marketVolume !== undefined && alert.reachVolume && (
+                              <div className="pt-1 border-t">
+                                <div className="text-xs text-muted-foreground">Current: <span className={`font-mono font-semibold ${isVolumeReached ? "text-green-600 dark:text-green-400" : ""}`}>{formatVolume(alert.marketVolume)}</span></div>
+                              </div>
+                            )}
+                          </div>
                         </TableCell>
+                        
+                        {/* Alert Conditions Summary */}
                         <TableCell>
-                          {alert.dropPrice ? (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-mono">{formatPrice(alert.dropPrice)}</span>
-                              {isDropped && (
-                                <Badge variant="destructive" className="bg-red-600">
-                                  <TrendingDown className="h-3 w-3 mr-1" />
-                                  Dropped
-                                </Badge>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
+                          <div className="space-y-1.5 text-xs">
+                            {(alert.reachPrice || alert.dropPrice) && (
+                              <div className="flex items-start gap-1.5">
+                                <span className="text-muted-foreground shrink-0">📈 Price:</span>
+                                <div className="flex flex-col gap-0.5">
+                                  {alert.reachPrice && (
+                                    <span className="font-medium">≥ {formatPrice(alert.reachPrice)}</span>
+                                  )}
+                                  {alert.dropPrice && (
+                                    <span className="font-medium">≤ {formatPrice(alert.dropPrice)}</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {alert.reachVolume && (
+                              <div className="flex items-start gap-1.5">
+                                <span className="text-muted-foreground shrink-0">📊 Volume:</span>
+                                <span className="font-medium">≥ {formatVolume(alert.reachVolume)}</span>
+                              </div>
+                            )}
+                            {!alert.reachPrice && !alert.dropPrice && !alert.reachVolume && (
+                              <span className="text-muted-foreground italic">No conditions set</span>
+                            )}
+                          </div>
                         </TableCell>
-                        <TableCell>
-                          {alert.marketPrice ? (
-                            <div className="flex items-center gap-2">
-                              <span className={`font-mono font-semibold ${hasActiveCondition ? "text-green-700 dark:text-green-400" : ""}`}>
-                                {formatPrice(alert.marketPrice)}
-                              </span>
-                              {isReached && (
-                                <Badge variant="outline" className="border-green-600 text-green-700 dark:text-green-400">
-                                  <TrendingUp className="h-3 w-3 mr-1" />
-                                  Price Reached
-                                </Badge>
-                              )}
-                              {isDropped && !isReached && (
-                                <Badge variant="outline" className="border-red-600 text-red-700 dark:text-red-400">
-                                  <TrendingDown className="h-3 w-3 mr-1" />
-                                  Price Dropped
-                                </Badge>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">N/A</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {alert.reachVolume ? (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-mono">{formatVolume(alert.reachVolume)}</span>
-                              {isVolumeReached && (
-                                <Badge variant="default" className="bg-green-600 text-white">
-                                  <TrendingUp className="h-3 w-3 mr-1" />
-                                  Reached
-                                </Badge>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {alert.marketVolume !== undefined ? (
-                            <div className="flex items-center gap-2">
-                              <span className={`font-mono font-semibold ${hasActiveCondition ? "text-green-700 dark:text-green-400" : ""}`}>
-                                {formatVolume(alert.marketVolume)}
-                              </span>
-                              {isVolumeReached && (
-                                <Badge variant="outline" className="border-green-600 text-green-700 dark:text-green-400">
-                                  <TrendingUp className="h-3 w-3 mr-1" />
-                                  Volume Reached
-                                </Badge>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">N/A</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={alert.active ? "default" : "secondary"}>
-                            {alert.active ? "Active" : "Inactive"}
+                        
+                        {/* Status Column */}
+                        <TableCell className="text-center">
+                          <Badge variant={alert.active ? "default" : "secondary"} className="text-xs">
+                            {alert.active ? "✓ Active" : "○ Inactive"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          <div className="space-y-1">
-                            {((alert.reachPrice || alert.dropPrice) && alert.reachVolume) ? (
-                              <>
-                                {alert.reachPrice && alert.dropPrice && (
-                                  <div>Price: &gt;= {formatPrice(alert.reachPrice)} OR &lt;= {formatPrice(alert.dropPrice)}</div>
-                                )}
-                                {alert.reachPrice && !alert.dropPrice && (
-                                  <div>Price: &gt;= {formatPrice(alert.reachPrice)}</div>
-                                )}
-                                {!alert.reachPrice && alert.dropPrice && (
-                                  <div>Price: &lt;= {formatPrice(alert.dropPrice)}</div>
-                                )}
-                                {alert.reachVolume && (
-                                  <div>Volume: &gt;= {formatVolume(alert.reachVolume)}</div>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                {alert.reachPrice && alert.dropPrice && (
-                                  <span>Price &gt;= {formatPrice(alert.reachPrice)} OR Price &lt;= {formatPrice(alert.dropPrice)}</span>
-                                )}
-                                {alert.reachPrice && !alert.dropPrice && (
-                                  <span>Price &gt;= {formatPrice(alert.reachPrice)}</span>
-                                )}
-                                {!alert.reachPrice && alert.dropPrice && (
-                                  <span>Price &lt;= {formatPrice(alert.dropPrice)}</span>
-                                )}
-                                {alert.reachVolume && (
-                                  <span>Volume &gt;= {formatVolume(alert.reachVolume)}</span>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
+                        {/* Actions Column */}
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-1">
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleToggleActive(alert)}
+                              className="h-8 px-2"
+                              title={alert.active ? "Pause alert" : "Activate alert"}
                             >
-                              {alert.active ? "Deactivate" : "Activate"}
+                              {alert.active ? "Pause" : "Activate"}
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleEdit(alert)}
+                              className="h-8 w-8 p-0"
+                              title="Edit alert"
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                  title="Delete alert"
+                                >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Price Alert</AlertDialogTitle>
+                                  <AlertDialogTitle>Delete Alert</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Are you sure you want to delete the price alert for <strong>{alert.code}</strong>?
-                                    This action cannot be undone.
+                                    Are you sure you want to delete the alert for <strong>{alert.code}</strong>?
+                                    <br />
+                                    <span className="text-destructive text-sm mt-1 block">This action cannot be undone.</span>
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDelete(alert.id, alert.code)}>
+                                  <AlertDialogAction 
+                                    onClick={() => handleDelete(alert.id, alert.code)}
+                                    className="bg-destructive hover:bg-destructive/90"
+                                  >
                                     Delete
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
@@ -688,9 +688,9 @@ const PriceAlerts = () => {
         }}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Edit Price & Volume Alert</DialogTitle>
+              <DialogTitle>Edit Alert</DialogTitle>
               <DialogDescription>
-                Update the alert settings for price and/or volume.
+                Update your alert settings for price and/or volume conditions.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -718,8 +718,9 @@ const PriceAlerts = () => {
                           setReachPrice(rawValue);
                         }
                       }}
-                      placeholder="Alert when price reaches this value"
+                      placeholder="e.g., 100000"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">Notify when price goes up to this level</p>
                   </div>
                   <div>
                     <Label htmlFor="edit-dropPrice">Drop Price (VND)</Label>
@@ -733,8 +734,9 @@ const PriceAlerts = () => {
                           setDropPrice(rawValue);
                         }
                       }}
-                      placeholder="Alert when price drops to this value"
+                      placeholder="e.g., 90000"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">Notify when price falls to this level</p>
                   </div>
                 </div>
               </div>
@@ -753,9 +755,10 @@ const PriceAlerts = () => {
                           setReachVolume(rawValue);
                         }
                       }}
-                      placeholder="Alert when volume reaches this value"
+                      placeholder="e.g., 5000000"
                     />
-                      </div>
+                    <p className="text-xs text-muted-foreground mt-1">Notify when trading volume exceeds this amount</p>
+                  </div>
                     </div>
               </div>
             </div>
@@ -771,10 +774,30 @@ const PriceAlerts = () => {
           </DialogContent>
         </Dialog>
         
-        <p className="mt-4 text-sm text-muted-foreground text-center">
-          * Alerts will notify you via WebSocket when stock prices or volumes meet your specified conditions (price &gt;= reach OR price &lt;= drop, volume &gt;= reach). 
-          Alerts remain active and continue monitoring until you manually deactivate them. You will receive browser notifications when conditions are met (notifications are sent at most once every 5 minutes to prevent spam).
-        </p>
+        <div className="mt-6 p-4 bg-muted/50 rounded-lg border">
+          <div className="flex gap-3">
+            <div className="shrink-0 mt-0.5">
+              <Bell className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 space-y-2">
+              <h4 className="font-semibold text-sm">How alerts work</h4>
+              <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside">
+                <li>
+                  <strong>Price alerts:</strong> Set a target price to reach (≥) or drop to (≤). You'll be notified when the stock price crosses these thresholds.
+                </li>
+                <li>
+                  <strong>Volume alerts:</strong> Set a target volume to reach (≥). You'll be notified when trading volume exceeds this amount.
+                </li>
+                <li>
+                  <strong>Continuous monitoring:</strong> Alerts stay active and check every minute until you manually pause or delete them.
+                </li>
+                <li>
+                  <strong>Notifications:</strong> You'll receive real-time notifications via WebSocket and browser notifications. To prevent spam, notifications are sent at most once every 5 minutes per alert.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   );

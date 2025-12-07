@@ -241,7 +241,7 @@ const translations = {
     'nav.trackedStocks': 'Tracked Stocks',
     'nav.shortTermPortfolio': 'Short-Term Portfolio',
     'nav.suggestions': 'Suggestions',
-    'nav.priceAlerts': 'Price Alerts',
+    'nav.priceAlerts': 'Alerts',
     'nav.signals': 'Signals',
     'nav.userManagement': 'User Management',
     'nav.systemConfig': 'System Config',
