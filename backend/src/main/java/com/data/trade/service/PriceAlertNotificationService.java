@@ -9,8 +9,11 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -207,16 +210,46 @@ public class PriceAlertNotificationService {
         switch (alertType) {
             case "REACH":
                 return String.format("%s reached target price %s (current: %s)", 
-                        code, alert.getReachPrice(), currentPrice);
+                        code, formatPrice(alert.getReachPrice()), formatPrice(currentPrice));
             case "DROP":
                 return String.format("%s dropped to target price %s (current: %s)", 
-                        code, alert.getDropPrice(), currentPrice);
+                        code, formatPrice(alert.getDropPrice()), formatPrice(currentPrice));
             case "VOLUME_REACH":
                 return String.format("%s reached target volume %s (current: %s)", 
-                        code, alert.getReachVolume(), currentVolume);
+                        code, formatVolume(alert.getReachVolume()), formatVolume(currentVolume));
             default:
                 return String.format("%s alert triggered", code);
         }
+    }
+    
+    /**
+     * Format price (BigDecimal) with dot separators for thousands
+     * e.g., 120000.0 -> "120.000"
+     */
+    private String formatPrice(BigDecimal price) {
+        if (price == null) {
+            return "N/A";
+        }
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.getDefault());
+        symbols.setGroupingSeparator('.');
+        DecimalFormat formatter = new DecimalFormat("#,###", symbols);
+        formatter.setMaximumFractionDigits(0);
+        return formatter.format(price);
+    }
+    
+    /**
+     * Format volume (Long) with dot separators for thousands
+     * e.g., 5000000 -> "5.000.000"
+     */
+    private String formatVolume(Long volume) {
+        if (volume == null) {
+            return "N/A";
+        }
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.getDefault());
+        symbols.setGroupingSeparator('.');
+        DecimalFormat formatter = new DecimalFormat("#,###", symbols);
+        formatter.setMaximumFractionDigits(0);
+        return formatter.format(volume);
     }
     
     /**

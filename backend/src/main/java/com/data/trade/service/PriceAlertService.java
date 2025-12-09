@@ -8,6 +8,9 @@ import com.data.trade.model.User;
 import com.data.trade.repository.PriceAlertRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -37,6 +40,23 @@ public class PriceAlertService {
                     return PriceAlertDTO.fromPriceAlertWithMarketData(alert, marketPrice, marketVolume);
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get paginated price alerts for a specific user
+     */
+    public Page<PriceAlertDTO> getAllPriceAlertsForUser(Long userId, Pageable pageable) {
+        Page<PriceAlert> alertsPage = priceAlertRepository.findAllByUserId(userId, pageable);
+        
+        List<PriceAlertDTO> dtos = alertsPage.getContent().stream()
+                .map(alert -> {
+                    BigDecimal marketPrice = getMarketPrice(alert.getCode());
+                    Long marketVolume = getMarketVolume(alert.getCode());
+                    return PriceAlertDTO.fromPriceAlertWithMarketData(alert, marketPrice, marketVolume);
+                })
+                .collect(Collectors.toList());
+        
+        return new PageImpl<>(dtos, pageable, alertsPage.getTotalElements());
     }
 
     /**

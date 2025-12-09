@@ -1,6 +1,8 @@
 package com.data.trade.repository;
 
 import com.data.trade.model.PriceAlert;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -11,6 +13,7 @@ import java.util.Optional;
 @Repository
 public interface PriceAlertRepository extends JpaRepository<PriceAlert, Long> {
     List<PriceAlert> findAllByUserId(Long userId);
+    Page<PriceAlert> findAllByUserId(Long userId, Pageable pageable);
     List<PriceAlert> findAllByUserIdAndActiveTrue(Long userId);
     List<PriceAlert> findAllByActiveTrue();
     

@@ -33,6 +33,13 @@ import { TrendingUp, TrendingDown, Loader2, RefreshCw, Plus, Pencil, Trash2, Bel
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.tsx";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatNumberWithDots, parseFormattedNumber } from "@/lib/utils";
@@ -58,6 +65,12 @@ const PriceAlerts = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingAlert, setEditingAlert] = useState<PriceAlert | null>(null);
   
+  // Pagination states
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(5);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  
   // Form states
   const [code, setCode] = useState("");
   const [reachPrice, setReachPrice] = useState("");
@@ -68,17 +81,33 @@ const PriceAlerts = () => {
   const { isConnected, notifications: wsNotifications } = usePriceAlertNotifications();
   const processedNotificationsRef = useRef<Set<number>>(new Set());
 
-  const fetchAlerts = async () => {
+  const fetchAlerts = async (nextPage = page, nextSize = size) => {
     try {
       setLoading(true);
-      const response = await api.get('/api/price-alerts');
+      const params = new URLSearchParams();
+      params.set("page", String(nextPage));
+      params.set("size", String(nextSize));
+      // Default sort by createdAt descending (newest first)
+      params.set("sort", "createdAt");
+      params.set("direction", "desc");
+      
+      const response = await api.get(`/api/price-alerts?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch price alerts');
       }
       
-      const data: PriceAlert[] = await response.json();
-      setAlerts(data);
+      const data = await response.json();
+      
+      // Handle paginated response (Page<PriceAlertDTO>)
+      const alertsPage = data?.content ?? data ?? [];
+      const alertsList = Array.isArray(alertsPage) ? alertsPage : [];
+      
+      setAlerts(alertsList);
+      setTotalPages(data?.totalPages ?? 0);
+      setTotalElements(data?.totalElements ?? alertsList.length);
+      setPage(data?.number ?? nextPage);
+      setSize(data?.size ?? nextSize);
     } catch (error) {
       console.error('Error fetching price alerts:', error);
       toast.error('Failed to load price alerts');
@@ -90,7 +119,7 @@ const PriceAlerts = () => {
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
-      await fetchAlerts();
+      await fetchAlerts(page, size);
       toast.success('Price alerts refreshed');
     } catch (error) {
       console.error('Error refreshing price alerts:', error);
@@ -101,8 +130,9 @@ const PriceAlerts = () => {
   };
 
   useEffect(() => {
-    fetchAlerts();
-  }, []);
+    fetchAlerts(page, size);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, size]);
 
   const formatPrice = (price?: number) => {
     if (price === null || price === undefined) return "N/A";
@@ -138,7 +168,7 @@ const PriceAlerts = () => {
 
       // Refresh alerts if we have new notifications
       if (newNotifications.length > 0) {
-        fetchAlerts();
+        fetchAlerts(page, size);
       }
     }
   }, [wsNotifications]);
@@ -197,7 +227,9 @@ const PriceAlerts = () => {
       toast.success(`Price alert created for ${code.toUpperCase()}`);
       resetForm();
       setCreateDialogOpen(false);
-      await fetchAlerts();
+      // Reset to first page to show the newly created alert
+      setPage(0);
+      await fetchAlerts(0, size);
     } catch (error: any) {
       console.error('Error creating price alert:', error);
       toast.error(error.message || 'Failed to create price alert');
@@ -256,7 +288,7 @@ const PriceAlerts = () => {
       toast.success(`Price alert updated for ${code.toUpperCase()}`);
       resetForm();
       setEditDialogOpen(false);
-      await fetchAlerts();
+      await fetchAlerts(page, size);
     } catch (error: any) {
       console.error('Error updating price alert:', error);
       toast.error(error.message || 'Failed to update price alert');
@@ -272,7 +304,14 @@ const PriceAlerts = () => {
       }
 
       toast.success(`Price alert deleted for ${code}`);
-      await fetchAlerts();
+      // If we deleted the last item on the page and it's not the first page, go to previous page
+      if (alerts.length === 1 && page > 0) {
+        const prevPage = page - 1;
+        setPage(prevPage);
+        await fetchAlerts(prevPage, size);
+      } else {
+        await fetchAlerts(page, size);
+      }
     } catch (error) {
       console.error('Error deleting price alert:', error);
       toast.error('Failed to delete price alert');
@@ -288,7 +327,7 @@ const PriceAlerts = () => {
       }
 
       toast.success(`Price alert ${alert.active ? 'deactivated' : 'activated'} for ${alert.code}`);
-      await fetchAlerts();
+      await fetchAlerts(page, size);
     } catch (error) {
       console.error('Error toggling price alert:', error);
       toast.error('Failed to toggle price alert');
@@ -478,9 +517,10 @@ const PriceAlerts = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="rounded-lg border bg-card">
-            <div className="overflow-x-auto">
-              <Table>
+          <>
+            <div className="rounded-lg border bg-card">
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="min-w-[140px]">Stock</TableHead>
@@ -678,7 +718,60 @@ const PriceAlerts = () => {
                 </TableBody>
               </Table>
             </div>
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t">
+                <div className="text-xs sm:text-sm text-muted-foreground">
+                  Showing {page * size + 1} to {Math.min((page + 1) * size, totalElements)} of {totalElements} alerts
+                </div>
+                <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                  <Select value={String(size)} onValueChange={(v) => { 
+                    const n = Number(v); 
+                    setSize(n); 
+                    setPage(0); 
+                    fetchAlerts(0, n); 
+                  }}>
+                    <SelectTrigger className="w-full sm:w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5 / page</SelectItem>
+                      <SelectItem value="10">10 / page</SelectItem>
+                      <SelectItem value="20">20 / page</SelectItem>
+                      <SelectItem value="50">50 / page</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={page <= 0 || loading} 
+                    onClick={() => { 
+                      const p = page - 1; 
+                      setPage(p); 
+                      fetchAlerts(p, size); 
+                    }} 
+                    className="flex-1 sm:flex-none"
+                  >
+                    Prev
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={page + 1 >= totalPages || loading} 
+                    onClick={() => { 
+                      const p = page + 1; 
+                      setPage(p); 
+                      fetchAlerts(p, size); 
+                    }} 
+                    className="flex-1 sm:flex-none"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
+          </>
         )}
 
         {/* Edit Dialog */}
