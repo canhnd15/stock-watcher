@@ -1,6 +1,7 @@
 package com.data.trade.service;
 
 import com.data.trade.dto.PriceAlertDTO;
+import com.data.trade.dto.PriceAlertCountsDTO;
 import com.data.trade.dto.CreatePriceAlertRequest;
 import com.data.trade.dto.UpdatePriceAlertRequest;
 import com.data.trade.model.PriceAlert;
@@ -34,9 +35,17 @@ public class PriceAlertService {
 
     /**
      * Get paginated price alerts for a specific user
+     * @param userId The user ID
+     * @param pageable Pagination parameters
+     * @param active Optional filter for active status (null = all, true = active only, false = inactive only)
      */
-    public Page<PriceAlertDTO> getAllPriceAlertsForUser(Long userId, Pageable pageable) {
-        Page<PriceAlert> alertsPage = priceAlertRepository.findAllByUserId(userId, pageable);
+    public Page<PriceAlertDTO> getAllPriceAlertsForUser(Long userId, Pageable pageable, Boolean active) {
+        Page<PriceAlert> alertsPage;
+        if (active != null) {
+            alertsPage = priceAlertRepository.findAllByUserIdAndActive(userId, active, pageable);
+        } else {
+            alertsPage = priceAlertRepository.findAllByUserId(userId, pageable);
+        }
         
         List<PriceAlert> alerts = alertsPage.getContent();
         
@@ -272,6 +281,21 @@ public class PriceAlertService {
      */
     public List<PriceAlert> getAllActivePriceAlerts() {
         return priceAlertRepository.findAllByActiveTrue();
+    }
+    
+    /**
+     * Get counts of price alerts for a specific user (total, active, inactive)
+     */
+    public PriceAlertCountsDTO getPriceAlertCounts(Long userId) {
+        long totalCount = priceAlertRepository.countByUserId(userId);
+        long activeCount = priceAlertRepository.countByUserIdAndActive(userId, true);
+        long inactiveCount = priceAlertRepository.countByUserIdAndActive(userId, false);
+        
+        return PriceAlertCountsDTO.builder()
+                .totalCount(totalCount)
+                .activeCount(activeCount)
+                .inactiveCount(inactiveCount)
+                .build();
     }
 }
 

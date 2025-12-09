@@ -71,6 +71,16 @@ const PriceAlerts = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
   
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  
+  // Alert counts (independent of filter)
+  const [alertCounts, setAlertCounts] = useState({
+    totalCount: 0,
+    activeCount: 0,
+    inactiveCount: 0,
+  });
+  
   // Form states
   const [code, setCode] = useState("");
   const [reachPrice, setReachPrice] = useState("");
@@ -81,7 +91,24 @@ const PriceAlerts = () => {
   const { isConnected, notifications: wsNotifications } = usePriceAlertNotifications();
   const processedNotificationsRef = useRef<Set<number>>(new Set());
 
-  const fetchAlerts = async (nextPage = page, nextSize = size) => {
+  const fetchAlertCounts = async () => {
+    try {
+      const response = await api.get('/api/price-alerts/counts');
+      if (response.ok) {
+        const counts = await response.json();
+        setAlertCounts({
+          totalCount: counts.totalCount || 0,
+          activeCount: counts.activeCount || 0,
+          inactiveCount: counts.inactiveCount || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching alert counts:', error);
+      // Don't show error toast for counts, just log it
+    }
+  };
+
+  const fetchAlerts = async (nextPage = page, nextSize = size, filter = statusFilter) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -90,6 +117,12 @@ const PriceAlerts = () => {
       // Default sort by createdAt descending (newest first)
       params.set("sort", "createdAt");
       params.set("direction", "desc");
+      // Add active filter if not 'all'
+      if (filter === 'active') {
+        params.set("active", "true");
+      } else if (filter === 'inactive') {
+        params.set("active", "false");
+      }
       
       const response = await api.get(`/api/price-alerts?${params.toString()}`);
       
@@ -119,7 +152,8 @@ const PriceAlerts = () => {
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
-      await fetchAlerts(page, size);
+      await fetchAlertCounts();
+      await fetchAlerts(page, size, statusFilter);
       toast.success('Price alerts refreshed');
     } catch (error) {
       console.error('Error refreshing price alerts:', error);
@@ -130,7 +164,22 @@ const PriceAlerts = () => {
   };
 
   useEffect(() => {
-    fetchAlerts(page, size);
+    fetchAlertCounts();
+    fetchAlerts(page, size, statusFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // Reset to page 0 when filter changes
+    if (page !== 0) {
+      setPage(0);
+    }
+    fetchAlerts(0, size, statusFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
+
+  useEffect(() => {
+    fetchAlerts(page, size, statusFilter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, size]);
 
@@ -168,7 +217,7 @@ const PriceAlerts = () => {
 
       // Refresh alerts if we have new notifications
       if (newNotifications.length > 0) {
-        fetchAlerts(page, size);
+        fetchAlerts(page, size, statusFilter);
       }
     }
   }, [wsNotifications]);
@@ -229,7 +278,8 @@ const PriceAlerts = () => {
       setCreateDialogOpen(false);
       // Reset to first page to show the newly created alert
       setPage(0);
-      await fetchAlerts(0, size);
+      await fetchAlertCounts();
+      await fetchAlerts(0, size, statusFilter);
     } catch (error: any) {
       console.error('Error creating price alert:', error);
       toast.error(error.message || 'Failed to create price alert');
@@ -288,7 +338,8 @@ const PriceAlerts = () => {
       toast.success(`Price alert updated for ${code.toUpperCase()}`);
       resetForm();
       setEditDialogOpen(false);
-      await fetchAlerts(page, size);
+      await fetchAlertCounts();
+      await fetchAlerts(page, size, statusFilter);
     } catch (error: any) {
       console.error('Error updating price alert:', error);
       toast.error(error.message || 'Failed to update price alert');
@@ -305,12 +356,13 @@ const PriceAlerts = () => {
 
       toast.success(`Price alert deleted for ${code}`);
       // If we deleted the last item on the page and it's not the first page, go to previous page
+      await fetchAlertCounts();
       if (alerts.length === 1 && page > 0) {
         const prevPage = page - 1;
         setPage(prevPage);
-        await fetchAlerts(prevPage, size);
+        await fetchAlerts(prevPage, size, statusFilter);
       } else {
-        await fetchAlerts(page, size);
+        await fetchAlerts(page, size, statusFilter);
       }
     } catch (error) {
       console.error('Error deleting price alert:', error);
@@ -327,15 +379,15 @@ const PriceAlerts = () => {
       }
 
       toast.success(`Price alert ${alert.active ? 'deactivated' : 'activated'} for ${alert.code}`);
-      await fetchAlerts(page, size);
+      await fetchAlertCounts();
+      await fetchAlerts(page, size, statusFilter);
     } catch (error) {
       console.error('Error toggling price alert:', error);
       toast.error('Failed to toggle price alert');
     }
   };
 
-  const activeCount = alerts.filter(a => a.active).length;
-  const inactiveCount = alerts.filter(a => !a.active).length;
+  // Counts are now fetched from the API via alertCounts state
 
   return (
     <div className="min-h-screen bg-background">
@@ -478,7 +530,7 @@ const PriceAlerts = () => {
               <Bell className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{activeCount}</div>
+              <div className="text-2xl font-bold text-primary">{alertCounts.activeCount}</div>
               <CardDescription>Monitoring prices and volumes</CardDescription>
             </CardContent>
           </Card>
@@ -489,10 +541,38 @@ const PriceAlerts = () => {
               <Bell className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-muted-foreground">{inactiveCount}</div>
+              <div className="text-2xl font-bold text-muted-foreground">{alertCounts.inactiveCount}</div>
               <CardDescription>Currently paused</CardDescription>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Filter Controls */}
+        <div className="mb-4 flex items-center gap-2">
+          <Label className="text-sm font-medium">Filter by status:</Label>
+          <div className="flex gap-2">
+            <Button
+              variant={statusFilter === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('all')}
+            >
+              All ({alertCounts.totalCount})
+            </Button>
+            <Button
+              variant={statusFilter === 'active' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('active')}
+            >
+              Active ({alertCounts.activeCount})
+            </Button>
+            <Button
+              variant={statusFilter === 'inactive' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('inactive')}
+            >
+              Inactive ({alertCounts.inactiveCount})
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -506,14 +586,26 @@ const PriceAlerts = () => {
           <Card className="max-w-md mx-auto">
             <CardContent className="p-12 text-center">
               <Bell className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-semibold mb-2">No alerts yet</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                {statusFilter === 'all' ? 'No alerts yet' : `No ${statusFilter} alerts`}
+              </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Create your first alert to get notified when stocks reach target prices or volumes.
+                {statusFilter === 'all' 
+                  ? 'Create your first alert to get notified when stocks reach target prices or volumes.'
+                  : `No ${statusFilter} alerts found on this page. Try changing the filter or navigate to another page.`
+                }
               </p>
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Alert
-              </Button>
+              {statusFilter === 'all' && (
+                <Button onClick={() => setCreateDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Your First Alert
+                </Button>
+              )}
+              {statusFilter !== 'all' && (
+                <Button variant="outline" onClick={() => setStatusFilter('all')}>
+                  Show All Alerts
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
