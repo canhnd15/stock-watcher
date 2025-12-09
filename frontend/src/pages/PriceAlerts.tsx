@@ -87,9 +87,37 @@ const PriceAlerts = () => {
   const [dropPrice, setDropPrice] = useState("");
   const [reachVolume, setReachVolume] = useState("");
   
+  // Validation states
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [validatingCode, setValidatingCode] = useState(false);
+  const [reachPriceError, setReachPriceError] = useState<string | null>(null);
+  const [dropPriceError, setDropPriceError] = useState<string | null>(null);
+  const [reachVolumeError, setReachVolumeError] = useState<string | null>(null);
+  
+  // Debounce timer for stock code validation
+  const codeValidationDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  
   // WebSocket notifications
   const { isConnected, notifications: wsNotifications } = usePriceAlertNotifications();
   const processedNotificationsRef = useRef<Set<number>>(new Set());
+  
+  // Debounce timers for auto-completion (create dialog)
+  const reachPriceDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const dropPriceDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const reachVolumeDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Debounce timers for auto-completion (edit dialog)
+  const editReachPriceDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const editDropPriceDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const editReachVolumeDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Track if user is actively typing (to prevent auto-completion while typing)
+  const isTypingReachPrice = useRef(false);
+  const isTypingDropPrice = useRef(false);
+  const isTypingReachVolume = useRef(false);
+  const isTypingEditReachPrice = useRef(false);
+  const isTypingEditDropPrice = useRef(false);
+  const isTypingEditReachVolume = useRef(false);
 
   const fetchAlertCounts = async () => {
     try {
@@ -228,11 +256,161 @@ const PriceAlerts = () => {
     setDropPrice("");
     setReachVolume("");
     setEditingAlert(null);
+    // Clear validation errors
+    setCodeError(null);
+    setReachPriceError(null);
+    setDropPriceError(null);
+    setReachVolumeError(null);
+    // Clear debounce timers (create dialog)
+    if (reachPriceDebounceRef.current) clearTimeout(reachPriceDebounceRef.current);
+    if (dropPriceDebounceRef.current) clearTimeout(dropPriceDebounceRef.current);
+    if (reachVolumeDebounceRef.current) clearTimeout(reachVolumeDebounceRef.current);
+    if (codeValidationDebounceRef.current) clearTimeout(codeValidationDebounceRef.current);
+    // Clear debounce timers (edit dialog)
+    if (editReachPriceDebounceRef.current) clearTimeout(editReachPriceDebounceRef.current);
+    if (editDropPriceDebounceRef.current) clearTimeout(editDropPriceDebounceRef.current);
+    if (editReachVolumeDebounceRef.current) clearTimeout(editReachVolumeDebounceRef.current);
+    isTypingReachPrice.current = false;
+    isTypingDropPrice.current = false;
+    isTypingReachVolume.current = false;
+    isTypingEditReachPrice.current = false;
+    isTypingEditDropPrice.current = false;
+    isTypingEditReachVolume.current = false;
+  };
+  
+  // Validate stock code via API
+  const validateStockCode = async (codeValue: string): Promise<boolean> => {
+    if (!codeValue || codeValue.trim() === "") {
+      setCodeError("Stock code is required");
+      return false;
+    }
+    
+    if (codeValue.length !== 3) {
+      setCodeError("Stock code must be exactly 3 characters");
+      return false;
+    }
+    
+    setValidatingCode(true);
+    setCodeError(null);
+    
+    try {
+      const encodedCode = encodeURIComponent(codeValue.toUpperCase());
+      const response = await api.get(`/api/stocks/market-price/${encodedCode}`);
+      
+      if (response.ok) {
+        const data: { code: string; marketPrice: number | null } = await response.json();
+        if (data.marketPrice !== null && data.marketPrice !== undefined) {
+          setCodeError(null);
+          return true;
+        } else {
+          setCodeError("Stock code not found or invalid");
+          return false;
+        }
+      } else {
+        setCodeError("Failed to validate stock code");
+        return false;
+      }
+    } catch (error) {
+      console.error("Error validating stock code:", error);
+      setCodeError("Failed to validate stock code");
+      return false;
+    } finally {
+      setValidatingCode(false);
+    }
+  };
+  
+  // Validate prices
+  const validatePrices = (reach: string, drop: string): boolean => {
+    let isValid = true;
+    
+    // Reset errors first
+    setReachPriceError(null);
+    setDropPriceError(null);
+    
+    if (reach.trim()) {
+      const reachNum = parseFloat(parseFormattedNumber(reach));
+      if (isNaN(reachNum) || reachNum < 0) {
+        setReachPriceError("Reach price must be a positive number");
+        isValid = false;
+      }
+    }
+    
+    if (drop.trim()) {
+      const dropNum = parseFloat(parseFormattedNumber(drop));
+      if (isNaN(dropNum) || dropNum < 0) {
+        setDropPriceError("Drop price must be a positive number");
+        isValid = false;
+      }
+    }
+    
+    // Check if reach price > drop price when both are provided and valid
+    if (reach.trim() && drop.trim() && isValid) {
+      const reachNum = parseFloat(parseFormattedNumber(reach));
+      const dropNum = parseFloat(parseFormattedNumber(drop));
+      if (!isNaN(reachNum) && !isNaN(dropNum) && reachNum <= dropNum) {
+        setReachPriceError("Reach price must be greater than drop price");
+        isValid = false;
+      }
+    }
+    
+    return isValid;
+  };
+  
+  // Validate volume
+  const validateVolume = (volume: string): boolean => {
+    if (volume.trim()) {
+      const volumeNum = parseInt(parseFormattedNumber(volume));
+      if (isNaN(volumeNum) || volumeNum < 0) {
+        setReachVolumeError("Reach volume must be a positive number");
+        return false;
+      } else {
+        setReachVolumeError(null);
+        return true;
+      }
+    } else {
+      setReachVolumeError(null);
+      return true;
+    }
+  };
+  
+  // Auto-complete helper for price inputs (multiply by 1000)
+  const autoCompletePrice = (value: string, setter: (value: string) => void, isTypingRef: React.MutableRefObject<boolean>) => {
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || value === "" || value.includes(".")) return;
+    
+    // Only auto-complete if value is between 1 and 99 (small numbers)
+    if (numValue >= 1 && numValue < 100) {
+      const suggestedValue = (numValue * 1000).toString();
+      setter(suggestedValue);
+    }
+  };
+  
+  // Auto-complete helper for volume input (multiply by 1,000,000)
+  const autoCompleteVolume = (value: string, setter: (value: string) => void, isTypingRef: React.MutableRefObject<boolean>) => {
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || value === "" || value.includes(".")) return;
+    
+    // Only auto-complete if value is between 1 and 9 (single digit)
+    if (numValue >= 1 && numValue < 10) {
+      const suggestedValue = (numValue * 1000000).toString();
+      setter(suggestedValue);
+    }
   };
 
   const handleCreate = async () => {
-    if (!code.trim()) {
-      toast.error('Stock code is required');
+    // Validate stock code
+    const isCodeValid = await validateStockCode(code);
+    if (!isCodeValid) {
+      return;
+    }
+    
+    // Validate prices
+    if (!validatePrices(reachPrice, dropPrice)) {
+      return;
+    }
+    
+    // Validate volume
+    if (!validateVolume(reachVolume)) {
       return;
     }
 
@@ -242,21 +420,6 @@ const PriceAlerts = () => {
 
     if (reachPriceNum === undefined && dropPriceNum === undefined && reachVolumeNum === undefined) {
       toast.error('At least one alert condition (price or volume) must be provided');
-      return;
-    }
-
-    if (reachPriceNum !== undefined && (isNaN(reachPriceNum) || reachPriceNum <= 0)) {
-      toast.error('Invalid reach price');
-      return;
-    }
-
-    if (dropPriceNum !== undefined && (isNaN(dropPriceNum) || dropPriceNum <= 0)) {
-      toast.error('Invalid drop price');
-      return;
-    }
-
-    if (reachVolumeNum !== undefined && (isNaN(reachVolumeNum) || reachVolumeNum <= 0)) {
-      toast.error('Invalid reach volume');
       return;
     }
 
@@ -298,27 +461,28 @@ const PriceAlerts = () => {
   const handleUpdate = async () => {
     if (!editingAlert) return;
 
+    // Validate stock code
+    const isCodeValid = await validateStockCode(code);
+    if (!isCodeValid) {
+      return;
+    }
+    
+    // Validate prices
+    if (!validatePrices(reachPrice, dropPrice)) {
+      return;
+    }
+    
+    // Validate volume
+    if (!validateVolume(reachVolume)) {
+      return;
+    }
+
     const reachPriceNum = reachPrice.trim() ? parseFloat(parseFormattedNumber(reachPrice)) : null;
     const dropPriceNum = dropPrice.trim() ? parseFloat(parseFormattedNumber(dropPrice)) : null;
     const reachVolumeNum = reachVolume.trim() ? parseInt(parseFormattedNumber(reachVolume)) : null;
 
     if (reachPriceNum === null && dropPriceNum === null && reachVolumeNum === null) {
       toast.error('At least one alert condition (price or volume) must be provided');
-      return;
-    }
-
-    if (reachPriceNum !== null && (isNaN(reachPriceNum) || reachPriceNum <= 0)) {
-      toast.error('Invalid reach price');
-      return;
-    }
-
-    if (dropPriceNum !== null && (isNaN(dropPriceNum) || dropPriceNum <= 0)) {
-      toast.error('Invalid drop price');
-      return;
-    }
-
-    if (reachVolumeNum !== null && (isNaN(reachVolumeNum) || reachVolumeNum <= 0)) {
-      toast.error('Invalid reach volume');
       return;
     }
 
@@ -446,9 +610,37 @@ const PriceAlerts = () => {
                     <Input
                       id="code"
                       value={code}
-                      onChange={(e) => setCode(e.target.value.toUpperCase())}
-                      placeholder="e.g., FPT"
+                      maxLength={3}
+                      onChange={(e) => {
+                        const newValue = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                        setCode(newValue);
+                        setCodeError(null);
+                        
+                        // Clear existing debounce timer
+                        if (codeValidationDebounceRef.current) {
+                          clearTimeout(codeValidationDebounceRef.current);
+                        }
+                        
+                        // Validate when user stops typing (after 800ms) and code is 3 characters
+                        if (newValue.length === 3) {
+                          codeValidationDebounceRef.current = setTimeout(() => {
+                            validateStockCode(newValue);
+                          }, 800);
+                        } else if (newValue.length > 0 && newValue.length < 3) {
+                          setCodeError("Stock code must be exactly 3 characters");
+                        } else {
+                          setCodeError(null);
+                        }
+                      }}
+                      placeholder="e.g., VCB"
+                      className={codeError ? "border-red-500" : ""}
                     />
+                    {validatingCode && (
+                      <p className="text-xs text-muted-foreground mt-1">Validating stock code...</p>
+                    )}
+                    {codeError && !validatingCode && (
+                      <p className="text-xs text-red-500 mt-1">{codeError}</p>
+                    )}
                   </div>
                   <div className="border-t pt-4">
                     <Label className="text-base font-semibold mb-3 block">Price Alerts</Label>
@@ -463,11 +655,34 @@ const PriceAlerts = () => {
                             const rawValue = parseFormattedNumber(e.target.value);
                             if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
                               setReachPrice(rawValue);
+                              isTypingReachPrice.current = true;
+                              
+                              // Clear existing debounce timer
+                              if (reachPriceDebounceRef.current) {
+                                clearTimeout(reachPriceDebounceRef.current);
+                              }
+                              
+                              // Validate prices
+                              validatePrices(rawValue, dropPrice);
+                              
+                              // Set new debounce timer for auto-complete
+                              reachPriceDebounceRef.current = setTimeout(() => {
+                                isTypingReachPrice.current = false;
+                                autoCompletePrice(rawValue, setReachPrice, isTypingReachPrice);
+                                // Re-validate after auto-complete
+                                setTimeout(() => validatePrices(reachPrice, dropPrice), 100);
+                              }, 800); // Wait 800ms after user stops typing
                             }
                           }}
                           placeholder="e.g., 100000"
+                          className={reachPriceError ? "border-red-500" : ""}
                         />
-                        <p className="text-xs text-muted-foreground mt-1">Notify when price goes up to this level</p>
+                        {reachPriceError && (
+                          <p className="text-xs text-red-500 mt-1">{reachPriceError}</p>
+                        )}
+                        {!reachPriceError && (
+                          <p className="text-xs text-muted-foreground mt-1">Notify when price goes up to this level</p>
+                        )}
                       </div>
                       <div>
                         <Label htmlFor="dropPrice">Drop Price (VND)</Label>
@@ -479,11 +694,34 @@ const PriceAlerts = () => {
                             const rawValue = parseFormattedNumber(e.target.value);
                             if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
                               setDropPrice(rawValue);
+                              isTypingDropPrice.current = true;
+                              
+                              // Clear existing debounce timer
+                              if (dropPriceDebounceRef.current) {
+                                clearTimeout(dropPriceDebounceRef.current);
+                              }
+                              
+                              // Validate prices
+                              validatePrices(reachPrice, rawValue);
+                              
+                              // Set new debounce timer for auto-complete
+                              dropPriceDebounceRef.current = setTimeout(() => {
+                                isTypingDropPrice.current = false;
+                                autoCompletePrice(rawValue, setDropPrice, isTypingDropPrice);
+                                // Re-validate after auto-complete
+                                setTimeout(() => validatePrices(reachPrice, dropPrice), 100);
+                              }, 800); // Wait 800ms after user stops typing
                             }
                           }}
                           placeholder="e.g., 90000"
+                          className={dropPriceError ? "border-red-500" : ""}
                         />
-                        <p className="text-xs text-muted-foreground mt-1">Notify when price falls to this level</p>
+                        {dropPriceError && (
+                          <p className="text-xs text-red-500 mt-1">{dropPriceError}</p>
+                        )}
+                        {!dropPriceError && (
+                          <p className="text-xs text-muted-foreground mt-1">Notify when price falls to this level</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -500,11 +738,34 @@ const PriceAlerts = () => {
                             const rawValue = parseFormattedNumber(e.target.value);
                             if (rawValue === "" || /^\d*$/.test(rawValue)) {
                               setReachVolume(rawValue);
+                              isTypingReachVolume.current = true;
+                              
+                              // Clear existing debounce timer
+                              if (reachVolumeDebounceRef.current) {
+                                clearTimeout(reachVolumeDebounceRef.current);
+                              }
+                              
+                              // Validate volume
+                              validateVolume(rawValue);
+                              
+                              // Set new debounce timer for auto-complete
+                              reachVolumeDebounceRef.current = setTimeout(() => {
+                                isTypingReachVolume.current = false;
+                                autoCompleteVolume(rawValue, setReachVolume, isTypingReachVolume);
+                                // Re-validate after auto-complete
+                                setTimeout(() => validateVolume(reachVolume), 100);
+                              }, 800); // Wait 800ms after user stops typing
                             }
                           }}
                           placeholder="e.g., 5000000"
+                          className={reachVolumeError ? "border-red-500" : ""}
                         />
-                        <p className="text-xs text-muted-foreground mt-1">Notify when trading volume exceeds this amount</p>
+                        {reachVolumeError && (
+                          <p className="text-xs text-red-500 mt-1">{reachVolumeError}</p>
+                        )}
+                        {!reachVolumeError && (
+                          <p className="text-xs text-muted-foreground mt-1">Notify when trading volume exceeds this amount</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -884,9 +1145,37 @@ const PriceAlerts = () => {
                 <Input
                   id="edit-code"
                   value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  placeholder="e.g., FPT"
+                  maxLength={3}
+                  onChange={(e) => {
+                    const newValue = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    setCode(newValue);
+                    setCodeError(null);
+                    
+                    // Clear existing debounce timer
+                    if (codeValidationDebounceRef.current) {
+                      clearTimeout(codeValidationDebounceRef.current);
+                    }
+                    
+                    // Validate when user stops typing (after 800ms) and code is 3 characters
+                    if (newValue.length === 3) {
+                      codeValidationDebounceRef.current = setTimeout(() => {
+                        validateStockCode(newValue);
+                      }, 800);
+                    } else if (newValue.length > 0 && newValue.length < 3) {
+                      setCodeError("Stock code must be exactly 3 characters");
+                    } else {
+                      setCodeError(null);
+                    }
+                  }}
+                  placeholder="e.g., VCB"
+                  className={codeError ? "border-red-500" : ""}
                 />
+                {validatingCode && (
+                  <p className="text-xs text-muted-foreground mt-1">Validating stock code...</p>
+                )}
+                {codeError && !validatingCode && (
+                  <p className="text-xs text-red-500 mt-1">{codeError}</p>
+                )}
               </div>
               <div className="border-t pt-4">
                 <Label className="text-base font-semibold mb-3 block">Price Alerts</Label>
@@ -901,11 +1190,34 @@ const PriceAlerts = () => {
                         const rawValue = parseFormattedNumber(e.target.value);
                         if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
                           setReachPrice(rawValue);
+                          isTypingEditReachPrice.current = true;
+                          
+                          // Clear existing debounce timer
+                          if (editReachPriceDebounceRef.current) {
+                            clearTimeout(editReachPriceDebounceRef.current);
+                          }
+                          
+                          // Validate prices
+                          validatePrices(rawValue, dropPrice);
+                          
+                          // Set new debounce timer for auto-complete
+                          editReachPriceDebounceRef.current = setTimeout(() => {
+                            isTypingEditReachPrice.current = false;
+                            autoCompletePrice(rawValue, setReachPrice, isTypingEditReachPrice);
+                            // Re-validate after auto-complete
+                            setTimeout(() => validatePrices(reachPrice, dropPrice), 100);
+                          }, 800); // Wait 800ms after user stops typing
                         }
                       }}
                       placeholder="e.g., 100000"
+                      className={reachPriceError ? "border-red-500" : ""}
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Notify when price goes up to this level</p>
+                    {reachPriceError && (
+                      <p className="text-xs text-red-500 mt-1">{reachPriceError}</p>
+                    )}
+                    {!reachPriceError && (
+                      <p className="text-xs text-muted-foreground mt-1">Notify when price goes up to this level</p>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="edit-dropPrice">Drop Price (VND)</Label>
@@ -917,11 +1229,34 @@ const PriceAlerts = () => {
                         const rawValue = parseFormattedNumber(e.target.value);
                         if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
                           setDropPrice(rawValue);
+                          isTypingEditDropPrice.current = true;
+                          
+                          // Clear existing debounce timer
+                          if (editDropPriceDebounceRef.current) {
+                            clearTimeout(editDropPriceDebounceRef.current);
+                          }
+                          
+                          // Validate prices
+                          validatePrices(reachPrice, rawValue);
+                          
+                          // Set new debounce timer for auto-complete
+                          editDropPriceDebounceRef.current = setTimeout(() => {
+                            isTypingEditDropPrice.current = false;
+                            autoCompletePrice(rawValue, setDropPrice, isTypingEditDropPrice);
+                            // Re-validate after auto-complete
+                            setTimeout(() => validatePrices(reachPrice, dropPrice), 100);
+                          }, 800); // Wait 800ms after user stops typing
                         }
                       }}
                       placeholder="e.g., 90000"
+                      className={dropPriceError ? "border-red-500" : ""}
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Notify when price falls to this level</p>
+                    {dropPriceError && (
+                      <p className="text-xs text-red-500 mt-1">{dropPriceError}</p>
+                    )}
+                    {!dropPriceError && (
+                      <p className="text-xs text-muted-foreground mt-1">Notify when price falls to this level</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -938,10 +1273,34 @@ const PriceAlerts = () => {
                         const rawValue = parseFormattedNumber(e.target.value);
                         if (rawValue === "" || /^\d*$/.test(rawValue)) {
                           setReachVolume(rawValue);
+                          isTypingEditReachVolume.current = true;
+                          
+                          // Clear existing debounce timer
+                          if (editReachVolumeDebounceRef.current) {
+                            clearTimeout(editReachVolumeDebounceRef.current);
+                          }
+                          
+                          // Validate volume
+                          validateVolume(rawValue);
+                          
+                          // Set new debounce timer for auto-complete
+                          editReachVolumeDebounceRef.current = setTimeout(() => {
+                            isTypingEditReachVolume.current = false;
+                            autoCompleteVolume(rawValue, setReachVolume, isTypingEditReachVolume);
+                            // Re-validate after auto-complete
+                            setTimeout(() => validateVolume(reachVolume), 100);
+                          }, 800); // Wait 800ms after user stops typing
                         }
                       }}
                       placeholder="e.g., 5000000"
+                      className={reachVolumeError ? "border-red-500" : ""}
                     />
+                    {reachVolumeError && (
+                      <p className="text-xs text-red-500 mt-1">{reachVolumeError}</p>
+                    )}
+                    {!reachVolumeError && (
+                      <p className="text-xs text-muted-foreground mt-1">Notify when trading volume exceeds this amount</p>
+                    )}
                     <p className="text-xs text-muted-foreground mt-1">Notify when trading volume exceeds this amount</p>
                   </div>
                     </div>
