@@ -15,7 +15,12 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,35 +33,79 @@ public class PriceAlertService {
     private final PriceAlertNotificationService priceAlertNotificationService;
 
     /**
-     * Get all price alerts for a specific user
-     */
-    public List<PriceAlertDTO> getAllPriceAlertsForUser(Long userId) {
-        List<PriceAlert> alerts = priceAlertRepository.findAllByUserId(userId);
-        
-        return alerts.stream()
-                .map(alert -> {
-                    BigDecimal marketPrice = getMarketPrice(alert.getCode());
-                    Long marketVolume = getMarketVolume(alert.getCode());
-                    return PriceAlertDTO.fromPriceAlertWithMarketData(alert, marketPrice, marketVolume);
-                })
-                .collect(Collectors.toList());
-    }
-
-    /**
      * Get paginated price alerts for a specific user
      */
     public Page<PriceAlertDTO> getAllPriceAlertsForUser(Long userId, Pageable pageable) {
         Page<PriceAlert> alertsPage = priceAlertRepository.findAllByUserId(userId, pageable);
         
-        List<PriceAlertDTO> dtos = alertsPage.getContent().stream()
+        List<PriceAlert> alerts = alertsPage.getContent();
+        
+        // Group alerts by stock code to minimize API calls
+        Set<String> uniqueCodes = alerts.stream()
+                .map(PriceAlert::getCode)
+                .collect(Collectors.toSet());
+        
+        // Fetch market data in parallel for all unique codes
+        Map<String, MarketData> marketDataMap = new ConcurrentHashMap<>();
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        
+        for (String code : uniqueCodes) {
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                MarketData marketData = getMarketData(code);
+                marketDataMap.put(code, marketData);
+            });
+            futures.add(future);
+        }
+        
+        // Wait for all market data fetches to complete
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        
+        // Map alerts to DTOs using cached market data
+        List<PriceAlertDTO> dtos = alerts.stream()
                 .map(alert -> {
-                    BigDecimal marketPrice = getMarketPrice(alert.getCode());
-                    Long marketVolume = getMarketVolume(alert.getCode());
-                    return PriceAlertDTO.fromPriceAlertWithMarketData(alert, marketPrice, marketVolume);
+                    MarketData marketData = marketDataMap.get(alert.getCode());
+                    return PriceAlertDTO.fromPriceAlertWithMarketData(
+                            alert, 
+                            marketData != null ? marketData.price : null,
+                            marketData != null ? marketData.volume : null
+                    );
                 })
                 .collect(Collectors.toList());
         
         return new PageImpl<>(dtos, pageable, alertsPage.getTotalElements());
+    }
+    
+    /**
+     * Helper class to store market price and volume together
+     */
+    private static class MarketData {
+        final BigDecimal price;
+        final Long volume;
+        
+        MarketData(BigDecimal price, Long volume) {
+            this.price = price;
+            this.volume = volume;
+        }
+    }
+    
+    /**
+     * Get market data (price and volume) for a stock code in a single API call
+     */
+    private MarketData getMarketData(String code) {
+        try {
+            var response = finpathClient.fetchTradingViewBars(code);
+            if (response != null) {
+                Double price = response.getMarketPrice();
+                Long volume = response.getMarketVolume();
+                return new MarketData(
+                        price != null ? BigDecimal.valueOf(price) : null,
+                        volume
+                );
+            }
+        } catch (Exception e) {
+            log.debug("Failed to fetch market data for {}: {}", code, e.getMessage());
+        }
+        return new MarketData(null, null);
     }
 
     /**
@@ -120,9 +169,8 @@ public class PriceAlertService {
                 .build();
 
         PriceAlert saved = priceAlertRepository.save(alert);
-        BigDecimal marketPrice = getMarketPrice(saved.getCode());
-        Long marketVolume = getMarketVolume(saved.getCode());
-        return PriceAlertDTO.fromPriceAlertWithMarketData(saved, marketPrice, marketVolume);
+        MarketData marketData = getMarketData(saved.getCode());
+        return PriceAlertDTO.fromPriceAlertWithMarketData(saved, marketData.price, marketData.volume);
     }
 
     /**
@@ -175,9 +223,8 @@ public class PriceAlertService {
         // Clear notification cooldown when alert is updated
         priceAlertNotificationService.clearNotificationCooldown(alert.getId());
         
-        BigDecimal marketPrice = getMarketPrice(updated.getCode());
-        Long marketVolume = getMarketVolume(updated.getCode());
-        return PriceAlertDTO.fromPriceAlertWithMarketData(updated, marketPrice, marketVolume);
+        MarketData marketData = getMarketData(updated.getCode());
+        return PriceAlertDTO.fromPriceAlertWithMarketData(updated, marketData.price, marketData.volume);
     }
 
     /**
@@ -216,9 +263,8 @@ public class PriceAlertService {
         // Clear notification cooldown when alert is toggled
         priceAlertNotificationService.clearNotificationCooldown(alert.getId());
         
-        BigDecimal marketPrice = getMarketPrice(updated.getCode());
-        Long marketVolume = getMarketVolume(updated.getCode());
-        return PriceAlertDTO.fromPriceAlertWithMarketData(updated, marketPrice, marketVolume);
+        MarketData marketData = getMarketData(updated.getCode());
+        return PriceAlertDTO.fromPriceAlertWithMarketData(updated, marketData.price, marketData.volume);
     }
 
     /**
