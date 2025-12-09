@@ -285,15 +285,11 @@ const Trades = () => {
   // Note: We don't use cached fromDate/toDate - they will be reset based on weekday/weekend logic
   const savedFilters = loadFiltersFromStorage();
   
-  // Default chart date range: one month ago to today (unless user has saved a preference)
-  // If user has saved chart dates, use them; otherwise default to one month range
+  // Chart date range: always initialize to current date (to date) and one month before (from date)
+  // This ensures fresh data every time the page is accessed
   const todayDate = getTodayDate();
-  const defaultChartFromDate = (savedFilters.chartFromDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.chartFromDate))
-    ? savedFilters.chartFromDate
-    : getOneMonthAgo();
-  const defaultChartToDate = (savedFilters.chartToDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.chartToDate))
-    ? savedFilters.chartToDate
-    : todayDate;
+  const defaultChartFromDate = getOneMonthAgo();
+  const defaultChartToDate = todayDate;
 
   const [code, setCode] = useState(savedFilters.code || ""); // All by default (empty)
   const [codeOpen, setCodeOpen] = useState(false);
@@ -652,6 +648,15 @@ const Trades = () => {
     toast.success("Filters cleared");
     // Note: useEffect will automatically trigger fetchTrades when filter states change
   };
+
+  // Reset chart dates to current date range on page load
+  useEffect(() => {
+    const today = getTodayDate();
+    const oneMonthAgo = getOneMonthAgo();
+    setChartToDate(today);
+    setChartFromDate(oneMonthAgo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on component mount
 
   // Load initial data when component mounts (with saved filters)
   // Wait for default date initialization before fetching
@@ -1172,25 +1177,29 @@ const Trades = () => {
                   <div>
                     <label className="text-sm font-medium mb-1 block">From Date</label>
                     <DatePicker
-                      key={`chart-from-${chartFromDate || 'default'}`}
-                      value={chartFromDate && isValidDateFormat(chartFromDate) ? chartFromDate : getOneMonthAgo()}
+                      key="chart-from-date"
+                      value={chartFromDate || getOneMonthAgo()}
                       onChange={(value) => {
-                        setChartFromDate(value);
+                        if (value) {
+                          setChartFromDate(value);
+                        }
                       }}
                       placeholder="Select from date"
-                      maxDate={chartToDate && isValidDateFormat(chartToDate) ? chartToDate : undefined}
+                      maxDate={chartToDate || undefined}
                     />
                   </div>
                   <div>
                     <label className="text-sm font-medium mb-1 block">To Date</label>
                     <DatePicker
-                      key={`chart-to-${chartToDate || 'default'}`}
-                      value={chartToDate && isValidDateFormat(chartToDate) ? chartToDate : getTodayDate()}
+                      key="chart-to-date"
+                      value={chartToDate || getTodayDate()}
                       onChange={(value) => {
-                        setChartToDate(value);
+                        if (value) {
+                          setChartToDate(value);
+                        }
                       }}
                       placeholder="Select to date"
-                      minDate={chartFromDate && isValidDateFormat(chartFromDate) ? chartFromDate : undefined}
+                      minDate={chartFromDate || undefined}
                     />
                   </div>
                 </div>
