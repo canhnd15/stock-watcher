@@ -7,6 +7,7 @@ import com.data.trade.service.BackendApiClient;
 import com.data.trade.service.ConfigService;
 import com.data.trade.service.SignalCalculationService;
 import com.data.trade.service.TradeIngestionService;
+import com.data.trade.service.TradeTableSwapService;
 import com.data.trade.service.TrackedStockNotificationService;
 import com.data.trade.service.TrackedStockStatsService;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class TradingJobs {
     private final TrackedStockRepository trackedStockRepository;
     private final TradeRepository tradeRepository;
     private final TradeIngestionService ingestionService;
+    private final TradeTableSwapService tradeTableSwapService;
     private final ConfigService configService;
     private final TrackedStockStatsService trackedStockStatsService;
     private final BackendApiClient backendApiClient;
@@ -126,11 +128,19 @@ public class TradingJobs {
         int successCount = 0;
         int failCount = 0;
 
-        tradeRepository.deleteOnDate(tradeDateStr);
+        // STEP 1: Clear staging table first
+        try {
+            tradeTableSwapService.clearStaging();
+            log.info("Cleared staging table");
+        } catch (Exception ex) {
+            log.error("CRITICAL: Failed to clear staging table: {}. Aborting ingestion.", ex.getMessage(), ex);
+            return; // Don't proceed if staging can't be cleared
+        }
 
+        // STEP 2: Ingest all stocks into staging table
         for (String stockCode : vn30) {
             try {
-                ingestionService.ingestForCode(stockCode);
+                ingestionService.ingestForCodeToStaging(stockCode);
                 successCount++;
             } catch (Exception ex) {
                 failCount++;
@@ -138,9 +148,24 @@ public class TradingJobs {
             }
         }
         
-        log.info("========== VN30 ingestion completed. Success: {}, Failed: {} ==========", 
+        log.info("========== VN30 ingestion to staging completed. Success: {}, Failed: {} ==========", 
                 successCount, failCount);
         
+        // STEP 3: Atomic swap from staging to main table
+        if (successCount > 0) {
+            try {
+                tradeTableSwapService.swapStagingToMain(tradeDateStr);
+                log.info("Successfully swapped staging data to main table");
+            } catch (Exception ex) {
+                log.error("CRITICAL: Failed to swap staging to main table: {}", ex.getMessage(), ex);
+                // Consider alerting/notification here
+                // Note: Old data remains in main table, so users still see data
+            }
+        } else {
+            log.warn("No successful ingestions. Skipping table swap.");
+        }
+        
+        // STEP 4: Trigger downstream processes
         log.info("Triggering signal calculation after VN30 ingestion via backend API...");
         try {
             // Call backend API instead of local service to ensure signals reach frontend WebSocket clients
