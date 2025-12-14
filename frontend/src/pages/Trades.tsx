@@ -477,7 +477,11 @@ const Trades = () => {
         if (r.status === 429 || (responseData.error === "Rate limit exceeded" && responseData.retryAfterSeconds)) {
           const retryAfter = responseData.retryAfterSeconds || 60;
           const message = responseData.message || "Rate limit exceeded. Please try again later.";
-          toast.error(`${message} Please try again in ${retryAfter} seconds. Upgrade to VIP account to have more requests per minute.`);
+          toast.error(
+            <span style={{ color: 'red' }}>
+              {message} Please try again in {retryAfter} seconds. Upgrade to VIP account to have more requests per minute.
+            </span>
+          );
           // Throw a special error that the catch block can recognize
           const rateLimitError = new Error("RATE_LIMIT_EXCEEDED");
           (rateLimitError as any).isRateLimit = true;
