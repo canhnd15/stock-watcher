@@ -151,7 +151,7 @@ const Header = () => {
             <VipRequestModal 
               open={vipRequestModalOpen} 
               onOpenChange={setVipRequestModalOpen}
-              youtubeVideoId="YOUTUBE_VIDEO_ID"
+              youtubeVideoId="lzbp3R9XkVI"
             />
           )}
         </div>
