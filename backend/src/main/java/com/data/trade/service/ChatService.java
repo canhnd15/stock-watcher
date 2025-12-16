@@ -1,9 +1,9 @@
 package com.data.trade.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.data.trade.config.AiChatConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -20,16 +20,9 @@ import java.util.Map;
 @Slf4j
 public class ChatService {
 
-    @Value("${ai.api.key:}")
-    private String apiKey;
-
-    @Value("${ai.api.url:https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent}")
-    private String apiUrl;
-
-    @Value("${ai.model:gemini-1.5-flash}")
-    private String model;
-
-    private final ObjectMapper objectMapper;
+    private final AiChatConfig aiChatConfig;
+    
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final String SYSTEM_INSTRUCTION = """
         You are a helpful stock market assistant. You help users understand:
@@ -45,9 +38,10 @@ public class ChatService {
         """;
 
     public String getChatResponse(String userMessage) {
+        String apiKey = aiChatConfig.getApiKey();
         if (apiKey == null || apiKey.isEmpty()) {
             log.warn("AI API key not configured");
-            return "AI chat is not configured. Please set the ai.api.key property.";
+            return "AI chat is not configured. Please set the AI_API_KEY environment variable.";
         }
 
         try {
@@ -72,6 +66,7 @@ public class ChatService {
 
             String requestBodyJson = objectMapper.writeValueAsString(requestBody);
 
+            String apiUrl = aiChatConfig.getApiUrl();
             String fullUrl = apiUrl + "?key=" + apiKey;
 
             HttpRequest request = HttpRequest.newBuilder()
