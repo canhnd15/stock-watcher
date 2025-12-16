@@ -190,7 +190,6 @@ public class TradingJobs {
      */
     @Scheduled(cron = "${cron.tracked-stock.notify}", zone = "${cron.timezone}")
     public void checkTrackedStocksNotifications() {
-        // Check if cron job is enabled
         if (!configService.isTrackedStocksCronEnabled()) {
             log.debug("Tracked stocks notifications cron job is disabled. Skipping...");
             return;
@@ -214,7 +213,6 @@ public class TradingJobs {
     public void checkPriceAlerts() {
         log.info("Starting price alerts check via backend API...");
         try {
-            // Call backend API to check price alerts and send notifications via WebSocket
             backendApiClient.triggerPriceAlertsCheck();
             log.info("Price alerts check completed via backend API");
         } catch (Exception ex) {

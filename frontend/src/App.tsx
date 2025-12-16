@@ -6,12 +6,14 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { I18nProvider } from "@/contexts/I18nContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import FloatingChatWidget from "@/components/FloatingChatWidget.tsx";
 import Trades from "./pages/Trades.tsx";
 import TrackedStocks from "./pages/TrackedStocks.tsx";
 import Suggestions from "./pages/Suggestions.tsx";
 import PriceAlerts from "./pages/PriceAlerts.tsx";
 import AdminPanel from "./pages/AdminPanel.tsx";
 import Config from "./pages/Config.tsx";
+import Chat from "./pages/Chat.tsx";
 import Login from "./pages/Login.tsx";
 import Register from "./pages/Register.tsx";
 import Unauthorized from "./pages/Unauthorized.tsx";
@@ -37,6 +39,12 @@ const App = () => (
             <Route path="/" element={
               <ProtectedRoute>
                 <Trades />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/chat" element={
+              <ProtectedRoute>
+                <Chat />
               </ProtectedRoute>
             } />
             
@@ -75,6 +83,7 @@ const App = () => (
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
             </Routes>
+            <FloatingChatWidget />
           </BrowserRouter>
         </AuthProvider>
       </TooltipProvider>

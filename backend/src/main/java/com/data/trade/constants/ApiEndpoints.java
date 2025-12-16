@@ -18,6 +18,7 @@ public class ApiEndpoints {
     public static final String API_SIGNALS = "/api/signals";
     public static final String API_PRICE_ALERTS = "/api/price-alerts";
     public static final String API_CONFIG = "/api/config";
+    public static final String API_CHAT = "/api/chat";
     public static final String API_INTERNAL = "/api/internal";
     
     // Auth endpoint paths (relative to base /api/auth)
@@ -96,6 +97,7 @@ public class ApiEndpoints {
     public static final String API_SUGGESTIONS_PATTERN = "/api/suggestions/**";
     public static final String API_SIGNALS_PATTERN = "/api/signals/**";
     public static final String API_PRICE_ALERTS_PATTERN = "/api/price-alerts/**";
+    public static final String API_CHAT_PATTERN = "/api/chat/**";
     public static final String API_ADMIN_PATTERN = "/api/admin/**";
     public static final String API_CONFIG_PATTERN = "/api/config/**";
     public static final String WS_PATTERN = "/ws/**";

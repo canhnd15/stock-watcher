@@ -51,6 +51,9 @@ public class SecurityConfig {
                 // Trades - accessible to all authenticated users
                 .requestMatchers(ApiEndpoints.API_TRADES_PATTERN).authenticated()
                 
+                // Chat - accessible to all authenticated users
+                .requestMatchers(ApiEndpoints.API_CHAT_PATTERN).authenticated()
+                
                 // Tracked stocks - VIP and ADMIN only
                 .requestMatchers(ApiEndpoints.API_TRACKED_STOCKS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
                 
