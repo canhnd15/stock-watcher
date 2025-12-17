@@ -1,35 +1,43 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useI18n } from '@/contexts/I18nContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Loader2, TrendingUp } from 'lucide-react';
 
 const Login = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
   const { t } = useI18n();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      await login(username, password);
-      toast.success(t('auth.loginSuccess'));
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
       navigate('/');
+    }
+  }, [isAuthenticated, isLoading, navigate]);
+
+  const handleLogin = async () => {
+    setLoading(true);
+    try {
+      await login();
+      // Login will redirect to Keycloak, so we don't need to navigate here
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('auth.loginFailed'));
-    } finally {
       setLoading(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
@@ -44,36 +52,15 @@ const Login = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">{t('auth.username')}</label>
-              <Input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder={t('auth.enterUsername')}
-                required
-                className="mt-1"
-                disabled={loading}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">{t('auth.password')}</label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={t('auth.enterPassword')}
-                required
-                className="mt-1"
-                disabled={loading}
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {loading ? t('auth.loggingIn') : t('auth.login')}
-            </Button>
-          </form>
+          <Button 
+            onClick={handleLogin} 
+            className="w-full" 
+            disabled={loading}
+            size="lg"
+          >
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {loading ? t('auth.loggingIn') : t('auth.login')}
+          </Button>
           <p className="mt-6 text-center text-sm text-muted-foreground">
             {t('auth.dontHaveAccount')}{' '}
             <Link to="/register" className="text-primary font-medium hover:underline">

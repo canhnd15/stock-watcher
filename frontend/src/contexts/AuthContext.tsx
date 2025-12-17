@@ -1,7 +1,10 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import Keycloak from 'keycloak-js';
+import { keycloakConfig } from '@/lib/keycloak';
+import { setTokenGetter } from '@/lib/api';
 
 interface User {
-  id: number;
+  id?: number;
   username: string;
   email: string;
   role: 'NORMAL' | 'VIP' | 'ADMIN';
@@ -12,66 +15,138 @@ interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (username: string, password: string) => Promise<void>;
+  login: () => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
   hasRole: (roles: string[]) => boolean;
   isLoading: boolean;
+  keycloak: Keycloak | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [keycloak, setKeycloak] = useState<Keycloak | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (token) {
-      fetchCurrentUser();
-    } else {
+    // Initialize Keycloak
+    const kc = new Keycloak({
+      url: keycloakConfig.url,
+      realm: keycloakConfig.realm,
+      clientId: keycloakConfig.clientId,
+    });
+
+    kc.init({
+      onLoad: 'check-sso',
+      checkLoginIframe: false,
+      pkceMethod: 'S256',
+    }).then((authenticated) => {
+      setKeycloak(kc);
+      if (authenticated) {
+        setToken(kc.token || null);
+        extractUserFromToken(kc);
+      }
+      // Set token getter for API client
+      setTokenGetter(() => kc.token || null);
       setIsLoading(false);
+    }).catch((error) => {
+      console.error('Failed to initialize Keycloak:', error);
+      setIsLoading(false);
+    });
+
+    // Set up event listeners
+    kc.onTokenExpired = () => {
+      kc.updateToken(30).then((refreshed) => {
+        if (refreshed) {
+          setToken(kc.token || null);
+          extractUserFromToken(kc);
+          setTokenGetter(() => kc.token || null);
+        } else {
+          console.warn('Token not refreshed, valid for: ' + kc.tokenParsed?.exp + ' seconds');
+        }
+      }).catch(() => {
+        console.error('Failed to refresh token');
+        logout();
+      });
+    };
+
+    kc.onAuthSuccess = () => {
+      setToken(kc.token || null);
+      extractUserFromToken(kc);
+      setTokenGetter(() => kc.token || null);
+    };
+
+    kc.onAuthError = () => {
+      console.error('Keycloak authentication error');
+      setUser(null);
+      setToken(null);
+      setTokenGetter(() => null);
+    };
+
+    kc.onAuthLogout = () => {
+      setUser(null);
+      setToken(null);
+      setTokenGetter(() => null);
+    };
+  }, []);
+
+  const extractUserFromToken = (kc: Keycloak) => {
+    if (!kc.tokenParsed) {
+      setUser(null);
+      return;
     }
-  }, [token]);
+
+    const token = kc.tokenParsed;
+    const username = token.preferred_username as string;
+    const email = token.email as string;
+    const emailVerified = token.email_verified as boolean | undefined;
+
+    // Extract roles from token
+    let role: 'NORMAL' | 'VIP' | 'ADMIN' = 'NORMAL';
+    const realmAccess = token.realm_access as { roles?: string[] } | undefined;
+    const roles = realmAccess?.roles || [];
+    
+    if (roles.includes('ADMIN')) {
+      role = 'ADMIN';
+    } else if (roles.includes('VIP')) {
+      role = 'VIP';
+    }
+
+    setUser({
+      username,
+      email,
+      role,
+      enabled: true,
+      emailVerified,
+    });
+  };
 
   const fetchCurrentUser = async () => {
+    if (!keycloak || !keycloak.authenticated || !keycloak.token) {
+      setUser(null);
+      return;
+    }
+
     try {
-      const response = await fetch('/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-      } else {
-        logout();
-      }
+      // Ensure token is fresh
+      await keycloak.updateToken(30);
+      setToken(keycloak.token || null);
+      extractUserFromToken(keycloak);
     } catch (error) {
-      console.error('Failed to fetch user:', error);
+      console.error('Failed to update token:', error);
       logout();
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const login = async (username: string, password: string) => {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || 'Login failed');
+  const login = async () => {
+    if (!keycloak) {
+      throw new Error('Keycloak not initialized');
     }
-
-    const data = await response.json();
-    setToken(data.token);
-    setUser(data.user);
-    localStorage.setItem('token', data.token);
+    await keycloak.login();
   };
 
   const register = async (username: string, email: string, password: string) => {
@@ -86,14 +161,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error(error || 'Registration failed');
     }
 
-    // Auto-login after registration
-    await login(username, password);
+    // After successful registration, redirect to login
+    // User will need to login via Keycloak
   };
 
   const logout = () => {
+    if (keycloak) {
+      keycloak.logout();
+    }
     setUser(null);
     setToken(null);
-    localStorage.removeItem('token');
   };
 
   const hasRole = (roles: string[]) => {
@@ -108,9 +185,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login,
       register,
       logout,
-      isAuthenticated: !!user,
+      isAuthenticated: !!user && !!keycloak?.authenticated,
       hasRole,
-      isLoading
+      isLoading,
+      keycloak,
     }}>
       {children}
     </AuthContext.Provider>
@@ -124,4 +202,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

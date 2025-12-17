@@ -1,16 +1,25 @@
 /**
  * API utility to handle authenticated requests
- * Automatically adds JWT token to all API calls
+ * Automatically adds Keycloak token to all API calls
  */
 
-const getAuthHeaders = (): HeadersInit => {
-  const token = localStorage.getItem('token');
+// Token getter function - will be set by AuthContext
+let tokenGetter: (() => string | null) | null = null;
+
+export const setTokenGetter = (getter: () => string | null) => {
+  tokenGetter = getter;
+};
+
+const getAuthHeaders = async (): Promise<HeadersInit> => {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   };
   
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  if (tokenGetter) {
+    const token = tokenGetter();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
   }
   
   return headers;
@@ -18,22 +27,24 @@ const getAuthHeaders = (): HeadersInit => {
 
 export const api = {
   get: async (url: string, options?: RequestInit) => {
+    const headers = await getAuthHeaders();
     return fetch(url, {
       ...options,
       method: 'GET',
       headers: {
-        ...getAuthHeaders(),
+        ...headers,
         ...options?.headers,
       },
     });
   },
 
   post: async (url: string, body?: any, options?: RequestInit) => {
+    const headers = await getAuthHeaders();
     return fetch(url, {
       ...options,
       method: 'POST',
       headers: {
-        ...getAuthHeaders(),
+        ...headers,
         ...options?.headers,
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -41,11 +52,12 @@ export const api = {
   },
 
   put: async (url: string, body?: any, options?: RequestInit) => {
+    const headers = await getAuthHeaders();
     return fetch(url, {
       ...options,
       method: 'PUT',
       headers: {
-        ...getAuthHeaders(),
+        ...headers,
         ...options?.headers,
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -53,11 +65,12 @@ export const api = {
   },
 
   delete: async (url: string, options?: RequestInit) => {
+    const headers = await getAuthHeaders();
     return fetch(url, {
       ...options,
       method: 'DELETE',
       headers: {
-        ...getAuthHeaders(),
+        ...headers,
         ...options?.headers,
       },
     });

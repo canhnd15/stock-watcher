@@ -19,6 +19,26 @@ const Register = () => {
   const { t } = useI18n();
   const navigate = useNavigate();
 
+  const validatePassword = (pwd: string): string | null => {
+    if (pwd.length < 8) {
+      return 'Password must be at least 8 characters long';
+    }
+    
+    if (!/\d/.test(pwd)) {
+      return 'Password must contain at least one number';
+    }
+    
+    if (!/[a-z]/.test(pwd)) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    
+    if (!/[A-Z]/.test(pwd)) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -27,8 +47,9 @@ const Register = () => {
       return;
     }
 
-    if (password.length < 6) {
-      toast.error(t('auth.passwordTooShort'));
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      toast.error(passwordError);
       return;
     }
 
@@ -91,9 +112,9 @@ const Register = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={t('auth.passwordMinLength')}
+                placeholder="At least 8 chars with number, uppercase & lowercase"
                 required
-                minLength={6}
+                minLength={8}
                 className="mt-1"
                 disabled={loading}
               />

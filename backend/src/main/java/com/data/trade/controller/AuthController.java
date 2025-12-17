@@ -1,8 +1,6 @@
 package com.data.trade.controller;
 
 import com.data.trade.constants.ApiEndpoints;
-import com.data.trade.dto.auth.LoginRequest;
-import com.data.trade.dto.auth.LoginResponse;
 import com.data.trade.dto.auth.RegisterRequest;
 import com.data.trade.dto.auth.UserResponse;
 import com.data.trade.service.AuthService;
@@ -28,15 +26,8 @@ public class AuthController {
         }
     }
 
-    @PostMapping(ApiEndpoints.AUTH_LOGIN_PATH)
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
-        try {
-            LoginResponse response = authService.login(request);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Invalid username or password");
-        }
-    }
+    // Login endpoint removed - authentication is now handled by Keycloak
+    // Users should login via Keycloak's login page
 
     @GetMapping(ApiEndpoints.AUTH_ME_PATH)
     public ResponseEntity<?> getCurrentUser() {
@@ -48,14 +39,7 @@ public class AuthController {
         }
     }
 
-    @GetMapping(ApiEndpoints.AUTH_VERIFY_EMAIL_PATH)
-    public ResponseEntity<?> verifyEmail(@RequestParam String token) {
-        try {
-            authService.verifyEmail(token);
-            return ResponseEntity.ok("Email verified successfully");
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }
+    // Email verification endpoint removed - handled by Keycloak
+    // @GetMapping(ApiEndpoints.AUTH_VERIFY_EMAIL_PATH)
 }
 

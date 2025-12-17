@@ -1,145 +1,92 @@
 package com.data.trade.service;
 
-import com.data.trade.dto.auth.LoginRequest;
-import com.data.trade.dto.auth.LoginResponse;
 import com.data.trade.dto.auth.RegisterRequest;
 import com.data.trade.dto.auth.UserResponse;
-import com.data.trade.model.User;
 import com.data.trade.model.UserRole;
-import com.data.trade.repository.UserRepository;
-import com.data.trade.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
 import java.time.OffsetDateTime;
-import java.util.Base64;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AuthService {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final AuthenticationManager authenticationManager;
-    private final JwtTokenProvider tokenProvider;
+    private final KeycloakAdminService keycloakAdminService;
 
-    @Transactional
     public UserResponse register(RegisterRequest request) {
-        // Validate
-        if (userRepository.existsByUsername(request.getUsername())) {
+        // Check if user already exists in Keycloak
+        if (keycloakAdminService.findUserByUsername(request.getUsername()) != null) {
             throw new RuntimeException("Username already exists");
         }
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
-        }
 
-        // Generate email verification token
-        String verificationToken = generateVerificationToken();
-        OffsetDateTime tokenExpiry = OffsetDateTime.now().plusDays(7); // Token valid for 7 days
-
-        // Create user
-        User user = User.builder()
-                .username(request.getUsername())
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .role(UserRole.NORMAL) // Default role
-                .enabled(true)
-                .emailVerified(false) // Email not verified yet
-                .emailVerificationToken(verificationToken)
-                .emailVerificationTokenExpiry(tokenExpiry)
-                .createdAt(OffsetDateTime.now())
-                .build();
-
-        user = userRepository.save(user);
-
-        // TODO: Send verification email
-        // For now, we'll just log it. In production, you would send an actual email
-        log.info("Email verification token for {}: {}", user.getEmail(), verificationToken);
-        log.info("Verification link: /api/auth/verify-email?token={}", verificationToken);
-
-        return mapToUserResponse(user);
-    }
-
-    @Transactional
-    public void verifyEmail(String token) {
-        User user = userRepository.findByEmailVerificationToken(token)
-                .orElseThrow(() -> new RuntimeException("Invalid verification token"));
-
-        if (user.getEmailVerificationTokenExpiry() != null 
-            && user.getEmailVerificationTokenExpiry().isBefore(OffsetDateTime.now())) {
-            throw new RuntimeException("Verification token has expired");
-        }
-
-        user.setEmailVerified(true);
-        user.setEmailVerificationToken(null);
-        user.setEmailVerificationTokenExpiry(null);
-        userRepository.save(user);
-
-        log.info("Email verified for user: {}", user.getUsername());
-    }
-
-    private String generateVerificationToken() {
-        SecureRandom random = new SecureRandom();
-        byte[] bytes = new byte[32];
-        random.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    @Transactional
-    public LoginResponse login(LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getUsername(),
-                        request.getPassword()
-                )
+        // Create user in Keycloak
+        String userId = keycloakAdminService.createUser(
+                request.getUsername(),
+                request.getEmail(),
+                request.getPassword(),
+                false // emailVerified - false by default
         );
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String token = tokenProvider.generateToken(authentication);
+        // Assign default NORMAL role
+        keycloakAdminService.assignRole(userId, "NORMAL");
 
-        User user = (User) authentication.getPrincipal();
-        
-        // Update last login
-        user.setLastLoginAt(OffsetDateTime.now());
-        userRepository.save(user);
+        log.info("User {} registered successfully in Keycloak with ID: {}", request.getUsername(), userId);
 
-        return LoginResponse.builder()
-                .token(token)
-                .tokenType("Bearer")
-                .user(mapToUserResponse(user))
+        // Return user response (user will need to login via Keycloak to get token)
+        return UserResponse.builder()
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .role(UserRole.NORMAL)
+                .enabled(true)
+                .emailVerified(false)
+                .createdAt(OffsetDateTime.now())
                 .build();
     }
 
     public UserResponse getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() 
-            || authentication.getPrincipal().equals("anonymousUser")) {
+            || !(authentication instanceof JwtAuthenticationToken)) {
             throw new RuntimeException("User not authenticated");
         }
-        
-        User user = (User) authentication.getPrincipal();
-        return mapToUserResponse(user);
-    }
 
-    private UserResponse mapToUserResponse(User user) {
+        JwtAuthenticationToken jwtAuth = (JwtAuthenticationToken) authentication;
+        Jwt jwt = jwtAuth.getToken();
+
+        // Extract user information from JWT claims
+        String username = jwt.getClaimAsString("preferred_username");
+        String email = jwt.getClaimAsString("email");
+        
+        // Extract roles from authorities
+        UserRole role = UserRole.NORMAL; // Default role
+        List<String> authorities = jwtAuth.getAuthorities().stream()
+                .map(a -> a.getAuthority())
+                .toList();
+        
+        if (authorities.contains("ROLE_ADMIN")) {
+            role = UserRole.ADMIN;
+        } else if (authorities.contains("ROLE_VIP")) {
+            role = UserRole.VIP;
+        }
+
+        Boolean emailVerified = jwt.getClaimAsBoolean("email_verified");
+        if (emailVerified == null) {
+            emailVerified = false;
+        }
+
         return UserResponse.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .role(user.getRole())
-                .enabled(user.getEnabled())
-                .emailVerified(user.getEmailVerified())
-                .createdAt(user.getCreatedAt())
-                .lastLoginAt(user.getLastLoginAt())
+                .username(username)
+                .email(email)
+                .role(role)
+                .enabled(true) // Assuming enabled if token is valid
+                .emailVerified(emailVerified)
                 .build();
     }
 }
