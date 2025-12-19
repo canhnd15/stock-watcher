@@ -4,8 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.data.trade.config.AiChatConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StreamUtils;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -23,52 +29,60 @@ public class ChatService {
     private final AiChatConfig aiChatConfig;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
+    
+    @Value("${ai.language.detection.vietnamese-words:}")
+    private String vietnameseWordsConfig;
+    
+    @Value("${ai.language.detection.vietnamese-regex:.*[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđĐ].*}")
+    private String vietnameseRegexPattern;
+    
+    private String systemInstructionEn;
+    private String systemInstructionVi;
+    private String[] vietnameseWords;
 
-    private static final String SYSTEM_INSTRUCTION_EN = """
-        You are a specialized stock market and finance assistant. Your role is STRICTLY LIMITED to answering questions about:
-        - Stock market concepts, terminology, and analysis
-        - Trading strategies, techniques, and best practices
-        - Market trends, indicators, and technical analysis
-        - Portfolio management and asset allocation
-        - Risk management and financial planning
-        - Investment strategies and market research
-        - Financial instruments (stocks, bonds, ETFs, options, etc.)
-        - Economic indicators and their impact on markets
-        - Company financials and fundamental analysis
-        
-        IMPORTANT RULES:
-        1. You MUST ONLY answer questions related to stocks, finance, trading, investments, and market analysis.
-        2. If a user asks about ANY topic outside of stocks/finance (e.g., weather, traffic, general knowledge, other subjects), you MUST politely decline and redirect them.
-        3. For off-topic questions, respond with: "I'm a specialized stock market assistant, so I can only help with questions about stocks, finance, trading, and market analysis. Please ask me something related to these topics, and I'll be happy to help!"
-        4. If asked about specific stocks, remind users that you provide general information and they should do their own research.
-        5. Always emphasize that your advice is educational and not financial advice.
-        6. You MUST respond in the SAME LANGUAGE as the user's question. If the question is in English, answer in English. If the question is in Vietnamese, answer in Vietnamese.
-        
-        Stay focused on your expertise area and politely decline any requests outside of stocks and finance.
-        """;
-
-    private static final String SYSTEM_INSTRUCTION_VI = """
-        Bạn là một trợ lý chuyên về thị trường chứng khoán và tài chính. Vai trò của bạn CHỈ GIỚI HẠN trong việc trả lời các câu hỏi về:
-        - Khái niệm, thuật ngữ và phân tích thị trường chứng khoán
-        - Chiến lược giao dịch, kỹ thuật và thực hành tốt nhất
-        - Xu hướng thị trường, chỉ báo và phân tích kỹ thuật
-        - Quản lý danh mục đầu tư và phân bổ tài sản
-        - Quản lý rủi ro và lập kế hoạch tài chính
-        - Chiến lược đầu tư và nghiên cứu thị trường
-        - Công cụ tài chính (cổ phiếu, trái phiếu, ETF, quyền chọn, v.v.)
-        - Chỉ số kinh tế và tác động của chúng đến thị trường
-        - Tài chính công ty và phân tích cơ bản
-        
-        QUY TẮC QUAN TRỌNG:
-        1. Bạn CHỈ được trả lời các câu hỏi liên quan đến chứng khoán, tài chính, giao dịch, đầu tư và phân tích thị trường.
-        2. Nếu người dùng hỏi về BẤT KỲ chủ đề nào ngoài chứng khoán/tài chính (ví dụ: thời tiết, giao thông, kiến thức chung, các chủ đề khác), bạn PHẢI từ chối một cách lịch sự và hướng họ quay lại.
-        3. Đối với câu hỏi ngoài chủ đề, hãy trả lời: "Tôi là trợ lý chuyên về thị trường chứng khoán, vì vậy tôi chỉ có thể giúp với các câu hỏi về chứng khoán, tài chính, giao dịch và phân tích thị trường. Vui lòng hỏi tôi về các chủ đề liên quan, tôi sẽ rất vui được giúp đỡ!"
-        4. Nếu được hỏi về cổ phiếu cụ thể, hãy nhắc người dùng rằng bạn chỉ cung cấp thông tin chung và họ nên tự nghiên cứu.
-        5. Luôn nhấn mạnh rằng lời khuyên của bạn mang tính giáo dục và không phải là lời khuyên tài chính.
-        6. Bạn PHẢI trả lời bằng CÙNG NGÔN NGỮ với câu hỏi của người dùng. Nếu câu hỏi bằng tiếng Anh, hãy trả lời bằng tiếng Anh. Nếu câu hỏi bằng tiếng Việt, hãy trả lời bằng tiếng Việt.
-        
-        Hãy tập trung vào lĩnh vực chuyên môn của bạn và từ chối một cách lịch sự bất kỳ yêu cầu nào ngoài chứng khoán và tài chính.
-        """;
+    /**
+     * Load system instructions from template files and initialize Vietnamese words
+     */
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        try {
+            // Load English system instruction
+            ClassPathResource enResource = new ClassPathResource("templates/system-instruction-en.txt");
+            try (InputStream inputStream = enResource.getInputStream()) {
+                systemInstructionEn = StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8);
+            }
+            
+            // Load Vietnamese system instruction
+            ClassPathResource viResource = new ClassPathResource("templates/system-instruction-vi.txt");
+            try (InputStream inputStream = viResource.getInputStream()) {
+                systemInstructionVi = StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8);
+            }
+            
+            // Load Vietnamese words from configuration
+            if (vietnameseWordsConfig != null && !vietnameseWordsConfig.trim().isEmpty()) {
+                vietnameseWords = vietnameseWordsConfig.split(",");
+                // Trim whitespace from each word
+                for (int i = 0; i < vietnameseWords.length; i++) {
+                    vietnameseWords[i] = vietnameseWords[i].trim();
+                }
+            } else {
+                // Fallback to default words if not configured
+                vietnameseWords = new String[]{
+                    "là", "và", "của", "cho", "với", "từ", "được", "trong", "này", "đó",
+                    "có", "không", "một", "các", "như", "về", "sẽ", "đã", "đến", "để",
+                    "chứng khoán", "tài chính", "đầu tư", "thị trường", "cổ phiếu", "giao dịch"
+                };
+            }
+            
+            log.info("ChatService initialized successfully. System instructions loaded from templates.");
+        } catch (IOException e) {
+            log.error("Failed to load system instruction templates", e);
+            // Fallback to empty strings if templates can't be loaded
+            systemInstructionEn = "";
+            systemInstructionVi = "";
+            vietnameseWords = new String[0];
+        }
+    }
 
     /**
      * Detect if the message is in Vietnamese or English
@@ -81,17 +95,10 @@ public class ChatService {
 
         String trimmed = message.trim();
         
-        // Vietnamese characters: àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ
-        // Also check for common Vietnamese words
-        boolean hasVietnameseChars = trimmed.matches(".*[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđĐ].*");
+        // Check for Vietnamese characters using regex from configuration
+        boolean hasVietnameseChars = trimmed.matches(vietnameseRegexPattern);
         
-        // Common Vietnamese words that might appear
-        String[] vietnameseWords = {
-            "là", "và", "của", "cho", "với", "từ", "được", "trong", "này", "đó",
-            "có", "không", "một", "các", "như", "về", "sẽ", "đã", "đến", "để",
-            "chứng khoán", "tài chính", "đầu tư", "thị trường", "cổ phiếu", "giao dịch"
-        };
-        
+        // Check for common Vietnamese words from configuration
         boolean hasVietnameseWords = false;
         String lowerMessage = trimmed.toLowerCase();
         for (String word : vietnameseWords) {
@@ -126,7 +133,7 @@ public class ChatService {
             // Try to determine if it's English or Vietnamese by checking the message
             // If it contains mostly ASCII characters, assume English
             boolean mostlyAscii = userMessage.matches(".*[a-zA-Z].*") && 
-                                  !userMessage.matches(".*[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđĐ].*");
+                                  !userMessage.matches(vietnameseRegexPattern);
             if (mostlyAscii) {
                 detectedLanguage = "en";
             } else {
@@ -136,7 +143,7 @@ public class ChatService {
         }
         
         // Select appropriate system instruction
-        String systemInstruction = "en".equals(detectedLanguage) ? SYSTEM_INSTRUCTION_EN : SYSTEM_INSTRUCTION_VI;
+        String systemInstruction = "en".equals(detectedLanguage) ? systemInstructionEn : systemInstructionVi;
         String apiKey = aiChatConfig.getApiKey();
         if (apiKey == null || apiKey.isEmpty()) {
             log.warn("AI API key not configured");
