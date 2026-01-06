@@ -182,6 +182,16 @@ public class TradingJobs {
         } catch (Exception ex) {
             log.error("Failed to run tracked stock statistics calculation after VN30 ingestion: {}", ex.getMessage(), ex);
         }
+        
+        // STEP 5: Trigger RAG indexing for the new data
+        log.info("Triggering RAG indexing for trade date {} via backend API...", tradeDateStr);
+        try {
+            backendApiClient.triggerRagIndexing(tradeDateStr);
+            log.info("RAG indexing triggered successfully for date {}", tradeDateStr);
+        } catch (Exception ex) {
+            log.error("Failed to trigger RAG indexing via backend API: {}", ex.getMessage(), ex);
+            // Non-critical - indexing can be retried later
+        }
     }
 
     /**

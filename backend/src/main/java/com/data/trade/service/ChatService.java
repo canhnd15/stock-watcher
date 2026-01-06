@@ -27,6 +27,7 @@ import java.util.Map;
 public class ChatService {
 
     private final AiChatConfig aiChatConfig;
+    private final RagService ragService;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -153,15 +154,34 @@ public class ChatService {
             return errorMsg;
         }
 
+        // RAG: Intent detection and context retrieval
+        String context = "";
+        try {
+            boolean needsData = ragService.detectIntent(userMessage);
+            if (needsData) {
+                log.debug("Question detected as needing data, retrieving context via RAG");
+                List<String> chunks = ragService.retrieveContext(userMessage, 5);
+                context = ragService.formatContext(chunks);
+            }
+        } catch (Exception e) {
+            log.warn("Error during RAG context retrieval, continuing without context: {}", e.getMessage());
+            // Continue without context if RAG fails
+        }
+
         try {
             HttpClient client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(30))
                 .build();
 
+            // Build the message with context if available
+            String enhancedMessage = context.isEmpty() 
+                ? userMessage 
+                : context + "\n\nUser question: " + userMessage;
+
             List<Map<String, Object>> contents = new ArrayList<>();
             contents.add(Map.of(
                 "parts", List.of(
-                    Map.of("text", systemInstruction + "\n\nUser: " + userMessage + "\n\nAssistant:")
+                    Map.of("text", systemInstruction + "\n\nUser: " + enhancedMessage + "\n\nAssistant:")
                 )
             ));
 

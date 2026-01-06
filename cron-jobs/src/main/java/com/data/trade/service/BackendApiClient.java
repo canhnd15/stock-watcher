@@ -8,6 +8,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
+import java.util.Map;
 
 /**
  * Service to communicate with backend API for triggering signal calculations
@@ -111,6 +112,40 @@ public class BackendApiClient {
                     
         } catch (Exception e) {
             log.error("Error calling backend API for price alerts check: {}", e.getMessage(), e);
+            // Don't throw - allow cron job to continue even if this fails
+        }
+    }
+
+    /**
+     * Trigger RAG indexing for a specific trade date
+     * Called after table swap to index new trade data
+     */
+    public void triggerRagIndexing(String tradeDate) {
+        try {
+            WebClient webClient = webClientBuilder
+                    .baseUrl(backendBaseUrl)
+                    .build();
+
+            log.info("Calling backend API to trigger RAG indexing: {}/api/internal/rag/index-trades for date {}", backendBaseUrl, tradeDate);
+            
+            Map<String, String> requestBody = Map.of("tradeDate", tradeDate);
+            
+            webClient.post()
+                    .uri("/api/internal/rag/index-trades")
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .retryWhen(Retry.fixedDelay(2, Duration.ofSeconds(1))
+                            .filter(throwable -> {
+                                log.warn("Retrying backend API call for RAG indexing after error: {}", throwable.getMessage());
+                                return true;
+                            }))
+                    .doOnSuccess(response -> log.info("Backend RAG indexing triggered successfully for date {}", tradeDate))
+                    .doOnError(error -> log.error("Failed to trigger RAG indexing on backend for date {}: {}", tradeDate, error.getMessage(), error))
+                    .block(Duration.ofSeconds(10)); // Longer timeout for indexing
+                    
+        } catch (Exception e) {
+            log.error("Error calling backend API for RAG indexing: {}", e.getMessage(), e);
             // Don't throw - allow cron job to continue even if this fails
         }
     }

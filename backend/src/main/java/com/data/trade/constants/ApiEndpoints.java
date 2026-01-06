@@ -87,6 +87,9 @@ public class ApiEndpoints {
     public static final String INTERNAL_SIGNALS_REFRESH_PATH = "/signals/refresh";
     public static final String INTERNAL_SIGNALS_CHECK_TRACKED_PATH = "/signals/check-tracked";
     public static final String INTERNAL_PRICE_ALERTS_CHECK_PATH = "/price-alerts/check";
+    public static final String INTERNAL_RAG_INDEX_TRADES_PATH = "/rag/index-trades";
+    public static final String INTERNAL_RAG_INDEX_ALL_PATH = "/rag/index-all";
+    public static final String INTERNAL_RAG_INDEX_DATE_RANGE_PATH = "/rag/index-date-range";
 
     // Security patterns (for use in SecurityConfig)
     public static final String API_AUTH_PATTERN = "/api/auth/**";
