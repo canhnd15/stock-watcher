@@ -1,6 +1,6 @@
 package com.data.trade.repository;
 
-import com.data.trade.model.DocumentChunk;
+import com.data.trade.model.TradeDataChunk;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Repository
-public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Long> {
+public interface DocumentChunkRepository extends JpaRepository<TradeDataChunk, Long> {
 
     /**
      * Find similar chunks using vector cosine similarity search
@@ -24,7 +24,7 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
      */
     @Query(value = """
         SELECT id, content, metadata, embedding, created_at
-        FROM document_chunks
+        FROM trade_data_chunks
         WHERE 1 - (embedding <=> CAST(:embeddingVector AS vector)) >= :similarityThreshold
         ORDER BY embedding <=> CAST(:embeddingVector AS vector)
         LIMIT :limit
@@ -45,7 +45,7 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
     @Modifying
     @Transactional
     @Query(value = """
-        DELETE FROM document_chunks
+        DELETE FROM trade_data_chunks
         WHERE metadata @> CAST(:metadataFilter AS jsonb)
         """, nativeQuery = true)
     int deleteByMetadata(@Param("metadataFilter") String metadataFilter);
@@ -54,7 +54,7 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
      * Count chunks by metadata filter
      */
     @Query(value = """
-        SELECT COUNT(*) FROM document_chunks
+        SELECT COUNT(*) FROM trade_data_chunks
         WHERE metadata @> CAST(:metadataFilter AS jsonb)
         """, nativeQuery = true)
     long countByMetadata(@Param("metadataFilter") String metadataFilter);
@@ -64,7 +64,7 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
      */
     @Query(value = """
         SELECT id, content, metadata, embedding, created_at
-        FROM document_chunks
+        FROM trade_data_chunks
         WHERE metadata @> CAST(:metadataFilter AS jsonb)
         ORDER BY created_at DESC
         """, nativeQuery = true)

@@ -1,7 +1,6 @@
 package com.data.trade.service;
 
 import com.data.trade.dto.SignalNotification;
-import com.data.trade.model.DocumentChunk;
 import com.data.trade.model.TrackedStock;
 import com.data.trade.model.Trade;
 import com.data.trade.repository.DocumentChunkRepository;
@@ -18,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -364,7 +362,7 @@ public class DataIndexingService {
             String embeddingVector = convertEmbeddingToVectorString(embedding);
             
             String sql = """
-                INSERT INTO document_chunks (content, metadata, embedding, created_at)
+                INSERT INTO trade_data_chunks (content, metadata, embedding, created_at)
                 VALUES (:content, CAST(:metadata AS jsonb), CAST(:embedding AS vector), CURRENT_TIMESTAMP)
                 """;
             

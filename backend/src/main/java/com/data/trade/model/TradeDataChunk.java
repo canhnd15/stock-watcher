@@ -9,15 +9,15 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 
 @Entity
-@Table(name = "document_chunks", indexes = {
-    @Index(name = "idx_document_chunks_created_at", columnList = "created_at")
+@Table(name = "trade_data_chunks", indexes = {
+    @Index(name = "idx_trade_data_chunks_created_at", columnList = "created_at")
 })
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DocumentChunk {
+public class TradeDataChunk {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -30,11 +30,8 @@ public class DocumentChunk {
     @JdbcTypeCode(SqlTypes.JSON)
     private Map<String, Object> metadata;
 
-    // Vector column - stored as text representation for JPA
-    // Actual vector operations are done via native SQL queries
-    // This field is not used for persistence (we use native SQL), but kept for reference
     @Transient
-    private float[] embeddingArray; // In-memory representation for convenience
+    private float[] embeddingArray;
 
     @Column(nullable = false, updatable = false)
     private OffsetDateTime createdAt;
