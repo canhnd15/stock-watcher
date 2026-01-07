@@ -124,5 +124,57 @@ public class RagIndexingController {
             return ResponseEntity.status(500).body(error);
         }
     }
+
+    /**
+     * Index all tracked stocks
+     * Admin-only endpoint
+     */
+    @PostMapping("/index-tracked-stocks")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> indexTrackedStocks() {
+        try {
+            log.info("Received indexing request for tracked stocks");
+            
+            int chunksIndexed = dataIndexingService.indexTrackedStocks();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "completed");
+            response.put("chunksIndexed", chunksIndexed);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error indexing tracked stocks: {}", e.getMessage(), e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
+    /**
+     * Index all short-term tracked stocks
+     * Admin-only endpoint
+     */
+    @PostMapping("/index-short-term-tracked-stocks")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> indexShortTermTrackedStocks() {
+        try {
+            log.info("Received indexing request for short-term tracked stocks");
+            
+            int chunksIndexed = dataIndexingService.indexShortTermTrackedStocks();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "completed");
+            response.put("chunksIndexed", chunksIndexed);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error indexing short-term tracked stocks: {}", e.getMessage(), e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
 }
 

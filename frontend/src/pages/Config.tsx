@@ -26,7 +26,7 @@ import Header from "@/components/Header.tsx";
 import { useAuth } from "@/contexts/AuthContext";
 import { DatePicker } from "@/components/ui/date-picker.tsx";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Upload, Download, Check, ChevronsUpDown } from "lucide-react";
+import { Loader2, RefreshCw, Upload, Download, Check, ChevronsUpDown, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // VN30 Stock Codes
@@ -54,6 +54,28 @@ const Config = () => {
   const [exportFromDate, setExportFromDate] = useState("");
   const [exportToDate, setExportToDate] = useState("");
   const [exportAllTrades, setExportAllTrades] = useState(true);
+  const [indexingMaxDays, setIndexingMaxDays] = useState<string>("180");
+  const [indexingBatchSize, setIndexingBatchSize] = useState<string>("30");
+  const [indexing, setIndexing] = useState(false);
+  const [indexingStatus, setIndexingStatus] = useState<{
+    status?: string;
+    processed?: number;
+    total?: number;
+    chunksIndexed?: number;
+    message?: string;
+  } | null>(null);
+  const [indexingTrackedStocks, setIndexingTrackedStocks] = useState(false);
+  const [trackedStocksIndexingStatus, setTrackedStocksIndexingStatus] = useState<{
+    status?: string;
+    chunksIndexed?: number;
+    message?: string;
+  } | null>(null);
+  const [indexingShortTermTrackedStocks, setIndexingShortTermTrackedStocks] = useState(false);
+  const [shortTermTrackedStocksIndexingStatus, setShortTermTrackedStocksIndexingStatus] = useState<{
+    status?: string;
+    chunksIndexed?: number;
+    message?: string;
+  } | null>(null);
 
   const loadConfig = () => {
     setLoading(true);
@@ -249,6 +271,125 @@ const Config = () => {
           .catch(() => toast.error(`Failed to ingest ${c}`))
           .finally(() => setIngesting(false));
       }
+    }
+  };
+
+  const handleIndexAll = async () => {
+    try {
+      setIndexing(true);
+      setIndexingStatus(null);
+      
+      const maxDays = indexingMaxDays ? parseInt(indexingMaxDays) : undefined;
+      const batchSize = indexingBatchSize ? parseInt(indexingBatchSize) : undefined;
+      
+      const requestBody: any = {};
+      if (maxDays !== undefined && !isNaN(maxDays)) {
+        requestBody.maxDays = maxDays;
+      }
+      if (batchSize !== undefined && !isNaN(batchSize)) {
+        requestBody.batchSize = batchSize;
+      }
+      
+      const response = await fetch("/api/internal/rag/index-all", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : undefined
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to start indexing" }));
+        throw new Error(errorData.message || errorData.error || "Failed to start indexing");
+      }
+      
+      const result = await response.json();
+      setIndexingStatus(result);
+      
+      if (result.status === "completed") {
+        toast.success(
+          `Indexing completed! Processed ${result.processed || 0}/${result.total || 0} dates, ` +
+          `indexed ${result.chunksIndexed || 0} chunks`
+        );
+      } else if (result.status === "error") {
+        toast.error(result.message || "Indexing failed");
+      } else {
+        toast.success("Indexing started successfully");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to start indexing");
+      setIndexingStatus({ status: "error", message: error.message });
+    } finally {
+      setIndexing(false);
+    }
+  };
+
+  const handleIndexTrackedStocks = async () => {
+    try {
+      setIndexingTrackedStocks(true);
+      setTrackedStocksIndexingStatus(null);
+      
+      const response = await fetch("/api/internal/rag/index-tracked-stocks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to index tracked stocks" }));
+        throw new Error(errorData.message || errorData.error || "Failed to index tracked stocks");
+      }
+      
+      const result = await response.json();
+      setTrackedStocksIndexingStatus(result);
+      
+      if (result.status === "completed") {
+        toast.success(`Tracked stocks indexing completed! Indexed ${result.chunksIndexed || 0} chunks`);
+      } else if (result.status === "error") {
+        toast.error(result.message || "Indexing failed");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to index tracked stocks");
+      setTrackedStocksIndexingStatus({ status: "error", message: error.message });
+    } finally {
+      setIndexingTrackedStocks(false);
+    }
+  };
+
+  const handleIndexShortTermTrackedStocks = async () => {
+    try {
+      setIndexingShortTermTrackedStocks(true);
+      setShortTermTrackedStocksIndexingStatus(null);
+      
+      const response = await fetch("/api/internal/rag/index-short-term-tracked-stocks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Failed to index short-term tracked stocks" }));
+        throw new Error(errorData.message || errorData.error || "Failed to index short-term tracked stocks");
+      }
+      
+      const result = await response.json();
+      setShortTermTrackedStocksIndexingStatus(result);
+      
+      if (result.status === "completed") {
+        toast.success(`Short-term tracked stocks indexing completed! Indexed ${result.chunksIndexed || 0} chunks`);
+      } else if (result.status === "error") {
+        toast.error(result.message || "Indexing failed");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to index short-term tracked stocks");
+      setShortTermTrackedStocksIndexingStatus({ status: "error", message: error.message });
+    } finally {
+      setIndexingShortTermTrackedStocks(false);
     }
   };
 
@@ -453,6 +594,198 @@ const Config = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Vector Database Indexing</CardTitle>
+              <CardDescription>
+                Index existing trade data into the vector database for AI-powered search and analysis
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="indexing-max-days" className="text-sm font-medium mb-2 block">
+                      Max Days
+                    </label>
+                    <Input
+                      id="indexing-max-days"
+                      type="number"
+                      min="0"
+                      placeholder="180 (0 = all days)"
+                      value={indexingMaxDays}
+                      onChange={(e) => setIndexingMaxDays(e.target.value)}
+                      disabled={indexing}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Maximum number of days to index (0 = index all available dates)
+                    </p>
+                  </div>
+                  <div>
+                    <label htmlFor="indexing-batch-size" className="text-sm font-medium mb-2 block">
+                      Batch Size
+                    </label>
+                    <Input
+                      id="indexing-batch-size"
+                      type="number"
+                      min="1"
+                      placeholder="30"
+                      value={indexingBatchSize}
+                      onChange={(e) => setIndexingBatchSize(e.target.value)}
+                      disabled={indexing}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Number of dates to process per batch
+                    </p>
+                  </div>
+                </div>
+                
+                {indexingStatus && (
+                  <div className="rounded-lg border p-4 bg-muted/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Database className="h-4 w-4" />
+                      <span className="text-sm font-medium">Indexing Status</span>
+                    </div>
+                    {indexingStatus.status === "completed" && (
+                      <div className="space-y-1 text-sm">
+                        <p className="text-green-600 dark:text-green-400">
+                          ✓ Completed successfully
+                        </p>
+                        {indexingStatus.processed !== undefined && indexingStatus.total !== undefined && (
+                          <p className="text-muted-foreground">
+                            Processed: {indexingStatus.processed} / {indexingStatus.total} dates
+                          </p>
+                        )}
+                        {indexingStatus.chunksIndexed !== undefined && (
+                          <p className="text-muted-foreground">
+                            Chunks indexed: {indexingStatus.chunksIndexed.toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {indexingStatus.status === "error" && (
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        ✗ Error: {indexingStatus.message || "Unknown error"}
+                      </p>
+                    )}
+                    {indexingStatus.status === "in_progress" && (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <p className="text-sm text-muted-foreground">Indexing in progress...</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                <Button
+                  onClick={handleIndexAll}
+                  disabled={indexing}
+                  className="w-full sm:w-auto"
+                >
+                  {indexing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {!indexing && <Database className="mr-2 h-4 w-4" />}
+                  {indexing ? "Indexing..." : "Start Indexing"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Tracked Stocks Indexing</CardTitle>
+              <CardDescription>
+                Index tracked stocks data into the vector database for AI-powered search
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {trackedStocksIndexingStatus && (
+                  <div className="rounded-lg border p-4 bg-muted/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Database className="h-4 w-4" />
+                      <span className="text-sm font-medium">Indexing Status</span>
+                    </div>
+                    {trackedStocksIndexingStatus.status === "completed" && (
+                      <div className="space-y-1 text-sm">
+                        <p className="text-green-600 dark:text-green-400">
+                          ✓ Completed successfully
+                        </p>
+                        {trackedStocksIndexingStatus.chunksIndexed !== undefined && (
+                          <p className="text-muted-foreground">
+                            Chunks indexed: {trackedStocksIndexingStatus.chunksIndexed.toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {trackedStocksIndexingStatus.status === "error" && (
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        ✗ Error: {trackedStocksIndexingStatus.message || "Unknown error"}
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                <Button
+                  onClick={handleIndexTrackedStocks}
+                  disabled={indexingTrackedStocks}
+                  className="w-full sm:w-auto"
+                >
+                  {indexingTrackedStocks && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {!indexingTrackedStocks && <Database className="mr-2 h-4 w-4" />}
+                  {indexingTrackedStocks ? "Indexing..." : "Index Tracked Stocks"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Short-Term Tracked Stocks Indexing</CardTitle>
+              <CardDescription>
+                Index short-term tracked stocks data into the vector database for AI-powered search
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {shortTermTrackedStocksIndexingStatus && (
+                  <div className="rounded-lg border p-4 bg-muted/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Database className="h-4 w-4" />
+                      <span className="text-sm font-medium">Indexing Status</span>
+                    </div>
+                    {shortTermTrackedStocksIndexingStatus.status === "completed" && (
+                      <div className="space-y-1 text-sm">
+                        <p className="text-green-600 dark:text-green-400">
+                          ✓ Completed successfully
+                        </p>
+                        {shortTermTrackedStocksIndexingStatus.chunksIndexed !== undefined && (
+                          <p className="text-muted-foreground">
+                            Chunks indexed: {shortTermTrackedStocksIndexingStatus.chunksIndexed.toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {shortTermTrackedStocksIndexingStatus.status === "error" && (
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        ✗ Error: {shortTermTrackedStocksIndexingStatus.message || "Unknown error"}
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                <Button
+                  onClick={handleIndexShortTermTrackedStocks}
+                  disabled={indexingShortTermTrackedStocks}
+                  className="w-full sm:w-auto"
+                >
+                  {indexingShortTermTrackedStocks && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {!indexingShortTermTrackedStocks && <Database className="mr-2 h-4 w-4" />}
+                  {indexingShortTermTrackedStocks ? "Indexing..." : "Index Short-Term Tracked Stocks"}
+                </Button>
               </div>
             </CardContent>
           </Card>

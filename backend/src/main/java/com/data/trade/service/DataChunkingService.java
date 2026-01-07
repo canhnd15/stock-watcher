@@ -1,6 +1,7 @@
 package com.data.trade.service;
 
 import com.data.trade.dto.SignalNotification;
+import com.data.trade.model.ShortTermTrackedStock;
 import com.data.trade.model.TrackedStock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -240,6 +241,33 @@ public class DataChunkingService {
     }
 
     /**
+     * Create a text chunk for short-term tracked stock
+     * 
+     * @param shortTermTrackedStock Short-term tracked stock entity
+     * @return Text chunk describing the short-term tracked stock
+     */
+    public String createShortTermTrackedStockChunk(ShortTermTrackedStock shortTermTrackedStock) {
+        StringBuilder chunk = new StringBuilder();
+        chunk.append("User tracking stock ").append(shortTermTrackedStock.getCode()).append(" (short-term)");
+        
+        if (shortTermTrackedStock.getCostBasis() != null) {
+            chunk.append(" with cost basis ").append(formatPrice(shortTermTrackedStock.getCostBasis()));
+        }
+        
+        if (shortTermTrackedStock.getVolume() != null) {
+            chunk.append(", volume ").append(formatVolume(shortTermTrackedStock.getVolume()));
+        }
+        
+        if (shortTermTrackedStock.getTargetPrice() != null) {
+            chunk.append(", target price ").append(formatPrice(shortTermTrackedStock.getTargetPrice()));
+        }
+        
+        chunk.append(".");
+        
+        return chunk.toString();
+    }
+
+    /**
      * Create metadata map for tracked stock chunk
      */
     public Map<String, Object> createTrackedStockMetadata(TrackedStock trackedStock) {
@@ -247,6 +275,17 @@ public class DataChunkingService {
         metadata.put("source", "tracked_stocks");
         metadata.put("code", trackedStock.getCode());
         metadata.put("user_id", trackedStock.getUser().getId());
+        return metadata;
+    }
+
+    /**
+     * Create metadata map for short-term tracked stock chunk
+     */
+    public Map<String, Object> createShortTermTrackedStockMetadata(ShortTermTrackedStock shortTermTrackedStock) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("source", "short_term_tracked_stocks");
+        metadata.put("code", shortTermTrackedStock.getCode());
+        metadata.put("user_id", shortTermTrackedStock.getUser().getId());
         return metadata;
     }
 

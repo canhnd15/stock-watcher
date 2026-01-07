@@ -1,9 +1,11 @@
 package com.data.trade.service;
 
 import com.data.trade.dto.SignalNotification;
+import com.data.trade.model.ShortTermTrackedStock;
 import com.data.trade.model.TrackedStock;
 import com.data.trade.model.Trade;
 import com.data.trade.repository.DocumentChunkRepository;
+import com.data.trade.repository.ShortTermTrackedStockRepository;
 import com.data.trade.repository.TradeRepository;
 import com.data.trade.repository.TrackedStockRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +30,7 @@ public class DataIndexingService {
     private final DocumentChunkRepository documentChunkRepository;
     private final TradeRepository tradeRepository;
     private final TrackedStockRepository trackedStockRepository;
+    private final ShortTermTrackedStockRepository shortTermTrackedStockRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PersistenceContext
@@ -289,6 +292,39 @@ public class DataIndexingService {
         }
         
         log.info("Completed indexing of tracked stocks. Indexed {} chunks.", indexedCount);
+        return indexedCount;
+    }
+
+    /**
+     * Index all short-term tracked stocks
+     */
+    @Transactional
+    public int indexShortTermTrackedStocks() {
+        log.info("Starting indexing of short-term tracked stocks");
+        
+        List<ShortTermTrackedStock> shortTermTrackedStocks = shortTermTrackedStockRepository.findAll();
+        int indexedCount = 0;
+        
+        for (ShortTermTrackedStock shortTermTrackedStock : shortTermTrackedStocks) {
+            try {
+                String chunkContent = chunkingService.createShortTermTrackedStockChunk(shortTermTrackedStock);
+                Map<String, Object> metadata = chunkingService.createShortTermTrackedStockMetadata(shortTermTrackedStock);
+                
+                // Upsert: Delete existing chunks for this short-term tracked stock
+                String metadataFilter = objectMapper.writeValueAsString(metadata);
+                documentChunkRepository.deleteByMetadata(metadataFilter);
+                
+                // Generate embedding and save
+                float[] embedding = embeddingService.generateEmbedding(chunkContent);
+                saveDocumentChunk(chunkContent, metadata, embedding);
+                
+                indexedCount++;
+            } catch (Exception e) {
+                log.error("Error indexing short-term tracked stock {}: {}", shortTermTrackedStock.getCode(), e.getMessage());
+            }
+        }
+        
+        log.info("Completed indexing of short-term tracked stocks. Indexed {} chunks.", indexedCount);
         return indexedCount;
     }
 

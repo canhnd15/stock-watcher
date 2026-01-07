@@ -21,34 +21,42 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
     List<String> findDistinctCodesByTradeDate(@Param("tradeDate") String tradeDate);
     
     @Query(value = """
-        SELECT DISTINCT trade_date
-        FROM trades
-        ORDER BY CAST(
-            SUBSTRING(trade_date, 7, 4) || 
-            SUBSTRING(trade_date, 4, 2) || 
-            SUBSTRING(trade_date, 1, 2)
-        AS INTEGER) DESC
+        SELECT trade_date
+        FROM (
+            SELECT DISTINCT trade_date,
+                CAST(
+                    SUBSTRING(trade_date, 7, 4) ||
+                    SUBSTRING(trade_date, 4, 2) ||
+                    SUBSTRING(trade_date, 1, 2)
+                AS INTEGER) as date_int
+            FROM trades
+        ) AS distinct_dates
+        ORDER BY date_int DESC
         """, nativeQuery = true)
     List<String> findDistinctTradeDates();
     
     @Query(value = """
-        SELECT DISTINCT trade_date
-        FROM trades
-        WHERE CAST(
-            SUBSTRING(trade_date, 7, 4) || 
-            SUBSTRING(trade_date, 4, 2) || 
-            SUBSTRING(trade_date, 1, 2)
-        AS INTEGER) >= CAST(:fromDateStr AS INTEGER)
-        AND CAST(
-            SUBSTRING(trade_date, 7, 4) || 
-            SUBSTRING(trade_date, 4, 2) || 
-            SUBSTRING(trade_date, 1, 2)
-        AS INTEGER) <= CAST(:toDateStr AS INTEGER)
-        ORDER BY CAST(
-            SUBSTRING(trade_date, 7, 4) || 
-            SUBSTRING(trade_date, 4, 2) || 
-            SUBSTRING(trade_date, 1, 2)
-        AS INTEGER) DESC
+        SELECT trade_date
+        FROM (
+            SELECT DISTINCT trade_date,
+                CAST(
+                    SUBSTRING(trade_date, 7, 4) || 
+                    SUBSTRING(trade_date, 4, 2) || 
+                    SUBSTRING(trade_date, 1, 2)
+                AS INTEGER) as date_int
+            FROM trades
+            WHERE CAST(
+                SUBSTRING(trade_date, 7, 4) || 
+                SUBSTRING(trade_date, 4, 2) || 
+                SUBSTRING(trade_date, 1, 2)
+            AS INTEGER) >= CAST(:fromDateStr AS INTEGER)
+            AND CAST(
+                SUBSTRING(trade_date, 7, 4) || 
+                SUBSTRING(trade_date, 4, 2) || 
+                SUBSTRING(trade_date, 1, 2)
+            AS INTEGER) <= CAST(:toDateStr AS INTEGER)
+        ) AS distinct_dates
+        ORDER BY date_int DESC
         LIMIT :limit
         """, nativeQuery = true)
     List<String> findDistinctTradeDatesInRange(
