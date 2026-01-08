@@ -23,7 +23,10 @@ public class ChatController {
     @PostMapping
     public ResponseEntity<ChatResponse> chat(@Valid @RequestBody ChatRequest request) {
         try {
-            String response = chatService.getChatResponse(request.getMessage());
+            String response = chatService.getChatResponse(
+                request.getMessage(), 
+                request.getConversationHistory()
+            );
             return ResponseEntity.ok(new ChatResponse(response));
         } catch (Exception e) {
             log.error("Error processing chat request", e);

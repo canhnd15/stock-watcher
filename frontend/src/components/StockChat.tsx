@@ -42,12 +42,24 @@ const StockChat = () => {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const currentInput = input.trim();
     setInput("");
     setIsLoading(true);
 
     try {
+      // Send last 10 messages (5 user + 5 assistant pairs) for context
+      // Exclude the welcome message and the current message we just added
+      const conversationHistory = messages
+        .filter(msg => msg.id !== "1") // Exclude welcome message
+        .slice(-10) // Get last 10 messages
+        .map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }));
+
       const response = await api.post("/api/chat", {
-        message: userMessage.content,
+        message: currentInput,
+        conversationHistory: conversationHistory,
       });
 
       if (!response.ok) {

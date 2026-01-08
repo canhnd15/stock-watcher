@@ -125,7 +125,7 @@ public class ChatService {
         return "en";
     }
 
-    public String getChatResponse(String userMessage) {
+    public String getChatResponse(String userMessage, List<com.data.trade.dto.ChatRequest.ChatMessage> conversationHistory) {
         // Detect language
         String detectedLanguage = detectLanguage(userMessage);
         
@@ -154,13 +154,29 @@ public class ChatService {
             return errorMsg;
         }
 
+        // Build conversation context for RAG if history exists
+        String conversationContext = "";
+        if (conversationHistory != null && !conversationHistory.isEmpty()) {
+            StringBuilder contextBuilder = new StringBuilder();
+            contextBuilder.append("Previous conversation:\n");
+            for (com.data.trade.dto.ChatRequest.ChatMessage msg : conversationHistory) {
+                contextBuilder.append(msg.getRole()).append(": ").append(msg.getContent()).append("\n");
+            }
+            conversationContext = contextBuilder.toString();
+            log.debug("Including {} messages from conversation history", conversationHistory.size());
+        }
+
         // RAG: Intent detection and context retrieval
         String context = "";
         try {
             boolean needsData = ragService.detectIntent(userMessage);
             if (needsData) {
                 log.debug("Question detected as needing data, retrieving context via RAG");
-                List<String> chunks = ragService.retrieveContext(userMessage, 5);
+                // Enhance RAG query with conversation context if available
+                String enhancedQuery = conversationContext.isEmpty() 
+                    ? userMessage 
+                    : conversationContext + "\n\nCurrent question: " + userMessage;
+                List<String> chunks = ragService.retrieveContext(enhancedQuery, 5);
                 context = ragService.formatContext(chunks);
             }
         } catch (Exception e) {
@@ -173,16 +189,35 @@ public class ChatService {
                 .connectTimeout(Duration.ofSeconds(30))
                 .build();
 
-            // Build the message with context if available
+            // Build conversation for LLM with history
+            List<Map<String, Object>> contents = new ArrayList<>();
+            
+            // Build conversation history string for context
+            StringBuilder conversationBuilder = new StringBuilder();
+            if (conversationHistory != null && !conversationHistory.isEmpty()) {
+                conversationBuilder.append("Previous conversation:\n");
+                for (com.data.trade.dto.ChatRequest.ChatMessage msg : conversationHistory) {
+                    conversationBuilder.append(msg.getRole()).append(": ").append(msg.getContent()).append("\n");
+                }
+                conversationBuilder.append("\n");
+            }
+            
+            // Build the current message with RAG context if available
             String enhancedMessage = context.isEmpty() 
                 ? userMessage 
                 : context + "\n\nUser question: " + userMessage;
-
-            List<Map<String, Object>> contents = new ArrayList<>();
+            
+            // Combine system instruction, conversation history, and current message
+            // This maintains compatibility with the original single-message format
+            String fullMessage = systemInstruction + "\n\n";
+            if (conversationBuilder.length() > 0) {
+                fullMessage += conversationBuilder.toString();
+            }
+            fullMessage += "User: " + enhancedMessage + "\n\nAssistant:";
+            
+            // Add as single user message (maintains backward compatibility)
             contents.add(Map.of(
-                "parts", List.of(
-                    Map.of("text", systemInstruction + "\n\nUser: " + enhancedMessage + "\n\nAssistant:")
-                )
+                "parts", List.of(Map.of("text", fullMessage))
             ));
 
             Map<String, Object> requestBody = Map.of(
