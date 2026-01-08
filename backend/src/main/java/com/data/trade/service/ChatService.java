@@ -1,5 +1,6 @@
 package com.data.trade.service;
 
+import com.data.trade.dto.ChatRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.data.trade.config.AiChatConfig;
 import lombok.RequiredArgsConstructor;
@@ -126,14 +127,13 @@ public class ChatService {
     }
 
     public String getChatResponse(String userMessage, List<com.data.trade.dto.ChatRequest.ChatMessage> conversationHistory) {
-        // Detect language
         String detectedLanguage = detectLanguage(userMessage);
         
         // Validate language - only allow English and Vietnamese
         if ("unknown".equals(detectedLanguage)) {
             // Try to determine if it's English or Vietnamese by checking the message
             // If it contains mostly ASCII characters, assume English
-            boolean mostlyAscii = userMessage.matches(".*[a-zA-Z].*") && 
+            boolean mostlyAscii = userMessage.matches(".*[a-zA-Z].*") &&
                                   !userMessage.matches(vietnameseRegexPattern);
             if (mostlyAscii) {
                 detectedLanguage = "en";
@@ -159,7 +159,7 @@ public class ChatService {
         if (conversationHistory != null && !conversationHistory.isEmpty()) {
             StringBuilder contextBuilder = new StringBuilder();
             contextBuilder.append("Previous conversation:\n");
-            for (com.data.trade.dto.ChatRequest.ChatMessage msg : conversationHistory) {
+            for (ChatRequest.ChatMessage msg : conversationHistory) {
                 contextBuilder.append(msg.getRole()).append(": ").append(msg.getContent()).append("\n");
             }
             conversationContext = contextBuilder.toString();
@@ -196,7 +196,7 @@ public class ChatService {
             StringBuilder conversationBuilder = new StringBuilder();
             if (conversationHistory != null && !conversationHistory.isEmpty()) {
                 conversationBuilder.append("Previous conversation:\n");
-                for (com.data.trade.dto.ChatRequest.ChatMessage msg : conversationHistory) {
+                for (ChatRequest.ChatMessage msg : conversationHistory) {
                     conversationBuilder.append(msg.getRole()).append(": ").append(msg.getContent()).append("\n");
                 }
                 conversationBuilder.append("\n");
@@ -266,10 +266,9 @@ public class ChatService {
                 }
             }
 
+            // Handle error responses - extract actual error message from API
             log.error("Gemini API returned status: {} - {}", response.statusCode(), response.body());
-            String errorMsg = "en".equals(detectedLanguage)
-                ? "Sorry, I couldn't process your request. Please try again."
-                : "Xin lỗi, tôi không thể xử lý yêu cầu của bạn. Vui lòng thử lại.";
+            String errorMsg = extractErrorMessage(response.body(), detectedLanguage);
             return errorMsg;
 
         } catch (Exception e) {
@@ -279,6 +278,53 @@ public class ChatService {
                 : "Xin lỗi, đã xảy ra lỗi. Vui lòng thử lại sau.";
             return errorMsg;
         }
+    }
+
+    /**
+     * Extract error message from Gemini API error response
+     * Tries to parse the JSON error response and extract the actual error message
+     * 
+     * @param responseBody The error response body from API
+     * @param detectedLanguage The detected language of the user
+     * @return The extracted error message or a fallback message
+     */
+    private String extractErrorMessage(String responseBody, String detectedLanguage) {
+        if (responseBody == null || responseBody.trim().isEmpty()) {
+            return "en".equals(detectedLanguage)
+                ? "Sorry, I couldn't process your request. Please try again."
+                : "Xin lỗi, tôi không thể xử lý yêu cầu của bạn. Vui lòng thử lại.";
+        }
+
+        try {
+            // Try to parse the error response JSON
+            Map<String, Object> errorResponse = objectMapper.readValue(responseBody, Map.class);
+            
+            @SuppressWarnings("unchecked")
+            Map<String, Object> error = (Map<String, Object>) errorResponse.get("error");
+            
+            if (error != null) {
+                String message = (String) error.get("message");
+                if (message != null && !message.trim().isEmpty()) {
+                    // Return the exact error message from API
+                    log.debug("Extracted error message from API: {}", message);
+                    return message;
+                }
+                
+                // Try alternative error message fields
+                String status = (String) error.get("status");
+                if (status != null && !status.trim().isEmpty()) {
+                    return status;
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Failed to parse error response JSON: {}", e.getMessage());
+            // Fall through to default error message
+        }
+
+        // Fallback to default error message if parsing fails
+        return "en".equals(detectedLanguage)
+            ? "Sorry, I couldn't process your request. Please try again."
+            : "Xin lỗi, tôi không thể xử lý yêu cầu của bạn. Vui lòng thử lại.";
     }
 }
 
