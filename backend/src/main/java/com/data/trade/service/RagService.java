@@ -29,9 +29,15 @@ public class RagService {
     @Value("${rag.similarity-threshold:0.7}")
     private double similarityThreshold;
 
-    // Keywords that indicate the question needs data
+    // Keywords that indicate the question needs data (English)
     private static final Pattern DATA_KEYWORDS = Pattern.compile(
         "\\b(stock|stocks|code|price|volume|trade|trades|signal|signals|tracked|my stocks|portfolio|ohlc|open|high|low|close|buy|sell|block|blocks)\\b",
+        Pattern.CASE_INSENSITIVE
+    );
+
+    // Keywords that indicate the question needs data (Vietnamese)
+    private static final Pattern DATA_KEYWORDS_VI = Pattern.compile(
+        "\\b(cổ phiếu|cổ phiếu|mã|giá|khối lượng|giao dịch|tín hiệu|theo dõi|danh mục|mở|cao|thấp|đóng|mua|bán|khối|khối lớn|giá đóng|giá mở|giá cao|giá thấp|khối lượng mua|khối lượng bán)\\b",
         Pattern.CASE_INSENSITIVE
     );
 
@@ -69,12 +75,17 @@ public class RagService {
             return true;
         }
 
-        // Check for data-related keywords
+        // Check for data-related keywords (English)
         if (DATA_KEYWORDS.matcher(message).find()) {
             return true;
         }
 
-        // Check for specific phrases
+        // Check for data-related keywords (Vietnamese)
+        if (DATA_KEYWORDS_VI.matcher(message).find()) {
+            return true;
+        }
+
+        // Check for specific phrases (English)
         String lowerMessage = message.toLowerCase();
         if (lowerMessage.contains("what is") || 
             lowerMessage.contains("show me") || 
@@ -83,6 +94,24 @@ public class RagService {
             lowerMessage.contains("how many") ||
             lowerMessage.contains("when did") ||
             lowerMessage.contains("what happened")) {
+            return true;
+        }
+
+        // Check for specific phrases (Vietnamese)
+        if (lowerMessage.contains("giá") || 
+            lowerMessage.contains("khối lượng") ||
+            lowerMessage.contains("mua") ||
+            lowerMessage.contains("bán") ||
+            lowerMessage.contains("đóng") ||
+            lowerMessage.contains("mở") ||
+            lowerMessage.contains("cổ phiếu") ||
+            lowerMessage.contains("mã") ||
+            lowerMessage.contains("hôm qua") ||
+            lowerMessage.contains("hôm nay") ||
+            lowerMessage.contains("ngày") ||
+            lowerMessage.contains("là bao nhiêu") ||
+            lowerMessage.contains("như thế nào") ||
+            lowerMessage.contains("cho tôi biết")) {
             return true;
         }
 

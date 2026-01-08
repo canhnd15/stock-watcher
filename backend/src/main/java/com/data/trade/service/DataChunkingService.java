@@ -83,11 +83,46 @@ public class DataChunkingService {
         }
         
         // Calculate price change if we have open and close
+        BigDecimal priceChange = null;
         if (openPrice != null && closePrice != null && openPrice.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal change = closePrice.subtract(openPrice)
+            priceChange = closePrice.subtract(openPrice)
                 .divide(openPrice, 4, RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100));
-            chunk.append(". Price change: ").append(change.setScale(2, RoundingMode.HALF_UP)).append("%");
+            chunk.append(". Price change: ").append(priceChange.setScale(2, RoundingMode.HALF_UP)).append("%");
+        }
+        
+        chunk.append(".");
+        
+        // Vietnamese version (bilingual chunk)
+        chunk.append(" | Cổ phiếu ").append(code).append(" ngày ").append(tradeDate).append(": ");
+        chunk.append("Khối lượng mua: ").append(formatVolume(buyVolume));
+        chunk.append(", Khối lượng bán: ").append(formatVolume(sellVolume));
+        
+        if (openPrice != null && closePrice != null) {
+            chunk.append(". Giá: Mở ").append(formatPrice(openPrice));
+            chunk.append(", Đóng ").append(formatPrice(closePrice));
+        }
+        
+        if (lowPrice != null && highPrice != null) {
+            chunk.append(", Khoảng ").append(formatPrice(lowPrice));
+            chunk.append("-").append(formatPrice(highPrice));
+        }
+        
+        if (largeBuyBlocks != null && largeBuyBlocks > 0) {
+            chunk.append(". Khối mua lớn (>=400k): ").append(largeBuyBlocks);
+        }
+        if (largeSellBlocks != null && largeSellBlocks > 0) {
+            chunk.append(", Khối bán lớn (>=400k): ").append(largeSellBlocks);
+        }
+        if (mediumBuyBlocks != null && mediumBuyBlocks > 0) {
+            chunk.append(". Khối mua trung bình (100k-400k): ").append(mediumBuyBlocks);
+        }
+        if (mediumSellBlocks != null && mediumSellBlocks > 0) {
+            chunk.append(", Khối bán trung bình (100k-400k): ").append(mediumSellBlocks);
+        }
+        
+        if (priceChange != null) {
+            chunk.append(". Thay đổi giá: ").append(priceChange.setScale(2, RoundingMode.HALF_UP)).append("%");
         }
         
         chunk.append(".");
@@ -119,6 +154,23 @@ public class DataChunkingService {
         
         chunk.append(".");
         
+        // Vietnamese version
+        chunk.append(" | Người dùng theo dõi cổ phiếu ").append(trackedStock.getCode());
+        
+        if (trackedStock.getCostBasis() != null) {
+            chunk.append(" với giá vốn ").append(formatPrice(trackedStock.getCostBasis()));
+        }
+        
+        if (trackedStock.getVolume() != null) {
+            chunk.append(", khối lượng ").append(formatVolume(trackedStock.getVolume()));
+        }
+        
+        if (trackedStock.getTargetPrice() != null) {
+            chunk.append(", giá mục tiêu ").append(formatPrice(trackedStock.getTargetPrice()));
+        }
+        
+        chunk.append(".");
+        
         return chunk.toString();
     }
 
@@ -130,6 +182,9 @@ public class DataChunkingService {
      */
     public String createSignalChunk(SignalNotification signal) {
         StringBuilder chunk = new StringBuilder();
+        
+        // English version
+        String signalTypeVi = "BUY".equals(signal.getSignalType()) ? "Mua" : "Bán";
         chunk.append(signal.getSignalType()).append(" signal for ").append(signal.getCode());
         
         if (signal.getTimestamp() != null) {
@@ -160,6 +215,37 @@ public class DataChunkingService {
         
         chunk.append(".");
         
+        // Vietnamese version
+        chunk.append(" | Tín hiệu ").append(signalTypeVi).append(" cho ").append(signal.getCode());
+        
+        if (signal.getTimestamp() != null) {
+            chunk.append(" vào ").append(signal.getTimestamp().toString());
+        }
+        
+        chunk.append(" với điểm số ").append(signal.getScore());
+        
+        if (signal.getReason() != null && !signal.getReason().isEmpty()) {
+            chunk.append(". Lý do: ").append(signal.getReason());
+        }
+        
+        if (signal.getLastPrice() != null) {
+            chunk.append(". Giá: ").append(formatPrice(signal.getLastPrice()));
+        }
+        
+        if (signal.getPriceChange() != 0) {
+            chunk.append(", thay đổi: ").append(String.format("%.2f", signal.getPriceChange())).append("%");
+        }
+        
+        if (signal.getBuyVolume() != null) {
+            chunk.append(". Khối lượng mua: ").append(formatVolume(signal.getBuyVolume()));
+        }
+        
+        if (signal.getSellVolume() != null) {
+            chunk.append(", Khối lượng bán: ").append(formatVolume(signal.getSellVolume()));
+        }
+        
+        chunk.append(".");
+        
         return chunk.toString();
     }
 
@@ -174,10 +260,12 @@ public class DataChunkingService {
      */
     public String createOHLCChunk(String code, List<Object[]> stats) {
         if (stats == null || stats.isEmpty()) {
-            return "Stock " + code + " last 10 days: No data available.";
+            return "Stock " + code + " last 10 days: No data available. | Cổ phiếu " + code + " 10 ngày qua: Không có dữ liệu.";
         }
         
         StringBuilder chunk = new StringBuilder();
+        
+        // English version
         chunk.append("Stock ").append(code).append(" last 10 days summary: ");
         
         // Calculate averages
@@ -223,6 +311,16 @@ public class DataChunkingService {
             chunk.append(". Average buy volume: ").append(formatVolume(avgBuyVolume));
             chunk.append(", average sell volume: ").append(formatVolume(avgSellVolume));
             chunk.append(".");
+            
+            // Vietnamese version
+            chunk.append(" | Tóm tắt cổ phiếu ").append(code).append(" 10 ngày qua: ");
+            chunk.append("Trung bình Mở: ").append(formatPrice(avgOpen));
+            chunk.append(", Cao: ").append(formatPrice(avgHigh));
+            chunk.append(", Thấp: ").append(formatPrice(avgLow));
+            chunk.append(", Đóng: ").append(formatPrice(avgClose));
+            chunk.append(". Khối lượng mua trung bình: ").append(formatVolume(avgBuyVolume));
+            chunk.append(", khối lượng bán trung bình: ").append(formatVolume(avgSellVolume));
+            chunk.append(".");
         }
         
         return chunk.toString();
@@ -248,6 +346,8 @@ public class DataChunkingService {
      */
     public String createShortTermTrackedStockChunk(ShortTermTrackedStock shortTermTrackedStock) {
         StringBuilder chunk = new StringBuilder();
+        
+        // English version
         chunk.append("User tracking stock ").append(shortTermTrackedStock.getCode()).append(" (short-term)");
         
         if (shortTermTrackedStock.getCostBasis() != null) {
@@ -260,6 +360,23 @@ public class DataChunkingService {
         
         if (shortTermTrackedStock.getTargetPrice() != null) {
             chunk.append(", target price ").append(formatPrice(shortTermTrackedStock.getTargetPrice()));
+        }
+        
+        chunk.append(".");
+        
+        // Vietnamese version
+        chunk.append(" | Người dùng theo dõi cổ phiếu ").append(shortTermTrackedStock.getCode()).append(" (ngắn hạn)");
+        
+        if (shortTermTrackedStock.getCostBasis() != null) {
+            chunk.append(" với giá vốn ").append(formatPrice(shortTermTrackedStock.getCostBasis()));
+        }
+        
+        if (shortTermTrackedStock.getVolume() != null) {
+            chunk.append(", khối lượng ").append(formatVolume(shortTermTrackedStock.getVolume()));
+        }
+        
+        if (shortTermTrackedStock.getTargetPrice() != null) {
+            chunk.append(", giá mục tiêu ").append(formatPrice(shortTermTrackedStock.getTargetPrice()));
         }
         
         chunk.append(".");
