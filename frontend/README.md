@@ -2,11 +2,11 @@
 
 React-based frontend application for Stock Watcher - a professional stock trading data tracker with real-time signal notifications.
 
-## 📋 Overview
+## Overview
 
 Stock Watcher Frontend is a modern, responsive web application built with React, TypeScript, and Vite. It provides a comprehensive interface for monitoring stock trades, managing tracked stocks, receiving real-time trading signals, and analyzing market data.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -35,7 +35,7 @@ npm run build
 npm run preview
 ```
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 - **React 18** - UI library
 - **TypeScript** - Type safety
@@ -50,7 +50,7 @@ npm run preview
 - **date-fns** - Date utilities
 - **Lucide React** - Icon library
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 frontend/
@@ -93,9 +93,9 @@ frontend/
 └── tsconfig.json       # TypeScript configuration
 ```
 
-## ✨ Features
+## Features
 
-### 🔐 Authentication & Authorization
+### Authentication & Authorization
 
 - User registration and login
 - JWT token-based authentication
@@ -103,7 +103,7 @@ frontend/
 - Protected routes
 - Automatic token refresh
 
-### 📊 Trade Monitoring
+### Trade Monitoring
 
 - **Trade Table**: View and filter trades with pagination
 - **Advanced Filters**: Filter by stock code, trade type, volume, date range
@@ -115,7 +115,7 @@ frontend/
   - OHLC (Open, High, Low, Close) charts
   - Real-time price tracking with 10-minute intervals
 
-### 📈 Tracked Stocks
+### Tracked Stocks
 
 - Add/remove tracked stocks from VN30 list
 - View real-time statistics (lowest/highest prices, volumes)
@@ -124,7 +124,7 @@ frontend/
 - Real-time price tracking with intraday charts
 - Room bar statistics (10-day analysis)
 
-### 🔔 Real-time Signals
+### Real-time Signals
 
 - WebSocket-based real-time notifications
 - Buy/sell signal alerts
@@ -132,14 +132,14 @@ frontend/
 - Signal history and filtering
 - Score-based signal strength
 
-### 💡 Trading Suggestions
+### Trading Suggestions
 
 - AI-powered trading recommendations
 - Stock analysis and insights
 - Signal-based suggestions
 - Historical performance tracking
 
-### 👥 User Management (Admin)
+### User Management (Admin)
 
 - View all users
 - Change user roles
@@ -147,13 +147,13 @@ frontend/
 - Delete users
 - User statistics
 
-### 🌐 Internationalization
+### Internationalization
 
 - Multi-language support (Vietnamese/English)
 - Language switcher
 - Localized date/time formats
 
-## 🔌 API Integration
+## API Integration
 
 The frontend communicates with the backend via:
 
@@ -167,7 +167,7 @@ All API calls are handled through `/src/lib/api.ts` which:
 - Handles authentication errors
 - Provides type-safe API methods
 
-## 🎨 UI Components
+## UI Components
 
 The application uses **shadcn/ui** components:
 
@@ -177,14 +177,14 @@ The application uses **shadcn/ui** components:
 - Charts, Tooltips, Toasts
 - And more...
 
-## 📱 Responsive Design
+## Responsive Design
 
 - Mobile-first approach
 - Responsive layouts
 - Touch-friendly interfaces
 - Adaptive charts and tables
 
-## 🔒 Security
+## Security
 
 - JWT tokens stored in localStorage
 - Automatic token expiration handling
@@ -192,7 +192,7 @@ The application uses **shadcn/ui** components:
 - Role-based UI rendering
 - XSS protection via React
 
-## 🧪 Development
+## Development
 
 ### Environment Variables
 
@@ -212,7 +212,7 @@ npm run lint
 
 TypeScript type checking is integrated into the build process.
 
-## 🚀 Deployment
+## Deployment
 
 ### Build
 
@@ -238,7 +238,7 @@ The `dist/` folder can be served by:
 - Any static file server
 - Vercel, Netlify, or similar platforms
 
-## 📚 Key Features Implementation
+## Key Features Implementation
 
 ### Real-time Price Tracking
 
@@ -268,7 +268,7 @@ The `dist/` folder can be served by:
   - Real-time price tracking charts
   - Room bar statistics charts
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Issue: Frontend can't connect to backend
 
@@ -289,25 +289,25 @@ The `dist/` folder can be served by:
 - Clear Vite cache: `rm -rf node_modules/.vite`
 - Check Node.js version (requires 18+)
 
-## 📝 Scripts
+## Scripts
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
 
-## 🔗 Related Documentation
+## Related Documentation
 
 - [Main README](../README.md) - Project overview
 - [Backend README](../backend/README.md) - Backend API documentation
 - [User Management Setup](../document/USER_MANAGEMENT_SETUP.md) - Authentication setup
 - [Signal Notifications](../document/SIGNAL_NOTIFICATIONS_README.md) - WebSocket signals
 
-## 📄 License
+## License
 
 This project is private/internal.
 
-## 🎯 Future Enhancements
+## Future Enhancements
 
 - [ ] Dark mode support
 - [ ] Mobile app (React Native)
@@ -319,10 +319,10 @@ This project is private/internal.
 - [ ] Performance optimizations
 - [ ] Unit and integration tests
 
-## 👥 Contributing
+## Contributing
 
 This is an internal project. For contributions, please contact the project maintainers.
 
-## 📞 Support
+## Support
 
 For issues or questions, please contact the development team.

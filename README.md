@@ -2,7 +2,7 @@
 
 A full-stack stock trading data tracker with real-time signal notifications and user management.
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 stock-watcher/
@@ -12,7 +12,7 @@ stock-watcher/
 └── docker-compose.yml    # PostgreSQL database orchestration
 ```
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌──────────────────┐         ┌──────────────────┐         ┌──────────────────┐
@@ -32,7 +32,7 @@ stock-watcher/
                                         └─────────────────────────┘
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Java 21
@@ -104,7 +104,7 @@ npm run dev
 # Frontend runs on http://localhost:8089
 ```
 
-## 📦 Services Overview
+## Services Overview
 
 ### Backend Service (`/backend`)
 - **Port**: 8080
@@ -137,7 +137,7 @@ npm run dev
   - Trade data visualization
   - Signal monitoring
 
-## 🗄️ Shared Database Strategy
+## Shared Database Strategy
 
 Both `backend` and `cron-jobs` services connect to the **same PostgreSQL database**:
 
@@ -147,17 +147,17 @@ Both `backend` and `cron-jobs` services connect to the **same PostgreSQL databas
 - **Schema**: Managed by JPA/Hibernate (`ddl-auto=update`)
 
 ### Benefits:
-- ✅ Data consistency
-- ✅ Simple deployment
-- ✅ No data synchronization needed
-- ✅ Shared transactions
+- Data consistency
+- Simple deployment
+- No data synchronization needed
+- Shared transactions
 
 ### Trade-offs:
-- ⚠️ Services are coupled to database schema
-- ⚠️ Database becomes a single point of failure
-- ⚠️ Both services must use compatible JPA entities
+- Services are coupled to database schema
+- Database becomes a single point of failure
+- Both services must use compatible JPA entities
 
-## 🔧 Development
+## Development
 
 ### Building All Services
 
@@ -182,7 +182,7 @@ cd backend && mvn test
 cd cron-jobs && mvn test
 ```
 
-## 📋 Environment Variables
+## Environment Variables
 
 ### Backend (`backend/application.properties`)
 - `server.port=8080`
@@ -198,13 +198,13 @@ cd cron-jobs && mvn test
 ### Frontend (`frontend/.env`)
 - `VITE_API_URL=http://localhost:8080` (default)
 
-## 🔐 Security
+## Security
 
 - **Backend**: JWT authentication, Spring Security
 - **Cron-Jobs**: No security (no REST APIs exposed)
 - **Frontend**: JWT tokens stored in localStorage
 
-## 📊 Scheduled Jobs (Cron-Jobs Service)
+## Scheduled Jobs (Cron-Jobs Service)
 
 | Job | Schedule | Description |
 |-----|----------|-------------|
@@ -214,7 +214,7 @@ cd cron-jobs && mvn test
 | Notifications Check | Every 3 minutes | Checks for BIG signals and sends notifications |
 | Statistics Calculation | After VN30 ingestion | Calculates statistics for tracked stocks |
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Issue: Backend won't start
 - Check PostgreSQL is running on port 5433
@@ -235,7 +235,7 @@ cd cron-jobs && mvn test
 - Frontend connects to backend WebSocket (not cron-jobs)
 - Cron-jobs sends signals via its own message broker (may not reach clients - see note below)
 
-### ⚠️ WebSocket Messaging Limitation
+### WebSocket Messaging Limitation
 
 **Current Issue**: Cron-jobs service has its own in-memory message broker, so signals sent from cron-jobs may not reach clients connected to the backend WebSocket server.
 
@@ -246,7 +246,7 @@ cd cron-jobs && mvn test
 
 **Quick Fix**: Configure Redis as shared message broker (future enhancement)
 
-## 📚 Documentation
+## Documentation
 
 ### Deployment
 - [Docker Quick Start](deploy/docs/DOCKER_README.md) - Quick Docker Compose reference
@@ -259,13 +259,13 @@ cd cron-jobs && mvn test
 - Cron-Jobs: See `cron-jobs/README.md`
 - Frontend: See `frontend/README.md`
 
-## 📝 License
+## License
 
 This project is private/internal.
 
-## 🎯 Next Steps
+## Next Steps
 
-1. ✅ Docker containers for all services (DONE)
+1. Docker containers for all services (DONE)
 2. Configure shared message broker (Redis/RabbitMQ) for WebSocket messages
 3. Add health checks and monitoring
 4. Implement CI/CD pipelines

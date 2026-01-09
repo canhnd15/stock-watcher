@@ -2,11 +2,11 @@
 
 Batch data import service for importing trade data from XLSX files into the database.
 
-## 📋 Overview
+## Overview
 
 This service handles bulk import of historical trade data from XLSX files. It uses Spring Batch to process large files efficiently with chunk-based processing.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -35,7 +35,7 @@ DB_PASSWORD=admin \
 java -jar target/data-import-0.0.1-SNAPSHOT.jar import /path/to/xlsx/files
 ```
 
-## 📖 Commands
+## Commands
 
 ### Import Files
 
@@ -78,7 +78,7 @@ Run complete workflow: import → migrate → cleanup:
 java -jar data-import.jar full [directory-path]
 ```
 
-## 📊 Data Format
+## Data Format
 
 XLSX files should have one of the following structures:
 
@@ -106,7 +106,7 @@ XLSX files should have one of the following structures:
 - The first row is treated as header and skipped
 - The reader automatically detects which format is used
 
-## 🔄 Import Process Flow
+## Import Process Flow
 
 ```
 1. File Discovery
@@ -125,7 +125,7 @@ XLSX files should have one of the following structures:
    └─> Truncate trades_staging table
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Application Properties
 
@@ -151,14 +151,14 @@ export DB_USERNAME=postgre
 export DB_PASSWORD=admin
 ```
 
-## 📈 Performance
+## Performance
 
 - **Chunk Size**: 5000 records per chunk
 - **Processing Speed**: ~2-5 minutes per file (50K-60K records)
 - **Memory Usage**: Low (chunk-based processing)
 - **Error Handling**: Skips invalid rows, continues processing
 
-## 🗄️ Database Tables
+## Database Tables
 
 ### trades_staging (Temporary)
 
@@ -180,7 +180,7 @@ CREATE TABLE trades_staging (
 
 Final destination table (shared with backend/cron-jobs).
 
-## 🔍 Monitoring
+## Monitoring
 
 ### Logs
 
@@ -199,7 +199,7 @@ Spring Batch creates metadata tables:
 
 Query these tables to track job progress.
 
-## ⚠️ Important Notes
+## Important Notes
 
 1. **One-time Use**: This service is designed for initial data import during setup
 2. **Staging Table**: Data is first imported to `trades_staging`, then migrated
@@ -207,7 +207,7 @@ Query these tables to track job progress.
 4. **File Format**: Ensure XLSX files match the expected column structure
 5. **Database**: Must have `trades_staging` table created (via Flyway migration)
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### No files found
 - Check directory path
@@ -223,7 +223,7 @@ Query these tables to track job progress.
 - Check for duplicate records in main table
 - Verify database permissions
 
-## 📝 Example Workflow
+## Example Workflow
 
 ```bash
 # 1. Place all XLSX files in a directory
@@ -246,7 +246,7 @@ java -jar data-import.jar cleanup
 java -jar data-import.jar full ./data/trades
 ```
 
-## 🔗 Related Services
+## Related Services
 
 - **Backend**: REST API service (port 8899)
 - **Cron-Jobs**: Scheduled tasks service (port 8898)

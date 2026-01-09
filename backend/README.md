@@ -2,7 +2,7 @@
 
 Main REST API and WebSocket service for Stock Watcher application.
 
-## 📋 Overview
+## Overview
 
 The backend service provides:
 - RESTful APIs for trades, users, authentication, and admin operations
@@ -10,7 +10,7 @@ The backend service provides:
 - JWT authentication and role-based authorization
 - Business logic for trade queries, user management, and data operations
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Build
@@ -22,7 +22,7 @@ mvn spring-boot:run
 # Service runs on http://localhost:8080
 ```
 
-## 🔌 API Endpoints
+## API Endpoints
 
 ### Authentication (`/api/auth`)
 - `POST /api/auth/register` - Register new user
@@ -53,7 +53,7 @@ mvn spring-boot:run
 - Topic: `/topic/signals/user/{userId}` - User-specific signals
 - Topic: `/topic/signals` - Broadcast signals (fallback)
 
-## 🔒 Security
+## Security
 
 - **JWT Authentication**: All API endpoints require JWT token (except `/api/auth/**`)
 - **Role-Based Access**: 
@@ -61,7 +61,7 @@ mvn spring-boot:run
   - VIP: `/api/trades/**`, `/api/tracked-stocks/**`, `/api/suggestions/**`
   - ADMIN: All endpoints including `/api/admin/**`
 
-## 📦 Dependencies
+## Dependencies
 
 - Spring Boot 3.5.6
 - Spring Security (JWT authentication)
@@ -69,7 +69,7 @@ mvn spring-boot:run
 - Spring Data JPA (PostgreSQL)
 - Apache POI (Excel import/export)
 
-## ⚙️ Configuration
+## Configuration
 
 See `src/main/resources/application.properties`:
 - Database connection
@@ -77,11 +77,11 @@ See `src/main/resources/application.properties`:
 - CORS origins
 - WebSocket configuration
 
-## 🔄 No Scheduled Tasks
+## No Scheduled Tasks
 
 **Important**: This service does NOT contain scheduled tasks. All `@Scheduled` jobs have been moved to the `cron-jobs` service for separation of concerns.
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 - **CORS errors**: Check `SecurityConfig.java` for allowed origins
 - **Authentication fails**: Verify JWT secret in `application.properties`

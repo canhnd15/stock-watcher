@@ -2,7 +2,7 @@
 
 Scheduled tasks service for Stock Watcher application. Handles all periodic jobs including data ingestion, signal calculation, and notifications.
 
-## 📋 Overview
+## Overview
 
 The cron-jobs service is a dedicated Spring Boot application that runs scheduled tasks independently from the backend API service. It:
 - Fetches trade data from external APIs
@@ -11,7 +11,7 @@ The cron-jobs service is a dedicated Spring Boot application that runs scheduled
 - Calculates statistics
 - Sends notifications
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Build
@@ -24,7 +24,7 @@ mvn spring-boot:run
 # Note: No REST APIs exposed, service only runs scheduled tasks
 ```
 
-## ⏰ Scheduled Jobs
+## Scheduled Jobs
 
 ### 1. VN30 Ingestion (Every 5 minutes)
 - **Schedule**: `0 */5 * * * *`
@@ -53,7 +53,7 @@ mvn spring-boot:run
 - **Method**: `trackedStockStatsService.calculateStatsForAllTrackedStocks()`
 - **Purpose**: Calculates statistics for tracked stocks
 
-## 🔧 Configuration
+## Configuration
 
 See `src/main/resources/application.properties`:
 
@@ -73,7 +73,7 @@ cron.tracked-stock.notify=0 */3 * * * *
 app.finpath.base-url=https://api.finpath.vn
 ```
 
-## 📦 Dependencies
+## Dependencies
 
 - Spring Boot 3.5.6
 - Spring Data JPA (PostgreSQL)
@@ -81,14 +81,14 @@ app.finpath.base-url=https://api.finpath.vn
 - Spring WebSocket (for sending signals via SimpMessagingTemplate)
 - Spring Security (minimal, only for User model dependencies)
 
-## 🗄️ Database Access
+## Database Access
 
 This service connects to the **same PostgreSQL database** as the backend service:
 - **Shared Tables**: `trades`, `tracked_stocks`, `users`, `app_config`
 - **Operations**: Read and write access to all tables
 - **No Conflicts**: Scheduled tasks run at specific intervals, no concurrent issues
 
-## ⚠️ WebSocket Messaging Limitation
+## WebSocket Messaging Limitation
 
 **Current Issue**: This service has its own in-memory message broker. Messages sent via `SimpMessagingTemplate` go to this service's broker, not the backend's broker. Clients connected to the backend WebSocket server won't receive signals sent from this service.
 
@@ -97,24 +97,24 @@ This service connects to the **same PostgreSQL database** as the backend service
 2. **Alternative**: Call backend REST API to trigger signal calculation
 3. **Future**: Use external message broker (Redis/RabbitMQ) for shared messaging
 
-## 🔄 Service Independence
+## Service Independence
 
 This service is **completely independent** from the backend:
-- ✅ Can be deployed separately
-- ✅ Can be scaled independently
-- ✅ Can be restarted without affecting backend
-- ✅ Runs on different port (8898 vs 8080)
-- ✅ No REST APIs exposed
-- ✅ Minimal security (no authentication needed)
+- Can be deployed separately
+- Can be scaled independently
+- Can be restarted without affecting backend
+- Runs on different port (8898 vs 8080)
+- No REST APIs exposed
+- Minimal security (no authentication needed)
 
-## 📊 Monitoring
+## Monitoring
 
 Check logs for scheduled job execution:
 - Each job logs start/completion time
 - Success/failure counts
 - Error details if any job fails
 
-## 🔧 Enabling/Disabling Jobs
+## Enabling/Disabling Jobs
 
 Jobs can be enabled/disabled via database configuration (managed by `ConfigService`):
 - `vn30.cron.enabled` - Enable/disable VN30 ingestion
@@ -123,7 +123,7 @@ Jobs can be enabled/disabled via database configuration (managed by `ConfigServi
 
 Default: All jobs are enabled.
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Issue: Jobs not running
 - Check logs for errors
