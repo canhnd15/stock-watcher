@@ -1,5 +1,6 @@
 package com.data.trade.service;
 
+import com.data.trade.dto.ChatRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.data.trade.config.AiChatConfig;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import java.util.Map;
 public class ChatService {
 
     private final AiChatConfig aiChatConfig;
+    private final RagService ragService;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -124,15 +126,14 @@ public class ChatService {
         return "en";
     }
 
-    public String getChatResponse(String userMessage) {
-        // Detect language
+    public String getChatResponse(String userMessage, List<com.data.trade.dto.ChatRequest.ChatMessage> conversationHistory) {
         String detectedLanguage = detectLanguage(userMessage);
         
         // Validate language - only allow English and Vietnamese
         if ("unknown".equals(detectedLanguage)) {
             // Try to determine if it's English or Vietnamese by checking the message
             // If it contains mostly ASCII characters, assume English
-            boolean mostlyAscii = userMessage.matches(".*[a-zA-Z].*") && 
+            boolean mostlyAscii = userMessage.matches(".*[a-zA-Z].*") &&
                                   !userMessage.matches(vietnameseRegexPattern);
             if (mostlyAscii) {
                 detectedLanguage = "en";
@@ -153,16 +154,70 @@ public class ChatService {
             return errorMsg;
         }
 
+        // Build conversation context for RAG if history exists
+        String conversationContext = "";
+        if (conversationHistory != null && !conversationHistory.isEmpty()) {
+            StringBuilder contextBuilder = new StringBuilder();
+            contextBuilder.append("Previous conversation:\n");
+            for (ChatRequest.ChatMessage msg : conversationHistory) {
+                contextBuilder.append(msg.getRole()).append(": ").append(msg.getContent()).append("\n");
+            }
+            conversationContext = contextBuilder.toString();
+            log.debug("Including {} messages from conversation history", conversationHistory.size());
+        }
+
+        // RAG: Intent detection and context retrieval
+        String context = "";
+        try {
+            boolean needsData = ragService.detectIntent(userMessage);
+            if (needsData) {
+                log.debug("Question detected as needing data, retrieving context via RAG");
+                // Enhance RAG query with conversation context if available
+                String enhancedQuery = conversationContext.isEmpty() 
+                    ? userMessage 
+                    : conversationContext + "\n\nCurrent question: " + userMessage;
+                List<String> chunks = ragService.retrieveContext(enhancedQuery, 5);
+                context = ragService.formatContext(chunks);
+            }
+        } catch (Exception e) {
+            log.warn("Error during RAG context retrieval, continuing without context: {}", e.getMessage());
+            // Continue without context if RAG fails
+        }
+
         try {
             HttpClient client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(30))
                 .build();
 
+            // Build conversation for LLM with history
             List<Map<String, Object>> contents = new ArrayList<>();
+            
+            // Build conversation history string for context
+            StringBuilder conversationBuilder = new StringBuilder();
+            if (conversationHistory != null && !conversationHistory.isEmpty()) {
+                conversationBuilder.append("Previous conversation:\n");
+                for (ChatRequest.ChatMessage msg : conversationHistory) {
+                    conversationBuilder.append(msg.getRole()).append(": ").append(msg.getContent()).append("\n");
+                }
+                conversationBuilder.append("\n");
+            }
+            
+            // Build the current message with RAG context if available
+            String enhancedMessage = context.isEmpty() 
+                ? userMessage 
+                : context + "\n\nUser question: " + userMessage;
+            
+            // Combine system instruction, conversation history, and current message
+            // This maintains compatibility with the original single-message format
+            String fullMessage = systemInstruction + "\n\n";
+            if (conversationBuilder.length() > 0) {
+                fullMessage += conversationBuilder.toString();
+            }
+            fullMessage += "User: " + enhancedMessage + "\n\nAssistant:";
+            
+            // Add as single user message (maintains backward compatibility)
             contents.add(Map.of(
-                "parts", List.of(
-                    Map.of("text", systemInstruction + "\n\nUser: " + userMessage + "\n\nAssistant:")
-                )
+                "parts", List.of(Map.of("text", fullMessage))
             ));
 
             Map<String, Object> requestBody = Map.of(
@@ -211,10 +266,9 @@ public class ChatService {
                 }
             }
 
+            // Handle error responses - extract actual error message from API
             log.error("Gemini API returned status: {} - {}", response.statusCode(), response.body());
-            String errorMsg = "en".equals(detectedLanguage)
-                ? "Sorry, I couldn't process your request. Please try again."
-                : "Xin lỗi, tôi không thể xử lý yêu cầu của bạn. Vui lòng thử lại.";
+            String errorMsg = extractErrorMessage(response.body(), detectedLanguage);
             return errorMsg;
 
         } catch (Exception e) {
@@ -224,6 +278,53 @@ public class ChatService {
                 : "Xin lỗi, đã xảy ra lỗi. Vui lòng thử lại sau.";
             return errorMsg;
         }
+    }
+
+    /**
+     * Extract error message from Gemini API error response
+     * Tries to parse the JSON error response and extract the actual error message
+     * 
+     * @param responseBody The error response body from API
+     * @param detectedLanguage The detected language of the user
+     * @return The extracted error message or a fallback message
+     */
+    private String extractErrorMessage(String responseBody, String detectedLanguage) {
+        if (responseBody == null || responseBody.trim().isEmpty()) {
+            return "en".equals(detectedLanguage)
+                ? "Sorry, I couldn't process your request. Please try again."
+                : "Xin lỗi, tôi không thể xử lý yêu cầu của bạn. Vui lòng thử lại.";
+        }
+
+        try {
+            // Try to parse the error response JSON
+            Map<String, Object> errorResponse = objectMapper.readValue(responseBody, Map.class);
+            
+            @SuppressWarnings("unchecked")
+            Map<String, Object> error = (Map<String, Object>) errorResponse.get("error");
+            
+            if (error != null) {
+                String message = (String) error.get("message");
+                if (message != null && !message.trim().isEmpty()) {
+                    // Return the exact error message from API
+                    log.debug("Extracted error message from API: {}", message);
+                    return message;
+                }
+                
+                // Try alternative error message fields
+                String status = (String) error.get("status");
+                if (status != null && !status.trim().isEmpty()) {
+                    return status;
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Failed to parse error response JSON: {}", e.getMessage());
+            // Fall through to default error message
+        }
+
+        // Fallback to default error message if parsing fails
+        return "en".equals(detectedLanguage)
+            ? "Sorry, I couldn't process your request. Please try again."
+            : "Xin lỗi, tôi không thể xử lý yêu cầu của bạn. Vui lòng thử lại.";
     }
 }
 

@@ -17,6 +17,54 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
     @Query("SELECT DISTINCT t.code FROM Trade t")
     List<String> findDistinctCodes();
     
+    @Query("SELECT DISTINCT t.code FROM Trade t WHERE t.tradeDate = :tradeDate")
+    List<String> findDistinctCodesByTradeDate(@Param("tradeDate") String tradeDate);
+    
+    @Query(value = """
+        SELECT trade_date
+        FROM (
+            SELECT DISTINCT trade_date,
+                CAST(
+                    SUBSTRING(trade_date, 7, 4) ||
+                    SUBSTRING(trade_date, 4, 2) ||
+                    SUBSTRING(trade_date, 1, 2)
+                AS INTEGER) as date_int
+            FROM trades
+        ) AS distinct_dates
+        ORDER BY date_int DESC
+        """, nativeQuery = true)
+    List<String> findDistinctTradeDates();
+    
+    @Query(value = """
+        SELECT trade_date
+        FROM (
+            SELECT DISTINCT trade_date,
+                CAST(
+                    SUBSTRING(trade_date, 7, 4) || 
+                    SUBSTRING(trade_date, 4, 2) || 
+                    SUBSTRING(trade_date, 1, 2)
+                AS INTEGER) as date_int
+            FROM trades
+            WHERE CAST(
+                SUBSTRING(trade_date, 7, 4) || 
+                SUBSTRING(trade_date, 4, 2) || 
+                SUBSTRING(trade_date, 1, 2)
+            AS INTEGER) >= CAST(:fromDateStr AS INTEGER)
+            AND CAST(
+                SUBSTRING(trade_date, 7, 4) || 
+                SUBSTRING(trade_date, 4, 2) || 
+                SUBSTRING(trade_date, 1, 2)
+            AS INTEGER) <= CAST(:toDateStr AS INTEGER)
+        ) AS distinct_dates
+        ORDER BY date_int DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<String> findDistinctTradeDatesInRange(
+        @Param("fromDateStr") String fromDateStr,
+        @Param("toDateStr") String toDateStr,
+        @Param("limit") int limit
+    );
+    
     // Find latest trade for a given code, ordering by date DESC then time DESC
     @Query("SELECT t FROM Trade t WHERE t.code = :code ORDER BY t.tradeDate DESC, t.tradeTime DESC")
     List<Trade> findLatestByCode(@Param("code") String code);
