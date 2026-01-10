@@ -261,7 +261,8 @@ public class ChatService {
                     List<Map<String, Object>> parts = 
                         (List<Map<String, Object>>) content.get("parts");
                     if (parts != null && !parts.isEmpty()) {
-                        return (String) parts.get(0).get("text");
+                        String responseText = (String) parts.get(0).get("text");
+                        return formatResponseWithDisclaimer(responseText, detectedLanguage);
                     }
                 }
             }
@@ -278,6 +279,63 @@ public class ChatService {
                 : "Xin lỗi, đã xảy ra lỗi. Vui lòng thử lại sau.";
             return errorMsg;
         }
+    }
+
+    /**
+     * Format response to ensure disclaimer is on a new line
+     * 
+     * @param responseText The response text from LLM
+     * @param detectedLanguage The detected language (en or vi)
+     * @return Formatted response with disclaimer on new line
+     */
+    private String formatResponseWithDisclaimer(String responseText, String detectedLanguage) {
+        if (responseText == null || responseText.trim().isEmpty()) {
+            return responseText;
+        }
+        
+        // Vietnamese disclaimer text
+        String viDisclaimer = "Xin lưu ý rằng thông tin này chỉ mang tính chất giáo dục và không phải là lời khuyên tài chính, bạn hãy luôn tự nghiên cứu kỹ lưỡng trước khi đưa ra bất kỳ quyết định đầu tư nào.";
+        // English disclaimer text
+        String enDisclaimer = "Please note that this information is for educational purposes only and is not financial advice. Always do your own thorough research before making any investment decisions.";
+        
+        String disclaimer = "en".equals(detectedLanguage) ? enDisclaimer : viDisclaimer;
+        
+        // Check if disclaimer exists in the response
+        if (responseText.contains(disclaimer)) {
+            // Find the position of the disclaimer
+            int disclaimerIndex = responseText.indexOf(disclaimer);
+            
+            // Get the text before the disclaimer
+            String textBefore = responseText.substring(0, disclaimerIndex).trim();
+            String textAfter = responseText.substring(disclaimerIndex + disclaimer.length()).trim();
+            
+            // If there's text before the disclaimer, ensure it ends with proper spacing
+            if (!textBefore.isEmpty()) {
+                // Remove any trailing punctuation that might be part of the sentence
+                textBefore = textBefore.replaceAll("[.,;:]\\s*$", "");
+                
+                // Ensure there's a double line break before the disclaimer
+                if (!textBefore.endsWith("\n\n") && !textBefore.endsWith("\r\n\r\n")) {
+                    // Check if it ends with a single newline
+                    if (textBefore.endsWith("\n") || textBefore.endsWith("\r\n")) {
+                        textBefore = textBefore + "\n";
+                    } else {
+                        textBefore = textBefore + "\n\n";
+                    }
+                }
+            }
+            
+            // Reconstruct the response with proper formatting
+            String formatted = textBefore + disclaimer;
+            if (!textAfter.isEmpty()) {
+                formatted = formatted + " " + textAfter;
+            }
+            
+            return formatted;
+        }
+        
+        // If disclaimer not found, return as is
+        return responseText;
     }
 
     /**
