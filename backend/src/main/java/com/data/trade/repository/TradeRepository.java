@@ -290,18 +290,23 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
 
     /**
      * Get last 10 trading days of aggregated statistics for multiple stocks in a single query
+     * Returns only trading days BEFORE today (excludes today) to allow verification of suggestions
      * Returns: code, trade_date, close_price, open_price, high_price, low_price,
      *          buy_volume, sell_volume, total_volume,
      *          large_buy_blocks, large_sell_blocks, medium_buy_blocks, medium_sell_blocks
      * This is optimized for batch processing to reduce database round trips
      */
     @Query(value = """
-        WITH last_10_dates AS (
+        WITH today_numeric AS (
+            SELECT CAST(TO_CHAR(CURRENT_DATE, 'YYYYMMDD') AS INTEGER) as today
+        ),
+        last_10_dates AS (
             SELECT DISTINCT 
                 trade_date,
                 trade_date_numeric
             FROM trades
             WHERE code IN :stockCodes
+              AND trade_date_numeric < (SELECT today FROM today_numeric)
             ORDER BY trade_date_numeric DESC
             LIMIT 10
         ),
