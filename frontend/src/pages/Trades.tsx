@@ -564,24 +564,14 @@ const Trades = () => {
       .finally(() => setLoading(false));
   };
 
-  const handleSort = (field: "code" | "time" | "price" | "volume") => {
-    let newDirection: "asc" | "desc" = "asc";
-    
-    if (sortField === field) {
-      // Toggle direction if same field
-      newDirection = sortDirection === "asc" ? "desc" : "asc";
-    } else {
-      // New field, default to ascending
-      newDirection = "asc";
-    }
-    
+  const handleSort = (field: "code" | "time" | "price" | "volume", direction: "asc" | "desc") => {
     // Update state
     setSortField(field);
-    setSortDirection(newDirection);
+    setSortDirection(direction);
     
     // Reset to first page and fetch sorted data from backend
     setPage(0);
-    fetchTrades(0, size, field, newDirection);
+    fetchTrades(0, size, field, direction);
   };
 
   // No client-side sorting - backend handles it
@@ -1031,81 +1021,113 @@ const Trades = () => {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[120px]">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={() => handleSort("code")}
-                  >
-                    {t('trades.code')}
-                    {sortField === "code" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="ml-2 h-4 w-4" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSort("code", "desc");
+                      }}
+                    >
+                      <ArrowDown className={`h-4 w-4 ${sortField === "code" && sortDirection === "desc" ? "opacity-100" : "opacity-50"}`} />
+                    </Button>
+                    <span className="flex-1 text-center">{t('trades.code')}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSort("code", "asc");
+                      }}
+                    >
+                      <ArrowUp className={`h-4 w-4 ${sortField === "code" && sortDirection === "asc" ? "opacity-100" : "opacity-50"}`} />
+                    </Button>
+                  </div>
                 </TableHead>
                 <TableHead className="w-[280px]">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={() => handleSort("time")}
-                  >
-                    {t('trades.time')}
-                    {sortField === "time" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="ml-2 h-4 w-4" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSort("time", "desc");
+                      }}
+                    >
+                      <ArrowDown className={`h-4 w-4 ${sortField === "time" && sortDirection === "desc" ? "opacity-100" : "opacity-50"}`} />
+                    </Button>
+                    <span className="flex-1 text-center">{t('trades.time')}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSort("time", "asc");
+                      }}
+                    >
+                      <ArrowUp className={`h-4 w-4 ${sortField === "time" && sortDirection === "asc" ? "opacity-100" : "opacity-50"}`} />
+                    </Button>
+                  </div>
                 </TableHead>
                 <TableHead className="w-[50px] text-center">{t('trades.side')}</TableHead>
                 <TableHead className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={() => handleSort("price")}
-                  >
-                    {t('trades.price')}
-                    {sortField === "price" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="ml-2 h-4 w-4" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                    )}
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSort("price", "desc");
+                      }}
+                    >
+                      <ArrowDown className={`h-4 w-4 ${sortField === "price" && sortDirection === "desc" ? "opacity-100" : "opacity-50"}`} />
+                    </Button>
+                    <span>{t('trades.price')}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSort("price", "asc");
+                      }}
+                    >
+                      <ArrowUp className={`h-4 w-4 ${sortField === "price" && sortDirection === "asc" ? "opacity-100" : "opacity-50"}`} />
+                    </Button>
+                  </div>
                 </TableHead>
                 <TableHead className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={() => handleSort("volume")}
-                  >
-                    {t('trades.volume')}
-                    {sortField === "volume" ? (
-                      sortDirection === "asc" ? (
-                        <ArrowUp className="ml-2 h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="ml-2 h-4 w-4" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-                    )}
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSort("volume", "desc");
+                      }}
+                    >
+                      <ArrowDown className={`h-4 w-4 ${sortField === "volume" && sortDirection === "desc" ? "opacity-100" : "opacity-50"}`} />
+                    </Button>
+                    <span>{t('trades.volume')}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSort("volume", "asc");
+                      }}
+                    >
+                      <ArrowUp className={`h-4 w-4 ${sortField === "volume" && sortDirection === "asc" ? "opacity-100" : "opacity-50"}`} />
+                    </Button>
+                  </div>
                 </TableHead>
               </TableRow>
             </TableHeader>
