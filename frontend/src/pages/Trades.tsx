@@ -1033,7 +1033,7 @@ const Trades = () => {
                     >
                       <ArrowDown className={`h-4 w-4 ${sortField === "code" && sortDirection === "desc" ? "opacity-100" : "opacity-50"}`} />
                     </Button>
-                    <span className="flex-1 text-center">{t('trades.code')}</span>
+                    <span>{t('trades.code')}</span>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -1060,7 +1060,7 @@ const Trades = () => {
                     >
                       <ArrowDown className={`h-4 w-4 ${sortField === "time" && sortDirection === "desc" ? "opacity-100" : "opacity-50"}`} />
                     </Button>
-                    <span className="flex-1 text-center">{t('trades.time')}</span>
+                    <span>{t('trades.time')}</span>
                     <Button
                       variant="ghost"
                       size="sm"
