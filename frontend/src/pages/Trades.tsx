@@ -285,15 +285,11 @@ const Trades = () => {
   // Note: We don't use cached fromDate/toDate - they will be reset based on weekday/weekend logic
   const savedFilters = loadFiltersFromStorage();
   
-  // Default chart date range: one month ago to today (unless user has saved a preference)
-  // If user has saved chart dates, use them; otherwise default to one month range
+  // Chart date range: always initialize to current date (to date) and one month before (from date)
+  // This ensures fresh data every time the page is accessed
   const todayDate = getTodayDate();
-  const defaultChartFromDate = (savedFilters.chartFromDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.chartFromDate))
-    ? savedFilters.chartFromDate
-    : getOneMonthAgo();
-  const defaultChartToDate = (savedFilters.chartToDate && /^\d{4}-\d{2}-\d{2}$/.test(savedFilters.chartToDate))
-    ? savedFilters.chartToDate
-    : todayDate;
+  const defaultChartFromDate = getOneMonthAgo();
+  const defaultChartToDate = todayDate;
 
   const [code, setCode] = useState(savedFilters.code || ""); // All by default (empty)
   const [codeOpen, setCodeOpen] = useState(false);
@@ -474,40 +470,44 @@ const Trades = () => {
     setLoading(true);
     api.get(`/api/trades?${params.toString()}`)
       .then(async (r) => {
+        // Check if response contains an error object (even if status is 200)
+        const responseData = await r.json();
+        
+        // Check if it's a rate limit error (could be 429 or 200 with error object)
+        if (r.status === 429 || (responseData.error === "Rate limit exceeded" && responseData.retryAfterSeconds)) {
+          const retryAfter = responseData.retryAfterSeconds || 60;
+          const message = responseData.message || "Rate limit exceeded. Please try again later.";
+          toast.error(
+            <span style={{ color: 'red' }}>
+              {message} Please try again in {retryAfter} seconds. Upgrade to VIP account to have more requests per minute.
+            </span>
+          );
+          // Throw a special error that the catch block can recognize
+          const rateLimitError = new Error("RATE_LIMIT_EXCEEDED");
+          (rateLimitError as any).isRateLimit = true;
+          throw rateLimitError;
+        }
+        
         if (!r.ok) {
-          // Check if it's a rate limit error
-          if (r.status === 429) {
-            try {
-              const errorData = await r.json();
-              const retryAfter = errorData.retryAfterSeconds || 60;
-              toast.error(`Rate limit exceeded. Please try again in ${retryAfter} seconds.`);
-              throw new Error(errorData.message || "Rate limit exceeded");
-            } catch (e) {
-              // If JSON parsing fails, fall through to generic error
-            }
-          }
           // Check if it's a date range validation error
           if (r.status === 400) {
-            try {
-              const errorData = await r.json();
-              if (errorData.error === "Date range exceeds one month limit") {
-                // Show alert dialog instead of toast
-                setDateRangeError({
-                  message: errorData.message || "The date range you selected exceeds one month. Please upgrade to VIP account to query larger date ranges.",
-                  fromDate: errorData.fromDate,
-                  toDate: errorData.toDate,
-                  minimumAllowedFromDate: errorData.minimumAllowedFromDate,
-                });
-                setShowDateRangeAlert(true);
-                throw new Error(errorData.message || "Date range exceeds one month limit");
-              }
-            } catch (e) {
-              // If JSON parsing fails, fall through to generic error
+            if (responseData.error === "Date range exceeds one month limit") {
+              // Show alert dialog instead of toast
+              setDateRangeError({
+                message: responseData.message || "The date range you selected exceeds one month. Please upgrade to VIP account to query larger date ranges.",
+                fromDate: responseData.fromDate,
+                toDate: responseData.toDate,
+                minimumAllowedFromDate: responseData.minimumAllowedFromDate,
+              });
+              setShowDateRangeAlert(true);
+              const dateRangeError = new Error("DATE_RANGE_EXCEEDED");
+              (dateRangeError as any).isDateRangeError = true;
+              throw dateRangeError;
             }
           }
           throw new Error("Failed to load trades");
         }
-        return r.json();
+        return responseData;
       })
       .then((response) => {
         // Backend may return either:
@@ -553,7 +553,14 @@ const Trades = () => {
         setSellCount(Number(response?.sellCount ?? sellTrades.length));
         setUnknownCount(Number(response?.unknownCount ?? unknownTrades.length));
       })
-      .catch(() => toast.error(t('error.loadFailed')))
+      .catch((error) => {
+        // Don't show generic error for rate limit or date range errors
+        // as they are already handled with specific messages
+        if ((error as any)?.isRateLimit || (error as any)?.isDateRangeError) {
+          return;
+        }
+        toast.error(t('error.loadFailed'));
+      })
       .finally(() => setLoading(false));
   };
 
@@ -652,6 +659,15 @@ const Trades = () => {
     toast.success("Filters cleared");
     // Note: useEffect will automatically trigger fetchTrades when filter states change
   };
+
+  // Reset chart dates to current date range on page load
+  useEffect(() => {
+    const today = getTodayDate();
+    const oneMonthAgo = getOneMonthAgo();
+    setChartToDate(today);
+    setChartFromDate(oneMonthAgo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on component mount
 
   // Load initial data when component mounts (with saved filters)
   // Wait for default date initialization before fetching
@@ -1172,25 +1188,29 @@ const Trades = () => {
                   <div>
                     <label className="text-sm font-medium mb-1 block">From Date</label>
                     <DatePicker
-                      key={`chart-from-${chartFromDate || 'default'}`}
-                      value={chartFromDate && isValidDateFormat(chartFromDate) ? chartFromDate : getOneMonthAgo()}
+                      key="chart-from-date"
+                      value={chartFromDate || getOneMonthAgo()}
                       onChange={(value) => {
-                        setChartFromDate(value);
+                        if (value) {
+                          setChartFromDate(value);
+                        }
                       }}
                       placeholder="Select from date"
-                      maxDate={chartToDate && isValidDateFormat(chartToDate) ? chartToDate : undefined}
+                      maxDate={chartToDate || undefined}
                     />
                   </div>
                   <div>
                     <label className="text-sm font-medium mb-1 block">To Date</label>
                     <DatePicker
-                      key={`chart-to-${chartToDate || 'default'}`}
-                      value={chartToDate && isValidDateFormat(chartToDate) ? chartToDate : getTodayDate()}
+                      key="chart-to-date"
+                      value={chartToDate || getTodayDate()}
                       onChange={(value) => {
-                        setChartToDate(value);
+                        if (value) {
+                          setChartToDate(value);
+                        }
                       }}
                       placeholder="Select to date"
-                      minDate={chartFromDate && isValidDateFormat(chartFromDate) ? chartFromDate : undefined}
+                      minDate={chartFromDate || undefined}
                     />
                   </div>
                 </div>

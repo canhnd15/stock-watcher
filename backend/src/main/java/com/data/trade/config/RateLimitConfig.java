@@ -35,9 +35,9 @@ public class RateLimitConfig {
     
     private Bandwidth getBandwidthForRole(UserRole role) {
         return switch (role) {
-            case ADMIN -> Bandwidth.classic(50, Refill.intervally(100, Duration.ofMinutes(1)));
-            case VIP -> Bandwidth.classic(20, Refill.intervally(50, Duration.ofMinutes(1)));
-            case NORMAL -> Bandwidth.classic(5, Refill.intervally(10, Duration.ofMinutes(1)));
+            case ADMIN -> Bandwidth.classic(100, Refill.intervally(100, Duration.ofMinutes(1)));
+            case VIP -> Bandwidth.classic(30, Refill.intervally(20, Duration.ofMinutes(1)));
+            case NORMAL -> Bandwidth.classic(10, Refill.intervally(10, Duration.ofMinutes(1)));
         };
     }
 

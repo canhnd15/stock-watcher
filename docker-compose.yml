@@ -33,6 +33,9 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-admin}
       - JWT_SECRET=${JWT_SECRET:-mySecretKeyForJWTTokenGenerationMustBeLongEnoughForHS512AlgorithmWithMinimum256Bits}
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-docker}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - AI_API_URL=${AI_API_URL:-https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent}
+      - AI_MODEL=${AI_MODEL:-gemini-2.5-flash}
     depends_on:
       postgres:
         condition: service_healthy

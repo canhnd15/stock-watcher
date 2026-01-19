@@ -4,12 +4,17 @@ import com.data.trade.constants.ApiEndpoints;
 import com.data.trade.constants.RoleConstants;
 import com.data.trade.dto.CreatePriceAlertRequest;
 import com.data.trade.dto.PriceAlertDTO;
+import com.data.trade.dto.PriceAlertCountsDTO;
 import com.data.trade.dto.UpdatePriceAlertRequest;
 import com.data.trade.model.User;
 import com.data.trade.service.PriceAlertService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,8 +32,29 @@ public class PriceAlertController {
     private final PriceAlertService priceAlertService;
 
     @GetMapping
-    public List<PriceAlertDTO> getAllPriceAlerts(@AuthenticationPrincipal User currentUser) {
-        return priceAlertService.getAllPriceAlertsForUser(currentUser.getId());
+    public Page<PriceAlertDTO> getAllPriceAlerts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction,
+            @RequestParam(required = false) Boolean active,
+            @AuthenticationPrincipal User currentUser) {
+        Pageable pageable;
+        if (sort != null && !sort.isBlank()) {
+            Sort.Direction sortDirection = 
+                "desc".equalsIgnoreCase(direction) ? 
+                Sort.Direction.DESC : 
+                Sort.Direction.ASC;
+            pageable = PageRequest.of(page, size, Sort.by(sortDirection, sort));
+        } else {
+            pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+        return priceAlertService.getAllPriceAlertsForUser(currentUser.getId(), pageable, active);
+    }
+
+    @GetMapping("/counts")
+    public PriceAlertCountsDTO getPriceAlertCounts(@AuthenticationPrincipal User currentUser) {
+        return priceAlertService.getPriceAlertCounts(currentUser.getId());
     }
 
     @PostMapping
@@ -93,9 +119,27 @@ public class PriceAlertController {
     }
 
     @PostMapping(ApiEndpoints.PRICE_ALERTS_REFRESH_PATH)
-    public ResponseEntity<?> refreshPriceAlerts(@AuthenticationPrincipal User currentUser) {
+    public ResponseEntity<?> refreshPriceAlerts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction,
+            @RequestParam(required = false) Boolean active,
+            @AuthenticationPrincipal User currentUser) {
         try {
-            List<PriceAlertDTO> alerts = priceAlertService.getAllPriceAlertsForUser(currentUser.getId());
+            // Create Pageable with sorting if sort parameter is provided
+            Pageable pageable;
+            if (sort != null && !sort.isBlank()) {
+                Sort.Direction sortDirection = 
+                    "desc".equalsIgnoreCase(direction) ? 
+                    Sort.Direction.DESC : 
+                    Sort.Direction.ASC;
+                pageable = PageRequest.of(page, size, Sort.by(sortDirection, sort));
+            } else {
+                // Default sort by createdAt descending (newest first)
+                pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+            }
+            Page<PriceAlertDTO> alerts = priceAlertService.getAllPriceAlertsForUser(currentUser.getId(), pageable, active);
             return ResponseEntity.ok(alerts);
         } catch (Exception e) {
             log.error("Failed to refresh price alerts", e);

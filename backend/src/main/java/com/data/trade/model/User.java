@@ -67,6 +67,21 @@ public class User implements UserDetails {
     @JsonIgnore
     private List<TrackedStock> trackedStocks = new ArrayList<>();
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    @JsonIgnore
+    private List<ShortTermTrackedStock> shortTermTrackedStocks = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    @JsonIgnore
+    private List<PriceAlert> priceAlerts = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    @JsonIgnore
+    private List<VipRequest> vipRequests = new ArrayList<>();
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {

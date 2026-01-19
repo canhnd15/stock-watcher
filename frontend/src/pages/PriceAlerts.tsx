@@ -33,6 +33,13 @@ import { TrendingUp, TrendingDown, Loader2, RefreshCw, Plus, Pencil, Trash2, Bel
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.tsx";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatNumberWithDots, parseFormattedNumber } from "@/lib/utils";
@@ -58,27 +65,110 @@ const PriceAlerts = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingAlert, setEditingAlert] = useState<PriceAlert | null>(null);
   
+  // Pagination states
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(5);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  
+  // Alert counts (independent of filter)
+  const [alertCounts, setAlertCounts] = useState({
+    totalCount: 0,
+    activeCount: 0,
+    inactiveCount: 0,
+  });
+  
   // Form states
   const [code, setCode] = useState("");
   const [reachPrice, setReachPrice] = useState("");
   const [dropPrice, setDropPrice] = useState("");
   const [reachVolume, setReachVolume] = useState("");
   
+  // Validation states
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [validatingCode, setValidatingCode] = useState(false);
+  const [reachPriceError, setReachPriceError] = useState<string | null>(null);
+  const [dropPriceError, setDropPriceError] = useState<string | null>(null);
+  const [reachVolumeError, setReachVolumeError] = useState<string | null>(null);
+  
+  // Debounce timer for stock code validation
+  const codeValidationDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  
   // WebSocket notifications
   const { isConnected, notifications: wsNotifications } = usePriceAlertNotifications();
   const processedNotificationsRef = useRef<Set<number>>(new Set());
+  
+  // Debounce timers for auto-completion (create dialog)
+  const reachPriceDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const dropPriceDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const reachVolumeDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Debounce timers for auto-completion (edit dialog)
+  const editReachPriceDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const editDropPriceDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const editReachVolumeDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Track if user is actively typing (to prevent auto-completion while typing)
+  const isTypingReachPrice = useRef(false);
+  const isTypingDropPrice = useRef(false);
+  const isTypingReachVolume = useRef(false);
+  const isTypingEditReachPrice = useRef(false);
+  const isTypingEditDropPrice = useRef(false);
+  const isTypingEditReachVolume = useRef(false);
 
-  const fetchAlerts = async () => {
+  const fetchAlertCounts = async () => {
+    try {
+      const response = await api.get('/api/price-alerts/counts');
+      if (response.ok) {
+        const counts = await response.json();
+        setAlertCounts({
+          totalCount: counts.totalCount || 0,
+          activeCount: counts.activeCount || 0,
+          inactiveCount: counts.inactiveCount || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching alert counts:', error);
+      // Don't show error toast for counts, just log it
+    }
+  };
+
+  const fetchAlerts = async (nextPage = page, nextSize = size, filter = statusFilter) => {
     try {
       setLoading(true);
-      const response = await api.get('/api/price-alerts');
+      const params = new URLSearchParams();
+      params.set("page", String(nextPage));
+      params.set("size", String(nextSize));
+      // Default sort by createdAt descending (newest first)
+      params.set("sort", "createdAt");
+      params.set("direction", "desc");
+      // Add active filter if not 'all'
+      if (filter === 'active') {
+        params.set("active", "true");
+      } else if (filter === 'inactive') {
+        params.set("active", "false");
+      }
+      
+      const response = await api.get(`/api/price-alerts?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch price alerts');
       }
       
-      const data: PriceAlert[] = await response.json();
-      setAlerts(data);
+      const data = await response.json();
+      
+      // Handle paginated response (Page<PriceAlertDTO>)
+      const alertsPage = data?.content ?? data ?? [];
+      const alertsList = Array.isArray(alertsPage) ? alertsPage : [];
+      
+      setAlerts(alertsList);
+      setTotalPages(data?.totalPages ?? 0);
+      setTotalElements(data?.totalElements ?? alertsList.length);
+      setPage(data?.number ?? nextPage);
+      setSize(data?.size ?? nextSize);
     } catch (error) {
       console.error('Error fetching price alerts:', error);
       toast.error('Failed to load price alerts');
@@ -90,7 +180,8 @@ const PriceAlerts = () => {
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
-      await fetchAlerts();
+      await fetchAlertCounts();
+      await fetchAlerts(page, size, statusFilter);
       toast.success('Price alerts refreshed');
     } catch (error) {
       console.error('Error refreshing price alerts:', error);
@@ -101,8 +192,24 @@ const PriceAlerts = () => {
   };
 
   useEffect(() => {
-    fetchAlerts();
+    fetchAlertCounts();
+    fetchAlerts(page, size, statusFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    // Reset to page 0 when filter changes
+    if (page !== 0) {
+      setPage(0);
+    }
+    fetchAlerts(0, size, statusFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
+
+  useEffect(() => {
+    fetchAlerts(page, size, statusFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, size]);
 
   const formatPrice = (price?: number) => {
     if (price === null || price === undefined) return "N/A";
@@ -138,7 +245,7 @@ const PriceAlerts = () => {
 
       // Refresh alerts if we have new notifications
       if (newNotifications.length > 0) {
-        fetchAlerts();
+        fetchAlerts(page, size, statusFilter);
       }
     }
   }, [wsNotifications]);
@@ -149,11 +256,161 @@ const PriceAlerts = () => {
     setDropPrice("");
     setReachVolume("");
     setEditingAlert(null);
+    // Clear validation errors
+    setCodeError(null);
+    setReachPriceError(null);
+    setDropPriceError(null);
+    setReachVolumeError(null);
+    // Clear debounce timers (create dialog)
+    if (reachPriceDebounceRef.current) clearTimeout(reachPriceDebounceRef.current);
+    if (dropPriceDebounceRef.current) clearTimeout(dropPriceDebounceRef.current);
+    if (reachVolumeDebounceRef.current) clearTimeout(reachVolumeDebounceRef.current);
+    if (codeValidationDebounceRef.current) clearTimeout(codeValidationDebounceRef.current);
+    // Clear debounce timers (edit dialog)
+    if (editReachPriceDebounceRef.current) clearTimeout(editReachPriceDebounceRef.current);
+    if (editDropPriceDebounceRef.current) clearTimeout(editDropPriceDebounceRef.current);
+    if (editReachVolumeDebounceRef.current) clearTimeout(editReachVolumeDebounceRef.current);
+    isTypingReachPrice.current = false;
+    isTypingDropPrice.current = false;
+    isTypingReachVolume.current = false;
+    isTypingEditReachPrice.current = false;
+    isTypingEditDropPrice.current = false;
+    isTypingEditReachVolume.current = false;
+  };
+  
+  // Validate stock code via API
+  const validateStockCode = async (codeValue: string): Promise<boolean> => {
+    if (!codeValue || codeValue.trim() === "") {
+      setCodeError("Stock code is required");
+      return false;
+    }
+    
+    if (codeValue.length !== 3) {
+      setCodeError("Stock code must be exactly 3 characters");
+      return false;
+    }
+    
+    setValidatingCode(true);
+    setCodeError(null);
+    
+    try {
+      const encodedCode = encodeURIComponent(codeValue.toUpperCase());
+      const response = await api.get(`/api/stocks/market-price/${encodedCode}`);
+      
+      if (response.ok) {
+        const data: { code: string; marketPrice: number | null } = await response.json();
+        if (data.marketPrice !== null && data.marketPrice !== undefined) {
+          setCodeError(null);
+          return true;
+        } else {
+          setCodeError("Stock code not found or invalid");
+          return false;
+        }
+      } else {
+        setCodeError("Failed to validate stock code");
+        return false;
+      }
+    } catch (error) {
+      console.error("Error validating stock code:", error);
+      setCodeError("Failed to validate stock code");
+      return false;
+    } finally {
+      setValidatingCode(false);
+    }
+  };
+  
+  // Validate prices
+  const validatePrices = (reach: string, drop: string): boolean => {
+    let isValid = true;
+    
+    // Reset errors first
+    setReachPriceError(null);
+    setDropPriceError(null);
+    
+    if (reach.trim()) {
+      const reachNum = parseFloat(parseFormattedNumber(reach));
+      if (isNaN(reachNum) || reachNum < 0) {
+        setReachPriceError("Reach price must be a positive number");
+        isValid = false;
+      }
+    }
+    
+    if (drop.trim()) {
+      const dropNum = parseFloat(parseFormattedNumber(drop));
+      if (isNaN(dropNum) || dropNum < 0) {
+        setDropPriceError("Drop price must be a positive number");
+        isValid = false;
+      }
+    }
+    
+    // Check if reach price > drop price when both are provided and valid
+    if (reach.trim() && drop.trim() && isValid) {
+      const reachNum = parseFloat(parseFormattedNumber(reach));
+      const dropNum = parseFloat(parseFormattedNumber(drop));
+      if (!isNaN(reachNum) && !isNaN(dropNum) && reachNum <= dropNum) {
+        setReachPriceError("Reach price must be greater than drop price");
+        isValid = false;
+      }
+    }
+    
+    return isValid;
+  };
+  
+  // Validate volume
+  const validateVolume = (volume: string): boolean => {
+    if (volume.trim()) {
+      const volumeNum = parseInt(parseFormattedNumber(volume));
+      if (isNaN(volumeNum) || volumeNum < 0) {
+        setReachVolumeError("Reach volume must be a positive number");
+        return false;
+      } else {
+        setReachVolumeError(null);
+        return true;
+      }
+    } else {
+      setReachVolumeError(null);
+      return true;
+    }
+  };
+  
+  // Auto-complete helper for price inputs (multiply by 1000)
+  const autoCompletePrice = (value: string, setter: (value: string) => void, isTypingRef: React.MutableRefObject<boolean>) => {
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || value === "" || value.includes(".")) return;
+    
+    // Only auto-complete if value is between 1 and 99 (small numbers)
+    if (numValue >= 1 && numValue < 100) {
+      const suggestedValue = (numValue * 1000).toString();
+      setter(suggestedValue);
+    }
+  };
+  
+  // Auto-complete helper for volume input (multiply by 1,000,000)
+  const autoCompleteVolume = (value: string, setter: (value: string) => void, isTypingRef: React.MutableRefObject<boolean>) => {
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || value === "" || value.includes(".")) return;
+    
+    // Only auto-complete if value is between 1 and 9 (single digit)
+    if (numValue >= 1 && numValue < 10) {
+      const suggestedValue = (numValue * 1000000).toString();
+      setter(suggestedValue);
+    }
   };
 
   const handleCreate = async () => {
-    if (!code.trim()) {
-      toast.error('Stock code is required');
+    // Validate stock code
+    const isCodeValid = await validateStockCode(code);
+    if (!isCodeValid) {
+      return;
+    }
+    
+    // Validate prices
+    if (!validatePrices(reachPrice, dropPrice)) {
+      return;
+    }
+    
+    // Validate volume
+    if (!validateVolume(reachVolume)) {
       return;
     }
 
@@ -163,21 +420,6 @@ const PriceAlerts = () => {
 
     if (reachPriceNum === undefined && dropPriceNum === undefined && reachVolumeNum === undefined) {
       toast.error('At least one alert condition (price or volume) must be provided');
-      return;
-    }
-
-    if (reachPriceNum !== undefined && (isNaN(reachPriceNum) || reachPriceNum <= 0)) {
-      toast.error('Invalid reach price');
-      return;
-    }
-
-    if (dropPriceNum !== undefined && (isNaN(dropPriceNum) || dropPriceNum <= 0)) {
-      toast.error('Invalid drop price');
-      return;
-    }
-
-    if (reachVolumeNum !== undefined && (isNaN(reachVolumeNum) || reachVolumeNum <= 0)) {
-      toast.error('Invalid reach volume');
       return;
     }
 
@@ -197,7 +439,10 @@ const PriceAlerts = () => {
       toast.success(`Price alert created for ${code.toUpperCase()}`);
       resetForm();
       setCreateDialogOpen(false);
-      await fetchAlerts();
+      // Reset to first page to show the newly created alert
+      setPage(0);
+      await fetchAlertCounts();
+      await fetchAlerts(0, size, statusFilter);
     } catch (error: any) {
       console.error('Error creating price alert:', error);
       toast.error(error.message || 'Failed to create price alert');
@@ -216,27 +461,28 @@ const PriceAlerts = () => {
   const handleUpdate = async () => {
     if (!editingAlert) return;
 
+    // Validate stock code
+    const isCodeValid = await validateStockCode(code);
+    if (!isCodeValid) {
+      return;
+    }
+    
+    // Validate prices
+    if (!validatePrices(reachPrice, dropPrice)) {
+      return;
+    }
+    
+    // Validate volume
+    if (!validateVolume(reachVolume)) {
+      return;
+    }
+
     const reachPriceNum = reachPrice.trim() ? parseFloat(parseFormattedNumber(reachPrice)) : null;
     const dropPriceNum = dropPrice.trim() ? parseFloat(parseFormattedNumber(dropPrice)) : null;
     const reachVolumeNum = reachVolume.trim() ? parseInt(parseFormattedNumber(reachVolume)) : null;
 
     if (reachPriceNum === null && dropPriceNum === null && reachVolumeNum === null) {
       toast.error('At least one alert condition (price or volume) must be provided');
-      return;
-    }
-
-    if (reachPriceNum !== null && (isNaN(reachPriceNum) || reachPriceNum <= 0)) {
-      toast.error('Invalid reach price');
-      return;
-    }
-
-    if (dropPriceNum !== null && (isNaN(dropPriceNum) || dropPriceNum <= 0)) {
-      toast.error('Invalid drop price');
-      return;
-    }
-
-    if (reachVolumeNum !== null && (isNaN(reachVolumeNum) || reachVolumeNum <= 0)) {
-      toast.error('Invalid reach volume');
       return;
     }
 
@@ -256,7 +502,8 @@ const PriceAlerts = () => {
       toast.success(`Price alert updated for ${code.toUpperCase()}`);
       resetForm();
       setEditDialogOpen(false);
-      await fetchAlerts();
+      await fetchAlertCounts();
+      await fetchAlerts(page, size, statusFilter);
     } catch (error: any) {
       console.error('Error updating price alert:', error);
       toast.error(error.message || 'Failed to update price alert');
@@ -272,7 +519,15 @@ const PriceAlerts = () => {
       }
 
       toast.success(`Price alert deleted for ${code}`);
-      await fetchAlerts();
+      // If we deleted the last item on the page and it's not the first page, go to previous page
+      await fetchAlertCounts();
+      if (alerts.length === 1 && page > 0) {
+        const prevPage = page - 1;
+        setPage(prevPage);
+        await fetchAlerts(prevPage, size, statusFilter);
+      } else {
+        await fetchAlerts(page, size, statusFilter);
+      }
     } catch (error) {
       console.error('Error deleting price alert:', error);
       toast.error('Failed to delete price alert');
@@ -288,15 +543,15 @@ const PriceAlerts = () => {
       }
 
       toast.success(`Price alert ${alert.active ? 'deactivated' : 'activated'} for ${alert.code}`);
-      await fetchAlerts();
+      await fetchAlertCounts();
+      await fetchAlerts(page, size, statusFilter);
     } catch (error) {
       console.error('Error toggling price alert:', error);
       toast.error('Failed to toggle price alert');
     }
   };
 
-  const activeCount = alerts.filter(a => a.active).length;
-  const inactiveCount = alerts.filter(a => !a.active).length;
+  // Counts are now fetched from the API via alertCounts state
 
   return (
     <div className="min-h-screen bg-background">
@@ -355,9 +610,37 @@ const PriceAlerts = () => {
                     <Input
                       id="code"
                       value={code}
-                      onChange={(e) => setCode(e.target.value.toUpperCase())}
-                      placeholder="e.g., FPT"
+                      maxLength={3}
+                      onChange={(e) => {
+                        const newValue = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                        setCode(newValue);
+                        setCodeError(null);
+                        
+                        // Clear existing debounce timer
+                        if (codeValidationDebounceRef.current) {
+                          clearTimeout(codeValidationDebounceRef.current);
+                        }
+                        
+                        // Validate when user stops typing (after 800ms) and code is 3 characters
+                        if (newValue.length === 3) {
+                          codeValidationDebounceRef.current = setTimeout(() => {
+                            validateStockCode(newValue);
+                          }, 800);
+                        } else if (newValue.length > 0 && newValue.length < 3) {
+                          setCodeError("Stock code must be exactly 3 characters");
+                        } else {
+                          setCodeError(null);
+                        }
+                      }}
+                      placeholder="e.g., VCB"
+                      className={codeError ? "border-red-500" : ""}
                     />
+                    {validatingCode && (
+                      <p className="text-xs text-muted-foreground mt-1">Validating stock code...</p>
+                    )}
+                    {codeError && !validatingCode && (
+                      <p className="text-xs text-red-500 mt-1">{codeError}</p>
+                    )}
                   </div>
                   <div className="border-t pt-4">
                     <Label className="text-base font-semibold mb-3 block">Price Alerts</Label>
@@ -372,11 +655,34 @@ const PriceAlerts = () => {
                             const rawValue = parseFormattedNumber(e.target.value);
                             if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
                               setReachPrice(rawValue);
+                              isTypingReachPrice.current = true;
+                              
+                              // Clear existing debounce timer
+                              if (reachPriceDebounceRef.current) {
+                                clearTimeout(reachPriceDebounceRef.current);
+                              }
+                              
+                              // Validate prices
+                              validatePrices(rawValue, dropPrice);
+                              
+                              // Set new debounce timer for auto-complete
+                              reachPriceDebounceRef.current = setTimeout(() => {
+                                isTypingReachPrice.current = false;
+                                autoCompletePrice(rawValue, setReachPrice, isTypingReachPrice);
+                                // Re-validate after auto-complete
+                                setTimeout(() => validatePrices(reachPrice, dropPrice), 100);
+                              }, 800); // Wait 800ms after user stops typing
                             }
                           }}
                           placeholder="e.g., 100000"
+                          className={reachPriceError ? "border-red-500" : ""}
                         />
-                        <p className="text-xs text-muted-foreground mt-1">Notify when price goes up to this level</p>
+                        {reachPriceError && (
+                          <p className="text-xs text-red-500 mt-1">{reachPriceError}</p>
+                        )}
+                        {!reachPriceError && (
+                          <p className="text-xs text-muted-foreground mt-1">Notify when price goes up to this level</p>
+                        )}
                       </div>
                       <div>
                         <Label htmlFor="dropPrice">Drop Price (VND)</Label>
@@ -388,11 +694,34 @@ const PriceAlerts = () => {
                             const rawValue = parseFormattedNumber(e.target.value);
                             if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
                               setDropPrice(rawValue);
+                              isTypingDropPrice.current = true;
+                              
+                              // Clear existing debounce timer
+                              if (dropPriceDebounceRef.current) {
+                                clearTimeout(dropPriceDebounceRef.current);
+                              }
+                              
+                              // Validate prices
+                              validatePrices(reachPrice, rawValue);
+                              
+                              // Set new debounce timer for auto-complete
+                              dropPriceDebounceRef.current = setTimeout(() => {
+                                isTypingDropPrice.current = false;
+                                autoCompletePrice(rawValue, setDropPrice, isTypingDropPrice);
+                                // Re-validate after auto-complete
+                                setTimeout(() => validatePrices(reachPrice, dropPrice), 100);
+                              }, 800); // Wait 800ms after user stops typing
                             }
                           }}
                           placeholder="e.g., 90000"
+                          className={dropPriceError ? "border-red-500" : ""}
                         />
-                        <p className="text-xs text-muted-foreground mt-1">Notify when price falls to this level</p>
+                        {dropPriceError && (
+                          <p className="text-xs text-red-500 mt-1">{dropPriceError}</p>
+                        )}
+                        {!dropPriceError && (
+                          <p className="text-xs text-muted-foreground mt-1">Notify when price falls to this level</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -409,11 +738,34 @@ const PriceAlerts = () => {
                             const rawValue = parseFormattedNumber(e.target.value);
                             if (rawValue === "" || /^\d*$/.test(rawValue)) {
                               setReachVolume(rawValue);
+                              isTypingReachVolume.current = true;
+                              
+                              // Clear existing debounce timer
+                              if (reachVolumeDebounceRef.current) {
+                                clearTimeout(reachVolumeDebounceRef.current);
+                              }
+                              
+                              // Validate volume
+                              validateVolume(rawValue);
+                              
+                              // Set new debounce timer for auto-complete
+                              reachVolumeDebounceRef.current = setTimeout(() => {
+                                isTypingReachVolume.current = false;
+                                autoCompleteVolume(rawValue, setReachVolume, isTypingReachVolume);
+                                // Re-validate after auto-complete
+                                setTimeout(() => validateVolume(reachVolume), 100);
+                              }, 800); // Wait 800ms after user stops typing
                             }
                           }}
                           placeholder="e.g., 5000000"
+                          className={reachVolumeError ? "border-red-500" : ""}
                         />
-                        <p className="text-xs text-muted-foreground mt-1">Notify when trading volume exceeds this amount</p>
+                        {reachVolumeError && (
+                          <p className="text-xs text-red-500 mt-1">{reachVolumeError}</p>
+                        )}
+                        {!reachVolumeError && (
+                          <p className="text-xs text-muted-foreground mt-1">Notify when trading volume exceeds this amount</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -439,7 +791,7 @@ const PriceAlerts = () => {
               <Bell className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{activeCount}</div>
+              <div className="text-2xl font-bold text-primary">{alertCounts.activeCount}</div>
               <CardDescription>Monitoring prices and volumes</CardDescription>
             </CardContent>
           </Card>
@@ -450,10 +802,38 @@ const PriceAlerts = () => {
               <Bell className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-muted-foreground">{inactiveCount}</div>
+              <div className="text-2xl font-bold text-muted-foreground">{alertCounts.inactiveCount}</div>
               <CardDescription>Currently paused</CardDescription>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Filter Controls */}
+        <div className="mb-4 flex items-center gap-2">
+          <Label className="text-sm font-medium">Filter by status:</Label>
+          <div className="flex gap-2">
+            <Button
+              variant={statusFilter === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('all')}
+            >
+              All ({alertCounts.totalCount})
+            </Button>
+            <Button
+              variant={statusFilter === 'active' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('active')}
+            >
+              Active ({alertCounts.activeCount})
+            </Button>
+            <Button
+              variant={statusFilter === 'inactive' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter('inactive')}
+            >
+              Inactive ({alertCounts.inactiveCount})
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -467,20 +847,33 @@ const PriceAlerts = () => {
           <Card className="max-w-md mx-auto">
             <CardContent className="p-12 text-center">
               <Bell className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-semibold mb-2">No alerts yet</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                {statusFilter === 'all' ? 'No alerts yet' : `No ${statusFilter} alerts`}
+              </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Create your first alert to get notified when stocks reach target prices or volumes.
+                {statusFilter === 'all' 
+                  ? 'Create your first alert to get notified when stocks reach target prices or volumes.'
+                  : `No ${statusFilter} alerts found on this page. Try changing the filter or navigate to another page.`
+                }
               </p>
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Alert
-              </Button>
+              {statusFilter === 'all' && (
+                <Button onClick={() => setCreateDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Your First Alert
+                </Button>
+              )}
+              {statusFilter !== 'all' && (
+                <Button variant="outline" onClick={() => setStatusFilter('all')}>
+                  Show All Alerts
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
-          <div className="rounded-lg border bg-card">
-            <div className="overflow-x-auto">
-              <Table>
+          <>
+            <div className="rounded-lg border bg-card">
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="min-w-[140px]">Stock</TableHead>
@@ -678,7 +1071,60 @@ const PriceAlerts = () => {
                 </TableBody>
               </Table>
             </div>
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t">
+                <div className="text-xs sm:text-sm text-muted-foreground">
+                  Showing {page * size + 1} to {Math.min((page + 1) * size, totalElements)} of {totalElements} alerts
+                </div>
+                <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                  <Select value={String(size)} onValueChange={(v) => { 
+                    const n = Number(v); 
+                    setSize(n); 
+                    setPage(0); 
+                    fetchAlerts(0, n); 
+                  }}>
+                    <SelectTrigger className="w-full sm:w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5 / page</SelectItem>
+                      <SelectItem value="10">10 / page</SelectItem>
+                      <SelectItem value="20">20 / page</SelectItem>
+                      <SelectItem value="50">50 / page</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={page <= 0 || loading} 
+                    onClick={() => { 
+                      const p = page - 1; 
+                      setPage(p); 
+                      fetchAlerts(p, size); 
+                    }} 
+                    className="flex-1 sm:flex-none"
+                  >
+                    Prev
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={page + 1 >= totalPages || loading} 
+                    onClick={() => { 
+                      const p = page + 1; 
+                      setPage(p); 
+                      fetchAlerts(p, size); 
+                    }} 
+                    className="flex-1 sm:flex-none"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
+          </>
         )}
 
         {/* Edit Dialog */}
@@ -699,9 +1145,37 @@ const PriceAlerts = () => {
                 <Input
                   id="edit-code"
                   value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  placeholder="e.g., FPT"
+                  maxLength={3}
+                  onChange={(e) => {
+                    const newValue = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    setCode(newValue);
+                    setCodeError(null);
+                    
+                    // Clear existing debounce timer
+                    if (codeValidationDebounceRef.current) {
+                      clearTimeout(codeValidationDebounceRef.current);
+                    }
+                    
+                    // Validate when user stops typing (after 800ms) and code is 3 characters
+                    if (newValue.length === 3) {
+                      codeValidationDebounceRef.current = setTimeout(() => {
+                        validateStockCode(newValue);
+                      }, 800);
+                    } else if (newValue.length > 0 && newValue.length < 3) {
+                      setCodeError("Stock code must be exactly 3 characters");
+                    } else {
+                      setCodeError(null);
+                    }
+                  }}
+                  placeholder="e.g., VCB"
+                  className={codeError ? "border-red-500" : ""}
                 />
+                {validatingCode && (
+                  <p className="text-xs text-muted-foreground mt-1">Validating stock code...</p>
+                )}
+                {codeError && !validatingCode && (
+                  <p className="text-xs text-red-500 mt-1">{codeError}</p>
+                )}
               </div>
               <div className="border-t pt-4">
                 <Label className="text-base font-semibold mb-3 block">Price Alerts</Label>
@@ -716,11 +1190,34 @@ const PriceAlerts = () => {
                         const rawValue = parseFormattedNumber(e.target.value);
                         if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
                           setReachPrice(rawValue);
+                          isTypingEditReachPrice.current = true;
+                          
+                          // Clear existing debounce timer
+                          if (editReachPriceDebounceRef.current) {
+                            clearTimeout(editReachPriceDebounceRef.current);
+                          }
+                          
+                          // Validate prices
+                          validatePrices(rawValue, dropPrice);
+                          
+                          // Set new debounce timer for auto-complete
+                          editReachPriceDebounceRef.current = setTimeout(() => {
+                            isTypingEditReachPrice.current = false;
+                            autoCompletePrice(rawValue, setReachPrice, isTypingEditReachPrice);
+                            // Re-validate after auto-complete
+                            setTimeout(() => validatePrices(reachPrice, dropPrice), 100);
+                          }, 800); // Wait 800ms after user stops typing
                         }
                       }}
                       placeholder="e.g., 100000"
+                      className={reachPriceError ? "border-red-500" : ""}
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Notify when price goes up to this level</p>
+                    {reachPriceError && (
+                      <p className="text-xs text-red-500 mt-1">{reachPriceError}</p>
+                    )}
+                    {!reachPriceError && (
+                      <p className="text-xs text-muted-foreground mt-1">Notify when price goes up to this level</p>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="edit-dropPrice">Drop Price (VND)</Label>
@@ -732,11 +1229,34 @@ const PriceAlerts = () => {
                         const rawValue = parseFormattedNumber(e.target.value);
                         if (rawValue === "" || /^\d*\.?\d*$/.test(rawValue)) {
                           setDropPrice(rawValue);
+                          isTypingEditDropPrice.current = true;
+                          
+                          // Clear existing debounce timer
+                          if (editDropPriceDebounceRef.current) {
+                            clearTimeout(editDropPriceDebounceRef.current);
+                          }
+                          
+                          // Validate prices
+                          validatePrices(reachPrice, rawValue);
+                          
+                          // Set new debounce timer for auto-complete
+                          editDropPriceDebounceRef.current = setTimeout(() => {
+                            isTypingEditDropPrice.current = false;
+                            autoCompletePrice(rawValue, setDropPrice, isTypingEditDropPrice);
+                            // Re-validate after auto-complete
+                            setTimeout(() => validatePrices(reachPrice, dropPrice), 100);
+                          }, 800); // Wait 800ms after user stops typing
                         }
                       }}
                       placeholder="e.g., 90000"
+                      className={dropPriceError ? "border-red-500" : ""}
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Notify when price falls to this level</p>
+                    {dropPriceError && (
+                      <p className="text-xs text-red-500 mt-1">{dropPriceError}</p>
+                    )}
+                    {!dropPriceError && (
+                      <p className="text-xs text-muted-foreground mt-1">Notify when price falls to this level</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -753,10 +1273,34 @@ const PriceAlerts = () => {
                         const rawValue = parseFormattedNumber(e.target.value);
                         if (rawValue === "" || /^\d*$/.test(rawValue)) {
                           setReachVolume(rawValue);
+                          isTypingEditReachVolume.current = true;
+                          
+                          // Clear existing debounce timer
+                          if (editReachVolumeDebounceRef.current) {
+                            clearTimeout(editReachVolumeDebounceRef.current);
+                          }
+                          
+                          // Validate volume
+                          validateVolume(rawValue);
+                          
+                          // Set new debounce timer for auto-complete
+                          editReachVolumeDebounceRef.current = setTimeout(() => {
+                            isTypingEditReachVolume.current = false;
+                            autoCompleteVolume(rawValue, setReachVolume, isTypingEditReachVolume);
+                            // Re-validate after auto-complete
+                            setTimeout(() => validateVolume(reachVolume), 100);
+                          }, 800); // Wait 800ms after user stops typing
                         }
                       }}
                       placeholder="e.g., 5000000"
+                      className={reachVolumeError ? "border-red-500" : ""}
                     />
+                    {reachVolumeError && (
+                      <p className="text-xs text-red-500 mt-1">{reachVolumeError}</p>
+                    )}
+                    {!reachVolumeError && (
+                      <p className="text-xs text-muted-foreground mt-1">Notify when trading volume exceeds this amount</p>
+                    )}
                     <p className="text-xs text-muted-foreground mt-1">Notify when trading volume exceeds this amount</p>
                   </div>
                     </div>

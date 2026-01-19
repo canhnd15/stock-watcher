@@ -38,6 +38,7 @@ const translations = {
     
     // Navigation
     'nav.trades': 'Giao dịch',
+    'nav.chat': 'Chat AI',
     'nav.trackedStocks': 'Cổ phiếu theo dõi',
     'nav.shortTermPortfolio': 'Portfolio ngắn hạn',
     'nav.suggestions': 'Gợi ý',
@@ -238,6 +239,7 @@ const translations = {
     
     // Navigation
     'nav.trades': 'Trades',
+    'nav.chat': 'AI Chat',
     'nav.trackedStocks': 'Tracked Stocks',
     'nav.shortTermPortfolio': 'Short-Term Portfolio',
     'nav.suggestions': 'Suggestions',
