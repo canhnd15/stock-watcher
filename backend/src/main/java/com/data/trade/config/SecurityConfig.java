@@ -36,50 +36,55 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(csrf -> csrf.disable())
-            .sessionManagement(session -> 
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-            .authorizeHttpRequests(auth -> auth
-                // Public endpoints
-                .requestMatchers(ApiEndpoints.API_AUTH_PATTERN, ApiEndpoints.WS_PATTERN, ApiEndpoints.ACTUATOR_HEALTH, "/actuator/**").permitAll()
-                
-                // Internal service endpoints (for cron-jobs service)
-                .requestMatchers(ApiEndpoints.API_INTERNAL_PATTERN).permitAll()
-                
-                // Trades - accessible to all authenticated users
-                .requestMatchers(ApiEndpoints.API_TRADES_PATTERN).authenticated()
-                
-                // Chat - accessible to all authenticated users
-                .requestMatchers(ApiEndpoints.API_CHAT_PATTERN).authenticated()
-                
-                // Tracked stocks - VIP and ADMIN only
-                .requestMatchers(ApiEndpoints.API_TRACKED_STOCKS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
-                
-                // Short-term tracked stocks - VIP and ADMIN only
-                .requestMatchers(ApiEndpoints.API_SHORT_TERM_TRACKED_STOCKS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
-                
-                // Suggestions - VIP and ADMIN only (if you have this endpoint)
-                .requestMatchers(ApiEndpoints.API_SUGGESTIONS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
-                
-                // Signals - VIP and ADMIN only
-                .requestMatchers(ApiEndpoints.API_SIGNALS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
-                
-                // Price Alerts - VIP and ADMIN only
-                .requestMatchers(ApiEndpoints.API_PRICE_ALERTS_PATTERN).hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
-                
-                // Admin endpoints - ADMIN only
-                .requestMatchers(ApiEndpoints.API_ADMIN_PATTERN).hasRole(RoleConstants.ROLE_ADMIN)
-                
-                // Config endpoints - ADMIN only
-                .requestMatchers(ApiEndpoints.API_CONFIG_PATTERN).hasRole(RoleConstants.ROLE_ADMIN)
-                
-                // All other requests require authentication
-                .anyRequest().authenticated()
-            )
-            .authenticationProvider(authenticationProvider())
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        // Public endpoints
+                        .requestMatchers(ApiEndpoints.API_AUTH_PATTERN, ApiEndpoints.WS_PATTERN,
+                                ApiEndpoints.ACTUATOR_HEALTH, "/actuator/**", "/v3/api-docs/**", "/swagger-ui/**",
+                                "/swagger-ui.html")
+                        .permitAll()
+
+                        // Internal service endpoints (for cron-jobs service)
+                        .requestMatchers(ApiEndpoints.API_INTERNAL_PATTERN).permitAll()
+
+                        // Trades - accessible to all authenticated users
+                        .requestMatchers(ApiEndpoints.API_TRADES_PATTERN).authenticated()
+
+                        // Chat - accessible to all authenticated users
+                        .requestMatchers(ApiEndpoints.API_CHAT_PATTERN).authenticated()
+
+                        // Tracked stocks - VIP and ADMIN only
+                        .requestMatchers(ApiEndpoints.API_TRACKED_STOCKS_PATTERN)
+                        .hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
+
+                        // Short-term tracked stocks - VIP and ADMIN only
+                        .requestMatchers(ApiEndpoints.API_SHORT_TERM_TRACKED_STOCKS_PATTERN)
+                        .hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
+
+                        // Suggestions - VIP and ADMIN only (if you have this endpoint)
+                        .requestMatchers(ApiEndpoints.API_SUGGESTIONS_PATTERN)
+                        .hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
+
+                        // Signals - VIP and ADMIN only
+                        .requestMatchers(ApiEndpoints.API_SIGNALS_PATTERN)
+                        .hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
+
+                        // Price Alerts - VIP and ADMIN only
+                        .requestMatchers(ApiEndpoints.API_PRICE_ALERTS_PATTERN)
+                        .hasAnyRole(RoleConstants.ROLE_VIP, RoleConstants.ROLE_ADMIN)
+
+                        // Admin endpoints - ADMIN only
+                        .requestMatchers(ApiEndpoints.API_ADMIN_PATTERN).hasRole(RoleConstants.ROLE_ADMIN)
+
+                        // Config endpoints - ADMIN only
+                        .requestMatchers(ApiEndpoints.API_CONFIG_PATTERN).hasRole(RoleConstants.ROLE_ADMIN)
+
+                        // All other requests require authentication
+                        .anyRequest().authenticated())
+                .authenticationProvider(authenticationProvider())
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -110,10 +115,9 @@ public class SecurityConfig {
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
 }
-
