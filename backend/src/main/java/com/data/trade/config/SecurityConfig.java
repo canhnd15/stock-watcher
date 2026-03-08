@@ -81,6 +81,9 @@ public class SecurityConfig {
                         // Config endpoints - ADMIN only
                         .requestMatchers(ApiEndpoints.API_CONFIG_PATTERN).hasRole(RoleConstants.ROLE_ADMIN)
 
+                        // Market codes - all authenticated (write ops protected via @PreAuthorize)
+                        .requestMatchers(ApiEndpoints.API_MARKET_CODES_PATTERN).authenticated()
+
                         // All other requests require authentication
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())

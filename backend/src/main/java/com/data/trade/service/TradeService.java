@@ -10,7 +10,6 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -31,9 +30,7 @@ public class TradeService {
 
     private final TradeRepository tradeRepository;
     private final TradeIngestionService ingestionService;
-
-    @Value("${market.vn30.codes}")
-    private List<String> vn30;
+    private final MarketCodeService marketCodeService;
     
     private static final DateTimeFormatter DD_MM_YYYY_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter YYYYMMDD_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -264,7 +261,7 @@ public class TradeService {
     }
 
     public void ingestAllVn30() {
-        for (String stockCode : vn30) {
+        for (String stockCode : marketCodeService.getActiveCodes()) {
             ingestionService.ingestForCode(stockCode);
         }
     }

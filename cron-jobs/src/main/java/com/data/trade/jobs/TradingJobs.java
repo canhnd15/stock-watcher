@@ -1,6 +1,8 @@
 package com.data.trade.jobs;
 
+import com.data.trade.model.MarketCode;
 import com.data.trade.model.TrackedStock;
+import com.data.trade.repository.MarketCodeRepository;
 import com.data.trade.repository.TrackedStockRepository;
 import com.data.trade.repository.TradeRepository;
 import com.data.trade.service.BackendApiClient;
@@ -35,12 +37,10 @@ public class TradingJobs {
     private final ConfigService configService;
     private final TrackedStockStatsService trackedStockStatsService;
     private final BackendApiClient backendApiClient;
+    private final MarketCodeRepository marketCodeRepository;
 
     @Value("${app.timezone:Asia/Ho_Chi_Minh}")
     private String appTz;
-
-    @Value("${market.vn30.codes}")
-    private List<String> vn30;
 
     /**
      * Refresh tracked stocks and generate recommendations every 5 minutes
@@ -138,7 +138,9 @@ public class TradingJobs {
         }
 
         // STEP 2: Ingest all stocks into staging table
-        for (String stockCode : vn30) {
+        List<String> stockCodes = marketCodeRepository.findAllByActiveTrueOrderByCodeAsc()
+                .stream().map(MarketCode::getCode).toList();
+        for (String stockCode : stockCodes) {
             try {
                 ingestionService.ingestForCodeToStaging(stockCode);
                 successCount++;

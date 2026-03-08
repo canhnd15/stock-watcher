@@ -83,13 +83,6 @@ interface DailyOHLCData {
   closePrice: number;
 }
 
-// VN30 Stock Codes
-const VN30_STOCKS = [
-    "ACB", "BCM", "BID", "CTG", "DGC", "FPT", "GAS", "GVR", "HDB", "HPG", "LPB", "MBB",
-    "MSN", "MWG", "PLX", "SAB", "SHB", "SSB", "SSI", "STB", "TCB", "TPB", "VCB", "VHM",
-    "VIB", "VIC", "VJC", "VNM", "VPB", "VRE"
-];
-
 // LocalStorage key for saving trade filters (will be made user-specific)
 const getTradesFiltersStorageKey = (userId: number | null) => {
   return userId ? `trades_filters_${userId}` : 'trades_filters';
@@ -115,6 +108,7 @@ interface TradeFilters {
 const Trades = () => {
   const { t } = useI18n();
   const { user } = useAuth();
+  const [marketCodes, setMarketCodes] = useState<string[]>([]);
   
   // Get today's date in yyyy-MM-dd format
   const getTodayDate = () => {
@@ -359,6 +353,13 @@ const Trades = () => {
     };
 
     initializeDefaultDates();
+
+    api.get("/api/market-codes")
+      .then((r) => r.json())
+      .then((data: { code: string; active: boolean }[]) =>
+        setMarketCodes(data.filter((m) => m.active).map((m) => m.code))
+      )
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount
 
@@ -740,7 +741,7 @@ const Trades = () => {
                           />
                           {t('common.all')}
                         </CommandItem>
-                        {VN30_STOCKS.map((stock) => (
+                        {marketCodes.map((stock) => (
                           <CommandItem
                             key={stock}
                             value={stock}

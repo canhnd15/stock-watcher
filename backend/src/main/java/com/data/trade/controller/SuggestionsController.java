@@ -7,13 +7,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.data.trade.dto.DailyStats;
+import com.data.trade.service.MarketCodeService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,13 +34,11 @@ import java.util.stream.Collectors;
 public class SuggestionsController {
 
     private final CombinedRecommendationService recommendationService;
+    private final MarketCodeService marketCodeService;
 
     @Autowired
     @Qualifier("recommendationExecutor")
     private Executor recommendationExecutor;
-
-    @Value("${market.vn30.codes}")
-    private List<String> vn30Codes;
 
     /**
      * Get recommendation for a specific stock
@@ -71,10 +69,10 @@ public class SuggestionsController {
             long startTime = System.currentTimeMillis();
 
             // Fetch all data in a single batch query
-            Map<String, List<DailyStats>> statsByCode = recommendationService.fetch10DaysDataBatch(vn30Codes);
+            Map<String, List<DailyStats>> statsByCode = recommendationService.fetch10DaysDataBatch(marketCodeService.getActiveCodes());
             
             // Process recommendations in parallel
-            List<CompletableFuture<RecommendationResult>> futures = vn30Codes.stream()
+            List<CompletableFuture<RecommendationResult>> futures = marketCodeService.getActiveCodes().stream()
                     .map(code -> CompletableFuture.supplyAsync(() -> {
                         try {
                             List<DailyStats> stats = statsByCode.getOrDefault(code, new ArrayList<>());
@@ -117,10 +115,10 @@ public class SuggestionsController {
             long startTime = System.currentTimeMillis();
 
             // Fetch all data in a single batch query
-            Map<String, List<DailyStats>> statsByCode = recommendationService.fetch10DaysDataBatch(vn30Codes);
+            Map<String, List<DailyStats>> statsByCode = recommendationService.fetch10DaysDataBatch(marketCodeService.getActiveCodes());
             
             // Process recommendations in parallel
-            List<CompletableFuture<RecommendationResult>> futures = vn30Codes.stream()
+            List<CompletableFuture<RecommendationResult>> futures = marketCodeService.getActiveCodes().stream()
                     .map(code -> CompletableFuture.supplyAsync(() -> {
                         try {
                             List<DailyStats> stats = statsByCode.getOrDefault(code, new ArrayList<>());
