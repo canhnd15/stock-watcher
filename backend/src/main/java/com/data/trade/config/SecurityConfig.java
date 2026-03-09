@@ -84,6 +84,9 @@ public class SecurityConfig {
                         // Market codes - all authenticated (write ops protected via @PreAuthorize)
                         .requestMatchers(ApiEndpoints.API_MARKET_CODES_PATTERN).authenticated()
 
+                        // User watchlist - all authenticated users can manage their own watchlist
+                        .requestMatchers(ApiEndpoints.API_USER_WATCHLIST_PATTERN).authenticated()
+
                         // All other requests require authentication
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())

@@ -82,6 +82,11 @@ public class User implements UserDetails {
     @JsonIgnore
     private List<VipRequest> vipRequests = new ArrayList<>();
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    @JsonIgnore
+    private List<UserWatchlist> watchlist = new ArrayList<>();
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {

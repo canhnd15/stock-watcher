@@ -26,9 +26,8 @@ import Header from "@/components/Header.tsx";
 import { useAuth } from "@/contexts/AuthContext";
 import { DatePicker } from "@/components/ui/date-picker.tsx";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Upload, Download, Check, ChevronsUpDown, Database, Plus, X } from "lucide-react";
+import { Loader2, RefreshCw, Upload, Download, Check, ChevronsUpDown, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge.tsx";
 
 interface MarketCodeEntry {
   id: number;
@@ -40,9 +39,6 @@ const Config = () => {
   const { token } = useAuth();
   const [marketCodes, setMarketCodes] = useState<MarketCodeEntry[]>([]);
   const [marketCodesLoading, setMarketCodesLoading] = useState(false);
-  const [newCode, setNewCode] = useState("");
-  const [addingCode, setAddingCode] = useState(false);
-  const [deletingCode, setDeletingCode] = useState<string | null>(null);
   const [vn30CronEnabled, setVn30CronEnabled] = useState(true);
   const [trackedStocksCronEnabled, setTrackedStocksCronEnabled] = useState(true);
   const [signalCalculationCronEnabled, setSignalCalculationCronEnabled] = useState(true);
@@ -89,43 +85,6 @@ const Config = () => {
       .then((data) => setMarketCodes(data))
       .catch(() => toast.error("Failed to load market codes"))
       .finally(() => setMarketCodesLoading(false));
-  };
-
-  const handleAddCode = () => {
-    const code = newCode.trim().toUpperCase();
-    if (!code) return;
-    setAddingCode(true);
-    fetch("/api/market-codes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ code }),
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to add");
-        return r.json();
-      })
-      .then(() => {
-        toast.success(`Added ${code}`);
-        setNewCode("");
-        loadMarketCodes();
-      })
-      .catch(() => toast.error(`Failed to add ${code}`))
-      .finally(() => setAddingCode(false));
-  };
-
-  const handleDeleteCode = (code: string) => {
-    setDeletingCode(code);
-    fetch(`/api/market-codes/${encodeURIComponent(code)}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to delete");
-        toast.success(`Removed ${code}`);
-        loadMarketCodes();
-      })
-      .catch(() => toast.error(`Failed to remove ${code}`))
-      .finally(() => setDeletingCode(null));
   };
 
   const loadConfig = () => {
@@ -465,66 +424,6 @@ const Config = () => {
         </div>
 
         <div className="grid gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Market Stock Codes</CardTitle>
-              <CardDescription>
-                Manage the list of stock codes monitored by the system. These codes are used for data ingestion, signal calculation, and suggestions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Input
-                    placeholder="Enter stock code (e.g. VNM)"
-                    value={newCode}
-                    onChange={(e) => setNewCode(e.target.value.toUpperCase())}
-                    onKeyDown={(e) => e.key === "Enter" && handleAddCode()}
-                    disabled={addingCode}
-                    className="flex-1"
-                  />
-                  <Button onClick={handleAddCode} disabled={!newCode.trim() || addingCode} className="w-full sm:w-auto">
-                    {addingCode ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                    Add Code
-                  </Button>
-                  <Button variant="outline" onClick={loadMarketCodes} disabled={marketCodesLoading} size="icon">
-                    <RefreshCw className={`h-4 w-4 ${marketCodesLoading ? "animate-spin" : ""}`} />
-                  </Button>
-                </div>
-
-                {marketCodesLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Loading...
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {marketCodes.map((m) => (
-                      <Badge key={m.code} variant="secondary" className="flex items-center gap-1 pr-1 text-sm">
-                        {m.code}
-                        <button
-                          onClick={() => handleDeleteCode(m.code)}
-                          disabled={deletingCode === m.code}
-                          className="ml-1 rounded-full hover:bg-destructive/20 p-0.5 transition-colors"
-                        >
-                          {deletingCode === m.code
-                            ? <Loader2 className="h-3 w-3 animate-spin" />
-                            : <X className="h-3 w-3" />
-                          }
-                        </button>
-                      </Badge>
-                    ))}
-                    {marketCodes.length === 0 && (
-                      <p className="text-sm text-muted-foreground">No stock codes configured.</p>
-                    )}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  {marketCodes.length} code{marketCodes.length !== 1 ? "s" : ""} configured
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>Stock Data Ingestion</CardTitle>

@@ -46,9 +46,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog.tsx";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, HelpCircle, RotateCcw, AlertCircle } from "lucide-react";
+import { Loader2, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Activity, X, RefreshCw, HelpCircle, RotateCcw, AlertCircle, Settings2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
@@ -109,7 +117,68 @@ const Trades = () => {
   const { t } = useI18n();
   const { user } = useAuth();
   const [marketCodes, setMarketCodes] = useState<string[]>([]);
-  
+
+  // Watchlist management state
+  const [watchlistDialogOpen, setWatchlistDialogOpen] = useState(false);
+  const [newWatchlistCode, setNewWatchlistCode] = useState("");
+  const [addingWatchlistCode, setAddingWatchlistCode] = useState(false);
+  const [deletingWatchlistCode, setDeletingWatchlistCode] = useState<string | null>(null);
+  const [resettingWatchlist, setResettingWatchlist] = useState(false);
+
+  const loadWatchlist = () => {
+    api.get("/api/user-watchlist")
+      .then((r) => r.json())
+      .then((data: { id: number; code: string }[]) =>
+        setMarketCodes(data.map((m) => m.code))
+      )
+      .catch(() => {});
+  };
+
+  const handleAddWatchlistCode = () => {
+    const code = newWatchlistCode.trim().toUpperCase();
+    if (!code) return;
+    setAddingWatchlistCode(true);
+    api.post("/api/user-watchlist", { code })
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to add");
+        return r.json();
+      })
+      .then(() => {
+        toast.success(`Added ${code} to watchlist`);
+        setNewWatchlistCode("");
+        loadWatchlist();
+      })
+      .catch(() => toast.error(`Failed to add ${code}`))
+      .finally(() => setAddingWatchlistCode(false));
+  };
+
+  const handleDeleteWatchlistCode = (code: string) => {
+    setDeletingWatchlistCode(code);
+    api.delete(`/api/user-watchlist/${encodeURIComponent(code)}`)
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to delete");
+        toast.success(`Removed ${code} from watchlist`);
+        loadWatchlist();
+      })
+      .catch(() => toast.error(`Failed to remove ${code}`))
+      .finally(() => setDeletingWatchlistCode(null));
+  };
+
+  const handleResetWatchlist = () => {
+    setResettingWatchlist(true);
+    api.post("/api/user-watchlist/reset")
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to reset");
+        return r.json();
+      })
+      .then((data: { id: number; code: string }[]) => {
+        setMarketCodes(data.map((m) => m.code));
+        toast.success("Watchlist reset to default VN30 stocks");
+      })
+      .catch(() => toast.error("Failed to reset watchlist"))
+      .finally(() => setResettingWatchlist(false));
+  };
+
   // Get today's date in yyyy-MM-dd format
   const getTodayDate = () => {
     const today = new Date();
@@ -354,12 +423,7 @@ const Trades = () => {
 
     initializeDefaultDates();
 
-    api.get("/api/market-codes")
-      .then((r) => r.json())
-      .then((data: { code: string; active: boolean }[]) =>
-        setMarketCodes(data.filter((m) => m.active).map((m) => m.code))
-      )
-      .catch(() => {});
+    loadWatchlist();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount
 
@@ -708,6 +772,7 @@ const Trades = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3 sm:gap-4">
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.code')}</label>
+              <div className="flex gap-1">
               <Popover open={codeOpen} onOpenChange={setCodeOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -765,8 +830,68 @@ const Trades = () => {
                   </Command>
                 </PopoverContent>
               </Popover>
+              <Dialog open={watchlistDialogOpen} onOpenChange={setWatchlistDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="icon" className="shrink-0" title="Manage watchlist">
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>My Watchlist</DialogTitle>
+                    <DialogDescription>
+                      Manage your personal stock watchlist. These codes appear in the stock code filter.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter stock code (e.g. VNM)"
+                        value={newWatchlistCode}
+                        onChange={(e) => setNewWatchlistCode(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => e.key === "Enter" && handleAddWatchlistCode()}
+                        disabled={addingWatchlistCode}
+                        className="flex-1"
+                      />
+                      <Button onClick={handleAddWatchlistCode} disabled={!newWatchlistCode.trim() || addingWatchlistCode} size="sm">
+                        {addingWatchlistCode ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 max-h-[300px] overflow-y-auto">
+                      {marketCodes.map((c) => (
+                        <Badge key={c} variant="secondary" className="flex items-center gap-1 pr-1 text-sm">
+                          {c}
+                          <button
+                            onClick={() => handleDeleteWatchlistCode(c)}
+                            disabled={deletingWatchlistCode === c}
+                            className="ml-1 rounded-full hover:bg-destructive/20 p-0.5 transition-colors"
+                          >
+                            {deletingWatchlistCode === c
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <X className="h-3 w-3" />
+                            }
+                          </button>
+                        </Badge>
+                      ))}
+                      {marketCodes.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No stocks in watchlist.</p>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">
+                        {marketCodes.length} stock{marketCodes.length !== 1 ? "s" : ""}
+                      </p>
+                      <Button variant="outline" size="sm" onClick={handleResetWatchlist} disabled={resettingWatchlist}>
+                        {resettingWatchlist ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RotateCcw className="mr-2 h-3 w-3" />}
+                        Reset to default
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              </div>
             </div>
-            
+
             <div>
               <label className="text-sm font-medium mb-1 block">{t('trades.type')}</label>
               <Select value={type} onValueChange={(value) => {

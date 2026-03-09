@@ -21,7 +21,8 @@ public class ApiEndpoints {
     public static final String API_CHAT = "/api/chat";
     public static final String API_INTERNAL = "/api/internal";
     public static final String API_MARKET_CODES = "/api/market-codes";
-    
+    public static final String API_USER_WATCHLIST = "/api/user-watchlist";
+
     // Auth endpoint paths (relative to base /api/auth)
     public static final String AUTH_REGISTER_PATH = "/register";
     public static final String AUTH_LOGIN_PATH = "/login";
@@ -105,6 +106,7 @@ public class ApiEndpoints {
     public static final String API_ADMIN_PATTERN = "/api/admin/**";
     public static final String API_CONFIG_PATTERN = "/api/config/**";
     public static final String API_MARKET_CODES_PATTERN = "/api/market-codes/**";
+    public static final String API_USER_WATCHLIST_PATTERN = "/api/user-watchlist/**";
     public static final String WS_PATTERN = "/ws/**";
     public static final String ACTUATOR_HEALTH = "/actuator/health";
 
