@@ -21,5 +21,13 @@ public class GlobalExceptionHandler {
                 .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
                 .body(errorResponse);
     }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("error", "Bad request");
+        errorResponse.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
 }
 

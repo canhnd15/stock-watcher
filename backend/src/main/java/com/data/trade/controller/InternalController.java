@@ -1,6 +1,7 @@
 package com.data.trade.controller;
 
 import com.data.trade.constants.ApiEndpoints;
+import com.data.trade.service.HighVolumeAlertService;
 import com.data.trade.service.PriceAlertNotificationService;
 import com.data.trade.service.SignalCalculationService;
 import com.data.trade.service.TrackedStockNotificationService;
@@ -25,6 +26,7 @@ public class InternalController {
     private final SignalCalculationService signalCalculationService;
     private final TrackedStockNotificationService trackedStockNotificationService;
     private final PriceAlertNotificationService priceAlertNotificationService;
+    private final HighVolumeAlertService highVolumeAlertService;
 
     /**
      * Internal endpoint for cron-jobs service to trigger signal calculation
@@ -107,6 +109,31 @@ public class InternalController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
+
+    /**
+     * Internal endpoint for cron-jobs service to trigger high-volume spike detection.
+     * Checks all active tracked stocks and sends WebSocket alerts to owning users.
+     */
+    @PostMapping(ApiEndpoints.INTERNAL_HIGH_VOLUME_CHECK_PATH)
+    public ResponseEntity<Map<String, String>> checkHighVolume() {
+        log.info("High volume check triggered by cron-jobs service via internal API");
+
+        try {
+            highVolumeAlertService.checkHighVolumeAndNotify();
+
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "High volume check completed.");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to check high volume: {}", e.getMessage(), e);
+
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "error");
+            response.put("message", "Failed to check high volume: " + e.getMessage());
+
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
 }
-
-

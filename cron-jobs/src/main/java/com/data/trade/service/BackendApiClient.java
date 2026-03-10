@@ -117,6 +117,36 @@ public class BackendApiClient {
     }
 
     /**
+     * Trigger high-volume spike detection on backend service.
+     * This will check all tracked stocks and send WebSocket alerts to owning users.
+     */
+    public void triggerHighVolumeCheck() {
+        try {
+            WebClient webClient = webClientBuilder
+                    .baseUrl(backendBaseUrl)
+                    .build();
+
+            log.info("Calling backend API to trigger high volume check: {}/api/internal/high-volume/check", backendBaseUrl);
+
+            webClient.post()
+                    .uri("/api/internal/high-volume/check")
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .retryWhen(Retry.fixedDelay(2, Duration.ofSeconds(1))
+                            .filter(throwable -> {
+                                log.warn("Retrying backend API call after error: {}", throwable.getMessage());
+                                return true;
+                            }))
+                    .doOnSuccess(response -> log.info("Backend high volume check triggered successfully"))
+                    .doOnError(error -> log.error("Failed to trigger high volume check on backend: {}", error.getMessage(), error))
+                    .block(Duration.ofSeconds(10));
+
+        } catch (Exception e) {
+            log.error("Error calling backend API for high volume check: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
      * Trigger RAG indexing for a specific trade date
      * Called after table swap to index new trade data
      */

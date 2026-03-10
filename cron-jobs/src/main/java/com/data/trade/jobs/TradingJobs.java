@@ -218,6 +218,41 @@ public class TradingJobs {
     }
 
     /**
+     * Check for high-volume spikes on tracked stocks every 5 minutes.
+     * Only runs during trading hours (Mon-Fri, 9:15 AM – 3:00 PM).
+     */
+    @Scheduled(cron = "${cron.high-volume.check}", zone = "${cron.timezone}")
+    public void checkHighVolume() {
+        if (!configService.isTrackedStocksCronEnabled()) {
+            log.debug("Tracked stocks cron disabled - skipping high-volume check");
+            return;
+        }
+
+        ZoneId zone = ZoneId.of(appTz);
+        LocalDateTime now = LocalDateTime.now(zone);
+        DayOfWeek dayOfWeek = now.toLocalDate().getDayOfWeek();
+
+        if (dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY) {
+            log.debug("High-volume check skipped: {} is not a trading day", dayOfWeek);
+            return;
+        }
+
+        LocalTime currentTime = now.toLocalTime();
+        if (currentTime.isBefore(LocalTime.of(9, 15)) || currentTime.isAfter(LocalTime.of(15, 0))) {
+            log.debug("High-volume check skipped: {} is outside trading hours", currentTime);
+            return;
+        }
+
+        log.info("Starting high-volume check via backend API...");
+        try {
+            backendApiClient.triggerHighVolumeCheck();
+            log.info("High-volume check completed via backend API");
+        } catch (Exception ex) {
+            log.error("Failed to trigger high-volume check via backend API: {}", ex.getMessage(), ex);
+        }
+    }
+
+    /**
      * Check price alerts and send notifications every 2 minutes
      * Runs at: 00:00, 00:02, 00:04, ... 23:58
      */

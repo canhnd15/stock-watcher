@@ -15,10 +15,21 @@ export interface SignalNotification {
   priceChange: number;
 }
 
+export interface HighVolumeNotification {
+  code: string;
+  tradeDate: string;
+  todayVolume: number;
+  averageVolume: number;
+  volumeRatio: number;
+  lookbackDays: number;
+  timestamp: string;
+}
+
 export const useWebSocket = () => {
   const { user } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [signals, setSignals] = useState<SignalNotification[]>([]);
+  const [highVolumeAlerts, setHighVolumeAlerts] = useState<HighVolumeNotification[]>([]);
   const clientRef = useRef<Client | null>(null);
   const maxSignals = 15;
 
@@ -55,6 +66,33 @@ export const useWebSocket = () => {
             }
           });
           
+          // Subscribe to user-specific high-volume alerts
+          const highVolumeTopic = `/topic/high-volume/user/${user.id}`;
+          client.subscribe(highVolumeTopic, (message: Message) => {
+            try {
+              const alert: HighVolumeNotification = JSON.parse(message.body);
+
+              setHighVolumeAlerts((prev) => {
+                const newAlerts = [alert, ...prev];
+                return newAlerts.slice(0, maxSignals);
+              });
+
+              // Show browser notification
+              if ('Notification' in window && Notification.permission === 'granted') {
+                const volFormatted = (alert.todayVolume / 1_000_000).toFixed(1);
+                const avgFormatted = (alert.averageVolume / 1_000_000).toFixed(1);
+                new Notification(`HIGH VOLUME: ${alert.code}`, {
+                  body: `Volume ${volFormatted}M (${alert.volumeRatio}x avg ${avgFormatted}M over ${alert.lookbackDays} days)`,
+                  icon: '/favicon.ico',
+                  tag: `high-vol-${alert.code}`,
+                  requireInteraction: false,
+                });
+              }
+            } catch (error) {
+              console.error('Failed to parse high-volume alert:', error);
+            }
+          });
+
           // Subscribe to user-specific signals
           client.subscribe(userTopic, (message: Message) => {
             try {
@@ -159,6 +197,10 @@ export const useWebSocket = () => {
     setSignals([]);
   }, []);
 
+  const clearHighVolumeAlerts = useCallback(() => {
+    setHighVolumeAlerts([]);
+  }, []);
+
   useEffect(() => {
     connect();
 
@@ -171,6 +213,8 @@ export const useWebSocket = () => {
     isConnected,
     signals,
     clearSignals,
+    highVolumeAlerts,
+    clearHighVolumeAlerts,
   };
 };
 

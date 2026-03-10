@@ -509,4 +509,39 @@ public interface TradeRepository extends JpaRepository<Trade, Long>, JpaSpecific
             @Param("code") String code,
             @Param("tradeDate") String tradeDate
     );
+
+    /**
+     * Get daily total volume for the last N trading days for a stock.
+     * Returns: trade_date, total_volume (ordered by date DESC — most recent first).
+     */
+    @Query(value = """
+        WITH recent_dates AS (
+            SELECT DISTINCT trade_date,
+                CAST(
+                    SUBSTRING(trade_date, 7, 4) ||
+                    SUBSTRING(trade_date, 4, 2) ||
+                    SUBSTRING(trade_date, 1, 2)
+                AS INTEGER) AS date_int
+            FROM trades
+            WHERE UPPER(code) = UPPER(:stockCode)
+            ORDER BY date_int DESC
+            LIMIT :days
+        )
+        SELECT
+            t.trade_date,
+            SUM(t.volume) AS total_volume
+        FROM trades t
+        WHERE UPPER(t.code) = UPPER(:stockCode)
+          AND t.trade_date IN (SELECT trade_date FROM recent_dates)
+        GROUP BY t.trade_date
+        ORDER BY CAST(
+            SUBSTRING(t.trade_date, 7, 4) ||
+            SUBSTRING(t.trade_date, 4, 2) ||
+            SUBSTRING(t.trade_date, 1, 2)
+        AS INTEGER) DESC
+        """, nativeQuery = true)
+    List<Object[]> findDailyVolumeForLastNDays(
+            @Param("stockCode") String stockCode,
+            @Param("days") int days
+    );
 }

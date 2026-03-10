@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/table.tsx";
 import Header from "@/components/Header.tsx";
 import { toast } from "sonner";
-import { Loader2, Check, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Pencil, X, Activity, RefreshCw, TrendingUp, TrendingDown, MoreVertical, RotateCcw } from "lucide-react";
+import { Loader2, Check, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Pencil, X, Activity, RefreshCw, TrendingUp, TrendingDown, MoreVertical, RotateCcw, BarChart3 } from "lucide-react";
 import { Input } from "@/components/ui/input.tsx";
 import { useTrackedStockStats } from "@/hooks/useTrackedStockStats";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -170,7 +170,7 @@ const TrackedStocks = () => {
   const { statsMap, isConnected: statsConnected } = useTrackedStockStats();
 
   // Real-time Signals
-  const { isConnected: signalsConnected, signals, clearSignals } = useWebSocket();
+  const { isConnected: signalsConnected, signals, clearSignals, highVolumeAlerts, clearHighVolumeAlerts } = useWebSocket();
   const [refreshingSignals, setRefreshingSignals] = useState(false);
   
   // Refresh market price state
@@ -3886,6 +3886,98 @@ const TrackedStocks = () => {
                 </Button>
               </div>
             </div>
+          )}
+        </div>
+
+        {/* High Volume Alerts Section */}
+        <div className="mt-12 pt-8 border-t">
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="h-6 w-6 text-amber-600" />
+                <div>
+                  <h2 className="text-2xl font-bold">High Volume Alerts</h2>
+                  <p className="text-sm text-muted-foreground">Unusually high daily volume detected on tracked stocks (money flow signal)</p>
+                </div>
+              </div>
+            </div>
+
+            {highVolumeAlerts.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearHighVolumeAlerts}
+                className="mb-4"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Clear ({highVolumeAlerts.length})
+              </Button>
+            )}
+          </div>
+
+          {highVolumeAlerts.length > 0 ? (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[100px]">Code</TableHead>
+                      <TableHead className="w-[120px]">Trade Date</TableHead>
+                      <TableHead className="text-right">Today Volume</TableHead>
+                      <TableHead className="text-right">Avg Volume</TableHead>
+                      <TableHead className="text-right">Ratio</TableHead>
+                      <TableHead className="w-[100px]">Lookback</TableHead>
+                      <TableHead className="w-[150px]">Time</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {highVolumeAlerts.map((alert, index) => (
+                      <TableRow
+                        key={`${alert.code}-${alert.tradeDate}-${index}`}
+                        className="bg-amber-50/50 animate-in fade-in duration-300"
+                      >
+                        <TableCell className="font-bold">{alert.code}</TableCell>
+                        <TableCell>{alert.tradeDate}</TableCell>
+                        <TableCell className="text-right font-mono font-semibold">
+                          {alert.todayVolume.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-muted-foreground">
+                          {alert.averageVolume.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge className="bg-amber-600 hover:bg-amber-700">
+                            {alert.volumeRatio}x
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {alert.lookbackDays} days
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {new Date(alert.timestamp).toLocaleString('en-US', {
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="max-w-md mx-auto">
+              <CardContent className="p-12 text-center">
+                <div className="text-6xl mb-4 opacity-50">📊</div>
+                <h3 className="text-lg font-semibold mb-2">
+                  {signalsConnected ? 'Monitoring volume...' : 'Connecting...'}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Alerts appear when daily volume exceeds 2x the 20-day average
+                </p>
+              </CardContent>
+            </Card>
           )}
         </div>
 

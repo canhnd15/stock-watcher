@@ -134,22 +134,24 @@ const Trades = () => {
       .catch(() => {});
   };
 
-  const handleAddWatchlistCode = () => {
+  const handleAddWatchlistCode = async () => {
     const code = newWatchlistCode.trim().toUpperCase();
     if (!code) return;
     setAddingWatchlistCode(true);
-    api.post("/api/user-watchlist", { code })
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to add");
-        return r.json();
-      })
-      .then(() => {
-        toast.success(`Added ${code} to watchlist`);
-        setNewWatchlistCode("");
-        loadWatchlist();
-      })
-      .catch(() => toast.error(`Failed to add ${code}`))
-      .finally(() => setAddingWatchlistCode(false));
+    try {
+      const r = await api.post("/api/user-watchlist", { code });
+      if (!r.ok) {
+        const errorData = await r.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to add ${code}`);
+      }
+      toast.success(`Added ${code} to watchlist`);
+      setNewWatchlistCode("");
+      loadWatchlist();
+    } catch (error: any) {
+      toast.error(error.message || `Failed to add ${code}`);
+    } finally {
+      setAddingWatchlistCode(false);
+    }
   };
 
   const handleDeleteWatchlistCode = (code: string) => {
