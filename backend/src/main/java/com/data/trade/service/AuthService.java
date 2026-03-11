@@ -31,6 +31,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
+    private final EmailService emailService;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -61,10 +62,9 @@ public class AuthService {
 
         user = userRepository.save(user);
 
-        // TODO: Send verification email
-        // For now, we'll just log it. In production, you would send an actual email
-        log.info("Email verification token for {}: {}", user.getEmail(), verificationToken);
-        log.info("Verification link: /api/auth/verify-email?token={}", verificationToken);
+        // Send verification email
+        emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), verificationToken);
+        log.info("Verification email sent to {}", user.getEmail());
 
         return mapToUserResponse(user);
     }
@@ -87,6 +87,26 @@ public class AuthService {
         log.info("Email verified for user: {}", user.getUsername());
     }
 
+    @Transactional
+    public void resendVerificationEmail(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("No account found with this email"));
+
+        if (Boolean.TRUE.equals(user.getEmailVerified())) {
+            throw new RuntimeException("Email is already verified");
+        }
+
+        String verificationToken = generateVerificationToken();
+        OffsetDateTime tokenExpiry = OffsetDateTime.now().plusDays(7);
+
+        user.setEmailVerificationToken(verificationToken);
+        user.setEmailVerificationTokenExpiry(tokenExpiry);
+        userRepository.save(user);
+
+        emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), verificationToken);
+        log.info("Verification email resent to {}", user.getEmail());
+    }
+
     private String generateVerificationToken() {
         SecureRandom random = new SecureRandom();
         byte[] bytes = new byte[32];
@@ -103,10 +123,15 @@ public class AuthService {
                 )
         );
 
+        User user = (User) authentication.getPrincipal();
+
+        // Block unverified users
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+            throw new RuntimeException("EMAIL_NOT_VERIFIED");
+        }
+
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String token = tokenProvider.generateToken(authentication);
-
-        User user = (User) authentication.getPrincipal();
         
         // Update last login
         user.setLastLoginAt(OffsetDateTime.now());

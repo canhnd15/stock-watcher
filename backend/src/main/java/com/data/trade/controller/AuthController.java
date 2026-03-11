@@ -33,7 +33,10 @@ public class AuthController {
         try {
             LoginResponse response = authService.login(request);
             return ResponseEntity.ok(response);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
+            if ("EMAIL_NOT_VERIFIED".equals(e.getMessage())) {
+                return ResponseEntity.status(403).body("EMAIL_NOT_VERIFIED");
+            }
             return ResponseEntity.badRequest().body("Invalid username or password");
         }
     }
@@ -52,7 +55,17 @@ public class AuthController {
     public ResponseEntity<?> verifyEmail(@RequestParam String token) {
         try {
             authService.verifyEmail(token);
-            return ResponseEntity.ok("Email verified successfully");
+            return ResponseEntity.ok("Email verified successfully! You can now log in.");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/resend-verification")
+    public ResponseEntity<?> resendVerification(@RequestParam String email) {
+        try {
+            authService.resendVerificationEmail(email);
+            return ResponseEntity.ok("Verification email sent");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
