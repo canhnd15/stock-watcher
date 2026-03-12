@@ -1,4 +1,14 @@
 services:
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: trade_mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    networks:
+      - trade-network
+
   postgres:
     image: pgvector/pgvector:pg16
     container_name: trade_postgres
@@ -37,9 +47,14 @@ services:
       - AI_API_KEY=${AI_API_KEY:-}
       - AI_API_URL=${AI_API_URL:-https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent}
       - AI_MODEL=${AI_MODEL:-gemini-2.5-flash}
+      - MAIL_HOST=mailhog
+      - MAIL_PORT=1025
+      - APP_MAIL_BASE_URL=${APP_MAIL_BASE_URL:-http://localhost:8089}
     depends_on:
       postgres:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8899/actuator/health"]
       interval: 30s

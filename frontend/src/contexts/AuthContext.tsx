@@ -65,6 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (!response.ok) {
       const error = await response.text();
+      // Propagate the exact error message so Login page can detect EMAIL_NOT_VERIFIED
       throw new Error(error || 'Login failed');
     }
 
@@ -85,9 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const error = await response.text();
       throw new Error(error || 'Registration failed');
     }
-
-    // Auto-login after registration
-    await login(username, password);
+    // Do NOT auto-login — user must verify email first
   };
 
   const logout = () => {
